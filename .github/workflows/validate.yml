@@ -1,0 +1,36 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every agent & skill declares frontmatter with a name
+        run: |
+          fail=0
+          for f in agents/*.md skills/*/SKILL.md; do
+            if [ "$(head -1 "$f")" != "---" ]; then
+              echo "::error file=$f::missing YAML frontmatter (must start with ---)"; fail=1; continue
+            fi
+            if ! sed -n '2,/^---$/p' "$f" | grep -q '^name:'; then
+              echo "::error file=$f::frontmatter is missing a 'name:' field"; fail=1
+            fi
+          done
+          exit $fail
+
+      - name: No private or employer references leak in
+        run: |
+          # A safety gate: the public repo must never contain private project
+          # names, employer identities, or absolute home paths.
+          if grep -rniE 'botdo|accrualify|/Users/[a-z]' \
+               --include='*.md' --include='*.json' --include='*.sh' \
+               --exclude-dir=.git --exclude-dir=.github .; then
+            echo "::error::found a private reference above — scrub it before merging"
+            exit 1
+          fi
+          echo "clean — no private references found"

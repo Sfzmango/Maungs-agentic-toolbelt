@@ -1,0 +1,22 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Local-only / scratch
+*.local
+scratch/
+tmp/
+screenshots/
+*.log
+
+# Secrets — never commit these
+.env
+.env.*
+*.pem
+*.key
+
+# Node (only if you add tooling)
+node_modules/
