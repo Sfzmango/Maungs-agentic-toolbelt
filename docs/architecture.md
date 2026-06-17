@@ -1,6 +1,6 @@
 # Architecture
 
-This document is the end-to-end narrative of the `claude-dev-pipeline`: how a product
+This document is the end-to-end narrative of the `Maungs-agentic-toolbelt`: how a product
 ask becomes a merged PR, and the four side-flows (bug, wiki, chore, handoff) that
 feed into or run alongside that main line.
 

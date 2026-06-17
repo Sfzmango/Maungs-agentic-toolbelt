@@ -11,12 +11,12 @@ This guide takes you from a fresh clone to running the pipeline on your own repo
 ## 1. Install the agents & skills
 
 ```bash
-git clone https://github.com/Sfzmango/claude-dev-pipeline.git
-cd claude-dev-pipeline
+git clone https://github.com/Sfzmango/Maungs-agentic-toolbelt.git
+cd Maungs-agentic-toolbelt
 ./install.sh                 # copy into ~/.claude   (use --symlink to track updates via git pull)
 ```
 
-Or install as a plugin: `/plugin marketplace add Sfzmango/claude-dev-pipeline` then `/plugin install claude-dev-pipeline`.
+Or install as a plugin: `/plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` then `/plugin install maungs-agentic-toolbelt`.
 
 These install **globally** into `~/.claude`, so they're available in every repo on your machine — you don't reinstall per project.
 

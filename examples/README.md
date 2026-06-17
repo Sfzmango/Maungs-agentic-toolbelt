@@ -87,7 +87,7 @@ Pick one. Both make the 12 agents (`@architect`, `@developer`, `@pr-reviewer`,
 **Option B — as a Claude Code plugin (one command)**
 
 This repo ships a `.claude-plugin/plugin.json`, so it installs as the
-`claude-dev-pipeline` plugin. See the repo root README's "Install as a plugin"
+`maungs-agentic-toolbelt` plugin. See the repo root README's "Install as a plugin"
 section for the marketplace/add command.
 
 After either, **restart Claude Code** (or run `/agents` and `/skills`) so the

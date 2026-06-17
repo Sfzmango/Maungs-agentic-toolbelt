@@ -1,5 +1,5 @@
 {
-  "name": "claude-dev-pipeline",
+  "name": "maungs-agentic-toolbelt",
   "description": "A project-agnostic, human-gated multi-agent software-development pipeline for Claude Code: 12 subagents + 5 skills spanning plan → build → review → wrap-up, plus bug diagnosis, chores, handoffs, and a self-maintaining codebase wiki.",
   "version": "0.1.0",
   "license": "PolyForm-Noncommercial-1.0.0",
@@ -7,7 +7,7 @@
     "name": "Maung Htike",
     "email": "101447695+Sfzmango@users.noreply.github.com"
   },
-  "homepage": "https://github.com/Sfzmango/claude-dev-pipeline",
+  "homepage": "https://github.com/Sfzmango/Maungs-agentic-toolbelt",
   "keywords": [
     "claude-code",
     "agents",

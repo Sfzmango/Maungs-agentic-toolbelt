@@ -1,4 +1,4 @@
-# claude-dev-pipeline
+# Maungs-agentic-toolbelt
 
 A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **12 agents + 5 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects your project's conventions at runtime, so nothing here is hardcoded to one stack.
 
@@ -7,12 +7,12 @@ Agents are invoked with `@name`, skills with `/name`.
 ## Install
 
 ```bash
-git clone https://github.com/Sfzmango/claude-dev-pipeline.git
-cd claude-dev-pipeline
+git clone https://github.com/Sfzmango/Maungs-agentic-toolbelt.git
+cd Maungs-agentic-toolbelt
 ./install.sh          # copy into ~/.claude  (use --symlink to track updates via git pull)
 ```
 
-Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/claude-dev-pipeline` then `/plugin install claude-dev-pipeline`.
+Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` then `/plugin install maungs-agentic-toolbelt`.
 
 > **Zero to running.** The agents use a **GitHub MCP** server (issue/PR tools) and, optionally, a **Playwright MCP** server (`@developer`'s browser checks). You don't have to wire these up by hand — running `/orchestrator` does an environment **preflight**: it detects what's missing, offers to add the MCP servers for you (behind a confirmation gate), and walks you through anything only you can do (`gh auth login`, restarting Claude Code). Full walkthrough: **[`docs/getting-started.md`](docs/getting-started.md)**.
 

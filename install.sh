@@ -57,7 +57,7 @@ place() { # place <src> <dst>
   info "${MODE}: ${dst/#$HOME/~}"
 }
 
-echo "Installing claude-dev-pipeline into ${TARGET/#$HOME/~}  (mode: $MODE)"
+echo "Installing Maungs-agentic-toolbelt into ${TARGET/#$HOME/~}  (mode: $MODE)"
 
 echo "Agents:"
 for f in "$SCRIPT_DIR"/agents/*.md; do
