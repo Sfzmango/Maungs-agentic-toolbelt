@@ -6,9 +6,9 @@ This is a reference index of all **17 components** that make up the pipeline: **
 
 | Component | Kind | One-liner | Invocation |
 | --- | --- | --- | --- |
-| orchestrator | skill | Conductor that runs a full issue→merge dev cycle by delegating each phase to specialized agents; never codes itself. Enforces 3-commit PR, per-commit/per-push human gates, quality-degradation HARD-HALT, `--experiment` dry-run. | `/orchestrator` |
+| orchestrator | skill | Conductor that runs a full issue→merge dev cycle by delegating each phase to specialized agents; never codes itself. Runs a Step 0 environment preflight (gh auth + required MCP servers) that bootstraps or guides setup first. Enforces 3-commit PR, per-commit/per-push human gates, quality-degradation HARD-HALT, `--experiment` dry-run. | `/orchestrator` |
 
-The conductor stage is the entry point for a complete development cycle. `/orchestrator` owns the end-to-end flow from issue to merge but writes no code itself — it delegates each phase to the specialized Plan, Build, Review, and Wrap-up agents, while enforcing the pipeline's hard guarantees: a 3-commit PR structure, human gates on every commit and push, a hard-halt on any quality degradation, and an `--experiment` dry-run mode.
+The conductor stage is the entry point for a complete development cycle. `/orchestrator` owns the end-to-end flow from issue to merge but writes no code itself — it delegates each phase to the specialized Plan, Build, Review, and Wrap-up agents, while enforcing the pipeline's hard guarantees: a 3-commit PR structure, human gates on every commit and push, a hard-halt on any quality degradation, and an `--experiment` dry-run mode. Before any of that, a **Step 0 environment preflight** detects missing dependencies (gh auth, and the GitHub / Playwright MCP servers), offers to set up the safe ones behind a confirmation gate, and guides the user through anything interactive — so a fresh clone can go from zero to running. See [`getting-started.md`](getting-started.md).
 
 ## Plan
 

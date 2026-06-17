@@ -79,4 +79,4 @@ Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/claude-dev
 - [`docs/components.md`](docs/components.md) — one-table index of all 17 components
 - [`examples/`](examples/) — a sample issue, plan (with wireframes), bug dossier, and generated wiki
 
-[MIT](LICENSE) © 2026 Maung Htike. Original, project-agnostic agent designs — no proprietary code; compliance rubrics reference public standards (SOC 2, OWASP, PCI DSS, NIST, CWE).
+**License:** [PolyForm Noncommercial 1.0.0](LICENSE) © 2026 Maung Htike. Free to use, run, and adapt for **noncommercial** purposes (so employers can fully evaluate it) with attribution preserved; **commercial use requires a separate license** — contact via [github.com/Sfzmango](https://github.com/Sfzmango). Original, project-agnostic agent designs — no proprietary code; compliance rubrics reference public standards (SOC 2, OWASP, PCI DSS, NIST, CWE).

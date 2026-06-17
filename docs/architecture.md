@@ -17,7 +17,7 @@ The pipeline is **12 agents + 5 skills = 17 components**. The split is deliberat
 
 | Phase | Component | Type | One-line responsibility |
 |---|---|---|---|
-| Conductor | `/orchestrator` | skill | Runs the full issue→merge cycle; delegates every phase; never codes |
+| Conductor | `/orchestrator` | skill | Step 0 env preflight (gh auth + MCP servers), then runs the full issue→merge cycle; delegates every phase; never codes |
 | Plan | `@product-owner` | agent | Fuzzy ask → scoped GitHub issue with business-language acceptance criteria (+ UI/UX flow & wireframes for user-facing work) |
 | Plan | `@architect` | agent | Issue → plan file with all architectural decisions front-loaded; lands plan as PR commit #1 (+ UI/UX flow & wireframes) |
 | Plan | `@plan-reviewer` | agent | Cold, context-blind adversarial critique of the plan; 8-point rubric → SOLID / REVISE / RETHINK |
@@ -98,6 +98,12 @@ project conventions (`CLAUDE.md`, plan-file layout, language/test/CI/hook signal
 and then delegates each phase to the agent that owns it, capturing that agent's
 return artifact before advancing. It also owns the human-only decision gates and the
 quality-degradation HARD-HALT.
+
+Before the first phase it runs a **Step 0 environment preflight** — checking `gh`
+auth and the required MCP servers (GitHub, plus Playwright for UI work), auto-adding
+the safe ones behind a confirmation gate and guiding the user through anything
+interactive (auth, restarting Claude Code). This is what lets the pipeline start from
+a cold checkout; the full walkthrough is in [`getting-started.md`](getting-started.md).
 
 ### Plan
 
