@@ -14,7 +14,7 @@ cd claude-dev-pipeline
 
 Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/claude-dev-pipeline` then `/plugin install claude-dev-pipeline`.
 
-> Most agents assume a **GitHub MCP** server (issue/PR tools) and `@developer` uses a **Playwright MCP** server (browser checks). Without them, those steps no-op; everything else still runs.
+> **Zero to running.** The agents use a **GitHub MCP** server (issue/PR tools) and, optionally, a **Playwright MCP** server (`@developer`'s browser checks). You don't have to wire these up by hand — running `/orchestrator` does an environment **preflight**: it detects what's missing, offers to add the MCP servers for you (behind a confirmation gate), and walks you through anything only you can do (`gh auth login`, restarting Claude Code). Full walkthrough: **[`docs/getting-started.md`](docs/getting-started.md)**.
 
 ---
 

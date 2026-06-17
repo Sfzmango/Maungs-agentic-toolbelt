@@ -1,6 +1,6 @@
 ---
 name: orchestrator
-description: Generic agent-orchestrated dev cycle for any project. Conductor that delegates each phase to named agents (@product-owner, @architect, @developer, @pr-reviewer, @resolution). Auto-detects project conventions from CLAUDE.md + plan files + language signals. Invoke as `/orchestrator <issue-id>` or `/orchestrator <topic>`.
+description: Generic agent-orchestrated dev cycle for any project. Conductor that delegates each phase to named agents (@product-owner, @architect, @developer, @pr-reviewer, @resolution). Auto-detects project conventions from CLAUDE.md + plan files + language signals, and preflights the environment (gh auth + required MCP servers), bootstrapping or guiding setup before delegating. Invoke as `/orchestrator <issue-id>` or `/orchestrator <topic>`.
 disable-model-invocation: false
 ---
 
@@ -36,6 +36,48 @@ Before running any phase, detect:
 7. **Deployment** — `Procfile` / `Dockerfile` / `fly.toml` / `vercel.json`.
 
 If the project lacks agent-context discipline (no CLAUDE.md, no plan files, no roadmap), surface this to the user before starting + offer to either: (a) bootstrap minimal context first, or (b) proceed with defaults.
+
+## Step 0 — Environment preflight & bootstrap (run this BEFORE Step 1)
+
+Goal: take a cold checkout to a runnable pipeline. Detect what's missing, **auto-fix what is safe to automate, guide the user through what only a human can do**, then proceed only once the required pieces are in place. Run this first on every invocation; on an already-configured machine it passes in seconds.
+
+**Detect (read-only probes):**
+
+1. **git** — `git rev-parse --is-inside-work-tree` (inside a repo?) and `git config user.email` (identity set?).
+2. **gh CLI** — `command -v gh` (installed?) and `gh auth status` (authenticated? which account?). For issue/PR work the active account must be able to access the target repo.
+3. **MCP servers** — `claude mcp list`. Look for:
+   - a **github** server → provides the `mcp__github__*` tools the issue/PR phases need (**required** for issue-ID inputs; optional for free-text topics).
+   - a **playwright** server → provides `mcp__playwright__*` for `@developer`'s live UI verification (**optional**).
+   You can also tell directly from your own available toolset whether `mcp__github__*` / `mcp__playwright__*` are live in this session.
+4. **CLAUDE.md** — from auto-detection above. Absent ⇒ recommend scaffolding one (the highest-leverage thing for agent quality).
+
+**Classify each gap and act accordingly:**
+
+| Class | Examples | What you do |
+|---|---|---|
+| **A — auto-fixable** | add an MCP server (`claude mcp add …`) | Propose it behind ONE explicit confirmation gate that shows the EXACT command; run only after the user approves. NEVER run an install / `mcp add` / `npx` command silently. |
+| **B — needs the user** | `gh auth login`, creating/pasting a token, approving a permission prompt, **restarting Claude Code** | Print the exact copy-paste command/steps and PAUSE. You cannot do these for the user. |
+| **C — optional** | Playwright MCP | Offer it; if declined, proceed and note that `@developer`'s live browser verification will be skipped for this run. |
+
+**Remediation commands (propose → gate → run only the safe ones):**
+
+```bash
+# GitHub MCP — required for issue/PR phases (official server; or swap in your preferred one):
+claude mcp add --transport http github https://api.githubcopilot.com/mcp/ \
+  --header "Authorization: Bearer $(gh auth token)"
+
+# Playwright MCP — optional, only for @developer's live UI verification:
+claude mcp add playwright -- npx -y @playwright/mcp@latest
+
+# gh CLI auth — INTERACTIVE; the user must run this themselves:
+gh auth login
+```
+
+**Critical — newly added MCP servers do not load until Claude Code restarts.** After adding any server, STOP and tell the user to **restart Claude Code and re-run `/orchestrator <arg>`**; Step 0 will re-check and pass. Do NOT pretend a just-added server is usable in the current session.
+
+**Proceed rule:** enter Step 1 only when the **required** dependencies are green. For an issue-ID input with no GitHub MCP, halt here with the remediation (same posture as Step 2). For a free-text topic, GitHub MCP is not required — proceed, noting which optional capabilities are off.
+
+**Output a short preflight report** before proceeding — one line per dependency (`OK` / `WILL FIX` / `ACTION NEEDED`) with the exact command or instruction for each gap. Point the user at `docs/getting-started.md` for the full manual walkthrough.
 
 ## The 13 steps
 
