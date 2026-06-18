@@ -129,7 +129,7 @@ gh repo fork your-org/your-app --clone --fork-name exampleapp-pipeline-trial
 cd exampleapp-pipeline-trial
 ```
 
-> Want **zero** side effects on the first pass? Run
+> For **zero** side effects on the first pass, run
 > `/orchestrator --experiment <topic>` — a local-only dry run that writes the
 > plan to the working tree and skips every commit, push, PR, and GitHub write.
 
@@ -137,7 +137,7 @@ cd exampleapp-pipeline-trial
 
 ## End-to-end walkthrough
 
-Three flows, in the order an employer would naturally try them: **build a
+Three flows, in a natural order to try them: **build a
 feature**, **catch a bug**, **document the codebase**. Each maps to one of the
 static artifacts above.
 

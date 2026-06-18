@@ -1,6 +1,6 @@
 # Maungs-agentic-toolbelt
 
-A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **12 agents + 5 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects your project's conventions at runtime, so nothing here is hardcoded to one stack.
+A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **12 agents + 5 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
 
 Agents are invoked with `@name`, skills with `/name`.
 
@@ -14,19 +14,19 @@ cd Maungs-agentic-toolbelt
 
 Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` then `/plugin install maungs-agentic-toolbelt`.
 
-> **Zero to running.** The agents use a **GitHub MCP** server (issue/PR tools) and, optionally, a **Playwright MCP** server (`@developer`'s browser checks). You don't have to wire these up by hand — running `/orchestrator` does an environment **preflight**: it detects what's missing, offers to add the MCP servers for you (behind a confirmation gate), and walks you through anything only you can do (`gh auth login`, restarting Claude Code). Full walkthrough: **[`docs/getting-started.md`](docs/getting-started.md)**.
+> **Zero to running.** The agents use a **GitHub MCP** server (issue/PR tools) and, optionally, a **Playwright MCP** server (`@developer`'s browser checks). These do not need to be wired up by hand — running `/orchestrator` performs an environment **preflight** that detects what's missing, offers to add the MCP servers (behind a confirmation gate), and guides the user through anything that requires manual action (`gh auth login`, restarting Claude Code). Full walkthrough: **[`docs/getting-started.md`](docs/getting-started.md)**.
 
 ---
 
 ## Skills
 
-**`/orchestrator`** — *`/orchestrator <issue-id>`* (or a topic; `--experiment` for a local dry run). The conductor: it runs a full issue→merge cycle by delegating each phase to the agents below and never writes code itself. It auto-detects your conventions and enforces the universal rules — a 3-commit PR structure, a full local quality gate, explicit per-commit/per-push confirmation, and a hard halt if review quality degrades.
+**`/orchestrator`** — *`/orchestrator <issue-id>`* (or a topic; `--experiment` for a local dry run). The conductor: it runs a full issue→merge cycle by delegating each phase to the agents below and never writes code itself. It auto-detects the project's conventions and enforces the universal rules — a 3-commit PR structure, a full local quality gate, explicit per-commit/per-push confirmation, and a hard halt if review quality degrades.
 
 **`/bug-catcher`** — *`/bug-catcher <symptom>`* (or `--global` to sweep the whole codebase). A diagnose-and-prove conductor that never fixes code itself. It runs a bounded debate between `@bug-catcher-rick` and `@bug-catcher-adversary`, assigns a severity, and hands a verified fix plan to `/orchestrator` or `/chore`.
 
 **`/chore`** — *`/chore <short description>`*. A lightweight path for small single-concern changes (docs, config, a typo, a dependency bump) that skip the full pipeline but keep the same safety rails: quality gate, per-commit/per-push confirmation, and a summary-only PR. It re-routes to `/orchestrator` if the task turns out to be bigger than a chore.
 
-**`/handoff`** — *`/handoff <issue-id-or-topic>`*. Drafts one self-contained brief so a zero-context agent (or future you) can resume a specific piece of work cold. It auto-gathers git/PR/issue/deploy state and gates on an approved outline before writing — and is never produced proactively, because a stale handoff followed confidently is worse than none.
+**`/handoff`** — *`/handoff <issue-id-or-topic>`*. Drafts one self-contained brief so a zero-context agent (or future self) can resume a specific piece of work cold. It auto-gathers git/PR/issue/deploy state and gates on an approved outline before writing — and is never produced proactively, because a stale handoff followed confidently is worse than none.
 
 **`/wiki-generator`** — *`/wiki-generator`* (full build) or *`/wiki-generator --update`* (incremental, schedulable). Generates and maintains a near-100%-coverage technical wiki in Markdown at `docs/wiki/` — per-module business analysis, schemas, flow diagrams, related files per page, a glossary, and an onboarding guide. The `--update` mode re-syncs only the pages that drifted, so a scheduled run keeps the wiki current with no manual upkeep. See [`docs/scheduling.md`](docs/scheduling.md).
 
@@ -44,7 +44,7 @@ Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-age
 
 ### Build
 
-**`@developer`** — *`@developer implement plan <path>`*. Implements an approved plan as a single amended commit on the PR branch, auto-detecting your test/lint/build stack and writing tests. It runs live Playwright browser verification for UI changes, drives explicit commit/push gates, and hard-halts if a fix-loop iteration makes things worse instead of better.
+**`@developer`** — *`@developer implement plan <path>`*. Implements an approved plan as a single amended commit on the PR branch, auto-detecting the project's test/lint/build stack and writing tests. It runs live Playwright browser verification for UI changes, drives explicit commit/push gates, and hard-halts if a fix-loop iteration makes things worse instead of better.
 
 ### Review
 
@@ -79,4 +79,4 @@ Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-age
 - [`docs/components.md`](docs/components.md) — one-table index of all 17 components
 - [`examples/`](examples/) — a sample issue, plan (with wireframes), bug dossier, and generated wiki
 
-**License:** [PolyForm Noncommercial 1.0.0](LICENSE) © 2026 Maung Htike. Free to use, run, and adapt for **noncommercial** purposes (so employers can fully evaluate it) with attribution preserved; **commercial use requires a separate license** — contact via [github.com/Sfzmango](https://github.com/Sfzmango). Original, project-agnostic agent designs — no proprietary code; compliance rubrics reference public standards (SOC 2, OWASP, PCI DSS, NIST, CWE).
+**License:** [PolyForm Noncommercial 1.0.0](LICENSE) © 2026 Maung Htike. Free to use, run, and adapt for **noncommercial** purposes with attribution preserved; **commercial use requires a separate license** (contact via [github.com/Sfzmango](https://github.com/Sfzmango)). Original, project-agnostic agent designs — no proprietary code; compliance rubrics reference public standards (SOC 2, OWASP, PCI DSS, NIST, CWE).

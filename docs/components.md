@@ -63,7 +63,7 @@ The bug side-flow is a self-contained diagnose-and-prove loop that feeds back in
 | chore | skill | Lightweight escape hatch for small single-concern PRs that keep the same commit/push gates; re-routes to `/orchestrator` if it grows. | `/chore` |
 | handoff | skill | Drafts a self-contained, drift-aware brief so a zero-context agent (or future self) can resume work cold; never written proactively. | `/handoff` |
 
-The utility stage provides lightweight escape hatches around the main pipeline. `/chore` handles small, single-concern PRs without the full ceremony while keeping the same commit and push gates, and re-routes to `/orchestrator` if the change grows beyond chore size. `/handoff` drafts a self-contained, drift-aware brief that lets a zero-context agent — or a future you — resume work cold; it is never written proactively.
+The utility stage provides lightweight escape hatches around the main pipeline. `/chore` handles small, single-concern PRs without the full ceremony while keeping the same commit and push gates, and re-routes to `/orchestrator` if the change grows beyond chore size. `/handoff` drafts a self-contained, drift-aware brief that lets a zero-context agent — or a future self — resume work cold; it is never written proactively.
 
 ## Wiki side-flow
 
