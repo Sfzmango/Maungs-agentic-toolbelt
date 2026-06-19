@@ -71,6 +71,19 @@ Other entry points:
 /handoff <id>              # write a resume-from-cold brief
 ```
 
+## 6. (Optional) Enable the cockpit statusline
+
+The toolbelt bundles a status-line script that shows a one-line cockpit — git branch, session cost, context usage, hook state, model, and a live `/orchestrator` pipeline segment (phase · PR · verdict). It is not auto-enabled; opt in by pointing `~/.claude/settings.json` at it:
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "~/Maungs-agentic-toolbelt/statusline/toolbelt-statusline.sh"
+}
+```
+
+See [the README](../README.md#cockpit-statusline-optional) for what each segment means.
+
 ## Troubleshooting
 
 - **`/mcp` shows a server disconnected** → re-run its `claude mcp add` command, then restart Claude Code.

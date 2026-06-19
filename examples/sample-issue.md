@@ -1,6 +1,6 @@
 # Sample issue — `@product-owner` output
 
-> Illustrative example of what the `@product-owner` agent produces: a scoped, business-language GitHub issue with explicit acceptance criteria and an embedded Mermaid diagram. The fictional app is **ExampleApp**, a multi-tenant B2B SaaS helpdesk (Organizations → Members → Tickets → Billing). Everything below is the issue body the agent would submit via `mcp__github__issue_write`.
+> Illustrative example of what the `@product-owner` agent produces: a scoped, business-language GitHub issue with explicit acceptance criteria, lifecycle + screen-flow diagrams, a low-fidelity wireframe of the key screen, and a UX-flow note. The fictional app is **ExampleApp**, a multi-tenant B2B SaaS helpdesk (Organizations → Members → Tickets → Billing). Everything below is the issue body the agent would submit via `mcp__github__issue_write`.
 
 ---
 
@@ -70,6 +70,32 @@ flowchart TD
     Form -->|send| Members
     Form -->|cancel| Members
 ```
+
+Low-fidelity wireframe — Members screen, the key owner-facing surface (kept light at the issue level; the architect details it in the plan):
+
+```text
++------------------------------------------------------+
+| ExampleApp     Tickets  Members  Billing  [Avatar ▾] |
++----------------+-------------------------------------+
+| Settings       |  Members              [ + Invite ]  |
+|  • Profile     |                                     |
+|  • Members  ◀  |  PENDING INVITATIONS                |
+|  • Billing     |  sam@acme.com   viewer · pending    |
+|                |                  [Resend] [Revoke]  |
+|                |                                     |
+|                |  ACTIVE MEMBERS                     |
+|                |  Dana   owner  (you)               |
+|                |  Ana    agent           [ ▾ ]      |
++----------------+-------------------------------------+
+```
+
+## UX flow
+
+- **Happy path (owner):** owner opens **Members**, clicks **+ Invite**, enters an email + role, submits → the invite appears at the top of "Pending invitations" with a `pending` chip and a "Invite sent" toast; no full-page reload.
+- **Happy path (invitee):** invitee opens the email, clicks **Accept**, lands on a screen showing the org name + assigned role, completes signup if needed, and is dropped into the inviting org's dashboard already signed in.
+- **Empty state:** an org with no pending invitations hides the "Pending invitations" group entirely — the screen shows only active members, never an empty box.
+- **Loading state:** submitting the invite disables **Send** and shows an inline spinner; the public accept screen shows a skeleton while the token is validated, so the invitee never sees the form before the token is known good.
+- **Error states:** inviting an existing member → inline "already a member," no row added; invalid email → inline validation, form stays open; bad/unknown token → a 404 not-found screen with no hint a token nearly matched; expired/used token → a non-form "no longer valid" screen; async mail failure → the invite still lists as `pending`, with **Resend** as the recovery path.
 
 ## Scope notes
 

@@ -53,6 +53,23 @@ All three hooks ship with the **plugin** install; the copy / `install.sh` method
 
 ---
 
+## Cockpit statusline (optional)
+
+A bundled status line, `statusline/toolbelt-statusline.sh`, renders a one-line cockpit: the active git branch (with dirty / ahead counts), session cost + duration, context-window usage, the live toolbelt hook state (`guard ● router ● loader ●`), the model — and, while `/orchestrator` is running, a **pipeline segment** showing the current phase, PR number, and review verdict.
+
+Unlike the hooks, it is **not** auto-enabled (Claude Code's status line is a user setting). Opt in by pointing `~/.claude/settings.json` at the script:
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "~/Maungs-agentic-toolbelt/statusline/toolbelt-statusline.sh"
+}
+```
+
+The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that `/orchestrator` writes at each phase boundary — **always on your local machine, never inside a project repo** — and it shows only while fresh (< 30 min) and matching the current repo.
+
+---
+
 ## Skills
 
 **`/agentic-onboard`** — *`/agentic-onboard`* (lean) or *`/agentic-onboard --deep --target all`*. The on-ramp: scans an existing repo and generates the agent-context files the rest of the toolbelt depends on — `CLAUDE.md` + `AGENTS.md` (cross-agent) + a concise architecture map. It detects whether the repo is **cold** (no context) or **stale** (drifted, via `@context-auditor`) and diffs before writing; `--deep` also builds the full `docs/wiki`. Writes the working tree only — never commits.

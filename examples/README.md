@@ -55,10 +55,20 @@ Each file is a frozen, representative example of one stage's real output for
 ExampleApp. They're documentation, not executable — but they're the same format
 the live agents emit.
 
+The samples are ordered by the lifecycle stage they belong to, and most ride **one running feature** — EX-218 "team invitations" — so they chain into a single story (onboard → issue → plan → review → tests → migration → release → handoff). The bug dossier and wiki use the same ExampleApp domain.
+
 | Artifact | What it is | Produced by |
 | --- | --- | --- |
-| [`sample-issue.md`](./sample-issue.md) | A scoped GitHub issue with business-language acceptance criteria — "Agents can reassign a ticket to another Member in the same Organization." | `@product-owner` |
-| [`sample-plan.md`](./sample-plan.md) | The architect's plan file (lands as **PR commit #1**) with the up-front design decisions for that issue, written to `docs/plans/<id>_<slug>.md`. | `@architect` |
+| [`sample-onboarding/`](./sample-onboarding/) | The agent-context files the on-ramp generates for ExampleApp — a `CLAUDE.md` + `AGENTS.md` capturing the stack, the 404-not-403 tenant rule, the domain model, and commands (with `(needs confirmation)` tags where a real pass would still be inferring). | `/agentic-onboard` → `@context-writer` |
+| [`sample-issue.md`](./sample-issue.md) | A scoped GitHub issue for **team invitations** — business-language acceptance criteria, lifecycle + screen-flow diagrams, a low-fidelity wireframe, and a UX-flow note. | `@product-owner` |
+| [`sample-plan.md`](./sample-plan.md) | The architect's plan file for that issue (lands as **PR commit #1**), written to `docs/plans/218_team-invitations.md` — design, migrations, UI/UX, test plan, blast radius. | `@architect` |
+| [`sample-plan-review.md`](./sample-plan-review.md) | A cold, context-blind review of the plan above — a verdict (**SOLID**) + findings, before a line of code is written. | `@plan-reviewer` |
+| [`sample-pr-review.md`](./sample-pr-review.md) | A fresh-eyes review of the invitations PR (#218) — inline `file:line` findings by severity + a verdict (**SHIP WITH FIXES**); multi-tenant isolation is the #1 check. | `@pr-reviewer` |
+| [`sample-security-review.md`](./sample-security-review.md) | A compliance-mapped security review of PR #218 — findings tagged to SOC 2 CC#, OWASP Top 10, NIST 800-63B, and CWE, plus a verdict. | `@security-reviewer` |
+| [`sample-tests/`](./sample-tests/) | Negative-path-first RSpec for the invitations feature — cross-tenant 404, expired / single-use token, owner-only denial, the partial-unique index. | `@test-author` |
+| [`sample-migration-dossier.md`](./sample-migration-dossier.md) | A migration risk dossier — data-loss / lock / backfill / expand-contract / rollback analysis for the `invitations` table plus a risky `members.joined_via` backfill. | `/migration-planner` |
+| [`sample-release-notes.md`](./sample-release-notes.md) | Release notes derived from the invitations PR set — grouped entries, a SemVer bump, and a deploy checklist. Text only; never tags/commits/pushes. | `/release-notes` |
+| [`sample-handoff.md`](./sample-handoff.md) | A resume-from-cold brief for the in-flight invitations work — an entry-point command, what's done, the outstanding review punch list, and precise citations. | `/handoff` |
 | [`sample-bug-dossier.md`](./sample-bug-dossier.md) | An evidence-backed root-cause dossier for a **cross-tenant ticket leak** — symptom vs. cause, a `file:line` evidence chain, **SEV1**, fix direction, and blast radius. | `@bug-catcher-rick` (verified by `@bug-catcher-adversary`) |
 | [`sample-wiki/`](./sample-wiki/) | A generated technical wiki for ExampleApp — per-module pages (Organizations, Members, Tickets, Billing), schemas, mermaid flow diagrams, a glossary, and an onboarding page, each stamped "verified against commit". | `/wiki-generator` → `@wiki-writer` |
 
@@ -148,9 +158,9 @@ itself** — it delegates each phase to the agent that owns it, enforcing a
 3-commit PR and a human gate on every commit and push.
 
 ```text
-/orchestrator 42        # a numeric GitHub issue id (needs GitHub MCP or gh)
+/orchestrator 218       # a numeric GitHub issue id (needs GitHub MCP or gh)
 # — or —
-/orchestrator "agents can reassign a ticket within their organization"
+/orchestrator "let an organization owner invite a teammate by email"
 ```
 
 What happens (compare against `sample-issue.md` and `sample-plan.md`):
@@ -158,9 +168,10 @@ What happens (compare against `sample-issue.md` and `sample-plan.md`):
 1. **Fetch + sanity-check** the issue (GitHub MCP). Sparse? It can call
    `@product-owner` to refine it into something like `sample-issue.md`.
 2. **`@architect`** front-loads the design into a plan file
-   (`docs/plans/42_ticket-reassignment.md`, like `sample-plan.md`), lands it as
+   (`docs/plans/218_team-invitations.md`, like `sample-plan.md`), lands it as
    **commit #1**, and opens the PR. `@plan-reviewer` gives a cold,
-   context-blind verdict (SOLID / REVISE / RETHINK) first.
+   context-blind verdict (SOLID / REVISE / RETHINK) first — like
+   `sample-plan-review.md`.
 3. **`@developer`** implements the plan as **commit #2**, auto-detecting the
    test/lint/build stack and **verifying the UI live via Playwright MCP** —
    e.g. reassigning a ticket as an ExampleApp `agent` in a real browser.
@@ -228,8 +239,12 @@ Generates and maintains a near-100% technical wiki as Markdown under
 
 ## Suggested order for a first sitting
 
-1. **Read** `sample-issue.md` → `sample-plan.md` → `sample-bug-dossier.md` →
-   `sample-wiki/` so you know the target output.
+1. **Read** the artifacts in lifecycle order so you know the target output:
+   `sample-onboarding/` → `sample-issue.md` → `sample-plan.md` →
+   `sample-plan-review.md` → `sample-pr-review.md` →
+   `sample-security-review.md` → `sample-tests/` →
+   `sample-migration-dossier.md` → `sample-release-notes.md` →
+   `sample-handoff.md` → `sample-bug-dossier.md` → `sample-wiki/`.
 2. **Install** (`install.sh` or the plugin) and wire up **GitHub MCP** +
    **Playwright MCP** (or confirm the `gh` fallback).
 3. On a **throwaway repo**, run `/orchestrator --experiment "<small change>"`

@@ -23,6 +23,16 @@ These hold regardless of project. The project's `CLAUDE.md` may add more, but ne
 4. **No Claude / Claude Code attribution** in commits, PR bodies, or any output.
 5. **Honor project-specific conventions from `CLAUDE.md` + `CLAUDE.local.md`.** Project rules are non-negotiable for the agents working in that project.
 
+## Local statusline status file (write on every phase — LOCAL only)
+
+Throughout the run, keep the user's machine-local statusline cockpit in sync by writing `~/.claude/toolbelt-status.json` at the START of each phase and after the review verdict. Write it to `~/.claude/` ONLY — **never** into the target project's `.claude/` directory (it must not land in any repo). Best-effort and silent on failure; never let it block the pipeline:
+
+    printf '{"phase":"%s","pr":"%s","verdict":"%s","repo":"%s","updated":%s}\n' \
+      "<phase>" "<pr-or-empty>" "<verdict-or-empty>" "$(git rev-parse --show-toplevel 2>/dev/null)" "$(date +%s)" \
+      > ~/.claude/toolbelt-status.json 2>/dev/null || true
+
+`<phase>` is one of `plan` / `build` / `review` / `wrap-up` / `done`. Set `verdict` after the `@pr-reviewer` phase (`SHIP` / `SHIP WITH FIXES` / `DO NOT SHIP`). Write `done` at Step 13. The statusline reads this file and shows it only while fresh (< 30 min) and only in this repo.
+
 ## Auto-detection on every invocation
 
 Before running any phase, detect:
