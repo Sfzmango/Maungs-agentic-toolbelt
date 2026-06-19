@@ -1,0 +1,15 @@
+{
+  "title": "Two Sum",
+  "description": "Find the indices of the two numbers in an array that add up to a target, given exactly one valid pair.",
+  "io": "Stdin is two lines: line 1 is space-separated integers, line 2 is the target integer; there is exactly one pair of distinct indices whose values sum to the target. Stdout is those two 0-based indices in ascending order, space-separated (e.g. \"0 1\").",
+  "cases": [
+    {"stdin": "2 7 11 15\n9", "stdout": "0 1"},
+    {"stdin": "3 2 4\n6", "stdout": "1 2"},
+    {"stdin": "3 3\n6", "stdout": "0 1"},
+    {"stdin": "-1 -2 -3 -4 -5\n-8", "stdout": "2 4"},
+    {"stdin": "0 4 3 0\n0", "stdout": "0 3"},
+    {"stdin": "1 5 8 12 20\n32", "stdout": "3 4"},
+    {"stdin": "-10 7 19 2\n-3", "stdout": "0 1"},
+    {"stdin": "100 50 25 75\n175", "stdout": "0 3"}
+  ]
+}

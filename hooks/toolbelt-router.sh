@@ -101,6 +101,14 @@ Looks like a review request. Consider:
 - @security-reviewer PR <n> — add this if security/compliance matters."
 fi
 
+# 2b) Translate / port code between languages (read-only context). Scoped to a
+#     programming-language target so "translate this to French" stays silent.
+if m 'translate .*(to|into) (ruby|rails|python|django|flask|fastapi|node|express|java|javascript|typescript|go|golang|rust|php|laravel|kotlin|swift|scala|elixir|phoenix|c\+\+|c#|dotnet)|(port|convert|rewrite)(ing|s)? .*(to|into|in) (ruby|rails|python|django|flask|fastapi|node|express|java|javascript|typescript|go|golang|rust|php|laravel|kotlin|swift|scala|elixir|phoenix|c\+\+|c#|dotnet)|from (ruby|rails|python|django|flask|fastapi|node|express|java|javascript|typescript|go|golang|rust|php|laravel|kotlin|swift|scala|elixir|phoenix|c\+\+|c#|dotnet) .*(to|into)'; then
+  emit "$PREFIX
+Looks like translating / porting code between languages. Consider:
+- @code-translator — read-only: fetches the real docs for BOTH languages first, then returns a doc-grounded translation bundle (translated code + a cited idiom map + caveats) for you or the /orchestrator flow. It writes nothing; it only provides grounded context."
+fi
+
 # 3) Bug / defect
 #     Guard: "error" is also a feature noun ("add error handling", "build an error
 #     page"). Exclude when a build verb governs an error feature, so a build task

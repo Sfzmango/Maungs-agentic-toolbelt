@@ -1,0 +1,15 @@
+{
+  "title": "Fibonacci Number",
+  "description": "Compute the nth Fibonacci number with fib(0)=0 and fib(1)=1.",
+  "io": "stdin is a single non-negative integer n; stdout is the nth Fibonacci number using fib(0)=0, fib(1)=1, and fib(k)=fib(k-1)+fib(k-2).",
+  "cases": [
+    {"stdin": "0\n", "stdout": "0"},
+    {"stdin": "1\n", "stdout": "1"},
+    {"stdin": "2\n", "stdout": "1"},
+    {"stdin": "3\n", "stdout": "2"},
+    {"stdin": "10\n", "stdout": "55"},
+    {"stdin": "20\n", "stdout": "6765"},
+    {"stdin": "30\n", "stdout": "832040"},
+    {"stdin": "50\n", "stdout": "12586269025"}
+  ]
+}

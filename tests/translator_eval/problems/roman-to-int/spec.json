@@ -1,0 +1,17 @@
+{
+  "title": "Roman to Integer",
+  "description": "Convert an uppercase Roman numeral string (1 to 3999) to its integer value.",
+  "io": "Stdin is a single uppercase Roman numeral string representing a value from 1 to 3999 (trailing newline ignored); stdout is the integer it encodes, applying the subtractive rule (a smaller symbol before a larger one is subtracted).",
+  "cases": [
+    {"stdin": "I", "stdout": "1"},
+    {"stdin": "III", "stdout": "3"},
+    {"stdin": "IV", "stdout": "4"},
+    {"stdin": "IX", "stdout": "9"},
+    {"stdin": "LVIII", "stdout": "58"},
+    {"stdin": "MCMXCIV", "stdout": "1994"},
+    {"stdin": "MMMCMXCIX", "stdout": "3999"},
+    {"stdin": "XL", "stdout": "40"},
+    {"stdin": "CD", "stdout": "400"},
+    {"stdin": "MMXXVI", "stdout": "2026"}
+  ]
+}

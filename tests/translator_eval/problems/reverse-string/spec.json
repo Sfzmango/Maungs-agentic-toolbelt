@@ -1,0 +1,15 @@
+{
+  "title": "Reverse String",
+  "description": "Reverse the characters of the input string.",
+  "io": "stdin is a string consisting of the entire input with a single trailing newline removed (the string may contain spaces); stdout is that string reversed. Empty input produces empty output.",
+  "cases": [
+    {"stdin": "", "stdout": ""},
+    {"stdin": "a\n", "stdout": "a"},
+    {"stdin": "ab\n", "stdout": "ba"},
+    {"stdin": "hello\n", "stdout": "olleh"},
+    {"stdin": "racecar\n", "stdout": "racecar"},
+    {"stdin": "Hello, World!\n", "stdout": "!dlroW ,olleH"},
+    {"stdin": "ab cd\n", "stdout": "dc ba"},
+    {"stdin": "12345\n", "stdout": "54321"}
+  ]
+}

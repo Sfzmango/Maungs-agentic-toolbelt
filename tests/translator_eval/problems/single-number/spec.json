@@ -1,0 +1,15 @@
+{
+  "title": "Single Number",
+  "description": "Find the one integer that appears exactly once in an array where every other value appears twice.",
+  "io": "Stdin is one line of space-separated integers in which every value occurs exactly twice except for one value that occurs once; stdout is that single integer.",
+  "cases": [
+    {"stdin": "2 2 1", "stdout": "1"},
+    {"stdin": "4 1 2 1 2", "stdout": "4"},
+    {"stdin": "1", "stdout": "1"},
+    {"stdin": "-3 -3 7", "stdout": "7"},
+    {"stdin": "0 1 0", "stdout": "1"},
+    {"stdin": "5 -2 5 -2 99", "stdout": "99"},
+    {"stdin": "-1 -1 -8", "stdout": "-8"},
+    {"stdin": "10 20 20 30 10", "stdout": "30"}
+  ]
+}

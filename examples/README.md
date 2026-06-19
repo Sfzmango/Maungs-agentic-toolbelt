@@ -70,6 +70,7 @@ The samples are ordered by the lifecycle stage they belong to, and most ride **o
 | [`sample-release-notes.md`](./sample-release-notes.md) | Release notes derived from the invitations PR set — grouped entries, a SemVer bump, and a deploy checklist. Text only; never tags/commits/pushes. | `/release-notes` |
 | [`sample-handoff.md`](./sample-handoff.md) | A resume-from-cold brief for the in-flight invitations work — an entry-point command, what's done, the outstanding review punch list, and precise citations. | `/handoff` |
 | [`sample-bug-dossier.md`](./sample-bug-dossier.md) | An evidence-backed root-cause dossier for a **cross-tenant ticket leak** — symptom vs. cause, a `file:line` evidence chain, **SEV1**, fix direction, and blast radius. | `@bug-catcher-rick` (verified by `@bug-catcher-adversary`) |
+| [`sample-translation-bundle.md`](./sample-translation-bundle.md) | A read-only, **doc-grounded** code-translation bundle (Rails → FastAPI) — translated code + a cited idiom map + caveats + a framework-disambiguation prompt. Context only; writes nothing. | `@code-translator` |
 | [`sample-wiki/`](./sample-wiki/) | A generated technical wiki for ExampleApp — per-module pages (Organizations, Members, Tickets, Billing), schemas, mermaid flow diagrams, a glossary, and an onboarding page, each stamped "verified against commit". | `/wiki-generator` → `@wiki-writer` |
 
 Use them as **acceptance criteria for your own run**: when you drive the

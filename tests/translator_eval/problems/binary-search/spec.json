@@ -1,0 +1,15 @@
+{
+  "title": "Binary Search",
+  "description": "Find the index of a target in a sorted ascending array of distinct integers, or report -1.",
+  "io": "stdin is two lines: line 1 is space-separated sorted-ascending distinct integers (this line may be empty, denoting the empty array); line 2 is the target integer. stdout is the 0-based index of the target within the array, or \"-1\" if the target is absent.",
+  "cases": [
+    {"stdin": "\n5\n", "stdout": "-1"},
+    {"stdin": "3\n3\n", "stdout": "0"},
+    {"stdin": "3\n7\n", "stdout": "-1"},
+    {"stdin": "-5 -2 0 4 9 13\n9\n", "stdout": "4"},
+    {"stdin": "1 2 3 4 5 6 7 8 9 10\n1\n", "stdout": "0"},
+    {"stdin": "1 2 3 4 5 6 7 8 9 10\n10\n", "stdout": "9"},
+    {"stdin": "1 2 3 4 5 6 7 8 9 10\n11\n", "stdout": "-1"},
+    {"stdin": "-10 -3 0 5 9 12 17 23\n-3\n", "stdout": "1"}
+  ]
+}

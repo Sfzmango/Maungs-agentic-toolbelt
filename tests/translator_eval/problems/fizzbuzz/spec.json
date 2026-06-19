@@ -1,0 +1,13 @@
+{
+  "title": "FizzBuzz",
+  "description": "Print the FizzBuzz sequence from 1 to n, one entry per line.",
+  "io": "stdin is a single integer n; stdout is n lines where line i (for i from 1 to n) is \"FizzBuzz\" if i is divisible by 15, else \"Fizz\" if divisible by 3, else \"Buzz\" if divisible by 5, else the number i itself. n=0 produces no output.",
+  "cases": [
+    {"stdin": "0\n", "stdout": ""},
+    {"stdin": "1\n", "stdout": "1\n"},
+    {"stdin": "3\n", "stdout": "1\n2\nFizz\n"},
+    {"stdin": "5\n", "stdout": "1\n2\nFizz\n4\nBuzz\n"},
+    {"stdin": "15\n", "stdout": "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz\n"},
+    {"stdin": "16\n", "stdout": "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz\n16\n"}
+  ]
+}

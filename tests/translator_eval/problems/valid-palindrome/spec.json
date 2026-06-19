@@ -1,0 +1,15 @@
+{
+  "title": "Valid Palindrome",
+  "description": "Decide whether the input is a palindrome considering only ASCII alphanumeric characters, case-insensitively.",
+  "io": "stdin is a string consisting of the entire input with a single trailing newline removed; stdout is \"true\" if the string reads the same forward and backward after removing every character outside [A-Za-z0-9] and lowercasing the rest, otherwise \"false\". An empty or all-non-alphanumeric string yields \"true\".",
+  "cases": [
+    {"stdin": "", "stdout": "true"},
+    {"stdin": " \n", "stdout": "true"},
+    {"stdin": "a\n", "stdout": "true"},
+    {"stdin": "A man, a plan, a canal: Panama\n", "stdout": "true"},
+    {"stdin": "race a car\n", "stdout": "false"},
+    {"stdin": "0P\n", "stdout": "false"},
+    {"stdin": "Was it a car or a cat I saw?\n", "stdout": "true"},
+    {"stdin": "ab\n", "stdout": "false"}
+  ]
+}

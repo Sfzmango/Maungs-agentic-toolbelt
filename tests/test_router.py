@@ -33,6 +33,7 @@ LEADS = {
     "Looks like planning / scoping / architecture": "plan",
     "Looks like a question about the toolbelt itself": "meta",
     "Looks like building or extending a feature": "build",
+    "Looks like translating / porting code between languages": "translate",
 }
 
 def fired(out):
@@ -123,6 +124,12 @@ add("meta", ["what can this toolbelt do","which agent should I use","what's in y
 add("onboard", ["onboard this repo","set up this codebase for agents","generate a CLAUDE.md for my project",
                 "there's no claude.md here","make this repo agent-ready","prep this project for agentic work",
                 "bootstrap the agent context","create an AGENTS.md","this repo is missing a claude.md","onboard my existing repo"])
+
+# translate / port code between languages (the @code-translator intent)
+add("translate", ["translate this ruby file to python", "port the rails service to fastapi",
+                  "convert this javascript to typescript", "rewrite this python script in go",
+                  "translate from rails to django", "convert my express app to fastapi",
+                  "translate this go code into rust", "port this java class to kotlin"])
 
 # ---------------- regression / mis-route fixes (the bugs we just fixed) -------
 # greenfield must beat onboard

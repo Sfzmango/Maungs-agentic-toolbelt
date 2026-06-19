@@ -1,0 +1,18 @@
+{
+  "title": "Valid Parentheses",
+  "description": "Determine whether a string of brackets is validly balanced and nested.",
+  "io": "Stdin is a single string containing only the bracket characters ()[]{} (the whole stdin minus a trailing newline, and may be empty); stdout is \"true\" when every opening bracket is closed by a matching bracket in the correct order, otherwise \"false\".",
+  "cases": [
+    {"stdin": "", "stdout": "true"},
+    {"stdin": "()", "stdout": "true"},
+    {"stdin": "()[]{}", "stdout": "true"},
+    {"stdin": "(]", "stdout": "false"},
+    {"stdin": "([)]", "stdout": "false"},
+    {"stdin": "{[]}", "stdout": "true"},
+    {"stdin": "(", "stdout": "false"},
+    {"stdin": "]", "stdout": "false"},
+    {"stdin": "((()))", "stdout": "true"},
+    {"stdin": "{[()()]}", "stdout": "true"},
+    {"stdin": "(((", "stdout": "false"}
+  ]
+}

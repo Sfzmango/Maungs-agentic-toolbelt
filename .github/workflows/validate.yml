@@ -37,3 +37,6 @@ jobs:
 
       - name: Prompt router routes prompts to the intended components
         run: python3 tests/test_router.py
+
+      - name: Translator eval — reference solutions pass their vectors (multi-language)
+        run: python3 tests/translator_eval/eval.py
