@@ -1,6 +1,6 @@
 # Maungs-agentic-toolbelt
 
-A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **14 agents + 6 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
+A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **15 agents + 8 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
 
 Agents are invoked with `@name`, skills with `/name`.
 
@@ -18,9 +18,9 @@ Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-age
 
 ---
 
-## Always-on: the toolbelt offers itself
+## Always-on hooks
 
-Installed as a plugin, the toolbelt registers a lightweight `UserPromptSubmit` hook that inspects each prompt and — **only when it matches a toolbelt capability** — nudges Claude to offer the relevant component, so the right one surfaces without anyone remembering the command.
+Installed as a plugin, the toolbelt registers three lightweight hooks. The first — a `UserPromptSubmit` hook — inspects each prompt and — **only when it matches a toolbelt capability** — nudges Claude to offer the relevant component, so the right one surfaces without anyone remembering the command.
 
 | A request like… | …surfaces |
 | --- | --- |
@@ -32,6 +32,9 @@ Installed as a plugin, the toolbelt registers a lightweight `UserPromptSubmit` h
 | "how does this module work / document the codebase" | `/wiki-generator` |
 | "bump a dependency / fix a typo" | `/chore` |
 | "write a handoff / resume later" | `/handoff` |
+| "migrate / change the schema" | `/migration-planner` |
+| "write tests / add missing tests" | `@test-author` |
+| "what can this toolbelt do" | `/toolbelt` |
 
 The hook stays **silent on anything that doesn't fit** (no token cost, no noise), only ever **suggests** — it never auto-runs workflows that commit, push, or open PRs — and is read-only with no network access. It can be disabled at any time:
 
@@ -39,7 +42,13 @@ The hook stays **silent on anything that doesn't fit** (no token cost, no noise)
 export MAUNGS_TOOLBELT_ROUTER=off
 ```
 
-The router ships with the **plugin** install. The copy / `install.sh` method installs the agents and skills without the prompt hook.
+Two more hooks come with the plugin:
+
+**Guardrail (`PreToolUse`).** Before any shell command runs, it **blocks** the actions the agents are forbidden to take — `git add -A`/`.`, `git push --force` (without `--force-with-lease`), `--no-verify` hook bypasses, catastrophic `rm -rf` (on `/` `~` `*`), and AI-attribution in commit messages — turning the cardinal rules into an *enforced* guardrail rather than a request. It denies only clearly-dangerous commands and lets everything else through. Disable with `export MAUNGS_TOOLBELT_GUARD=off`.
+
+**Session loader (`SessionStart`).** At session start it injects a concise, read-only project snapshot — branch, uncommitted-file count, recent commits, the latest plan, any pending handoff, open PRs, and a nudge to run `/agentic-onboard` if there's no `CLAUDE.md` — so Claude starts warm instead of re-deriving the repo. Disable with `export MAUNGS_TOOLBELT_LOADER=off`.
+
+All three hooks ship with the **plugin** install; the copy / `install.sh` method installs the agents and skills without them.
 
 ---
 
@@ -56,6 +65,10 @@ The router ships with the **plugin** install. The copy / `install.sh` method ins
 **`/handoff`** — *`/handoff <issue-id-or-topic>`*. Drafts one self-contained brief so a zero-context agent (or future self) can resume a specific piece of work cold. It auto-gathers git/PR/issue/deploy state and gates on an approved outline before writing — and is never produced proactively, because a stale handoff followed confidently is worse than none.
 
 **`/wiki-generator`** — *`/wiki-generator`* (full build) or *`/wiki-generator --update`* (incremental, schedulable). Generates and maintains a near-100%-coverage technical wiki in Markdown at `docs/wiki/` — per-module business analysis, schemas, flow diagrams, related files per page, a glossary, and an onboarding guide. The `--update` mode re-syncs only the pages that drifted, so a scheduled run keeps the wiki current with no manual upkeep. See [`docs/scheduling.md`](docs/scheduling.md).
+
+**`/migration-planner`** — *`/migration-planner <described change | migration file>`*. A read-only pre-flight for risky data/schema migrations: it produces a risk dossier **before** the migration is written — data-loss and lock/downtime risks (flagged by database), a backfill plan, an expand/contract zero-downtime rollout, a rollback plan, and the blast radius of code touching the affected schema. It never writes or runs the migration.
+
+**`/toolbelt`** — *`/toolbelt`* (inventory), *`/toolbelt <goal>`* (recommend a component), or *`/toolbelt status`* (environment check). The self-describing front door: it lists every component grouped by stage, recommends the best fit for a stated goal, and reports what's active (router/guard state, MCP servers, whether a `CLAUDE.md` exists). Read-only.
 
 ---
 
@@ -78,6 +91,10 @@ The router ships with the **plugin** install. The copy / `install.sh` method ins
 ### Build
 
 **`@developer`** — *`@developer implement plan <path>`*. Implements an approved plan as a single amended commit on the PR branch, auto-detecting the project's test/lint/build stack and writing tests. It runs live Playwright browser verification for UI changes, drives explicit commit/push gates, and hard-halts if a fix-loop iteration makes things worse instead of better.
+
+### Testing
+
+**`@test-author`** — *invoke directly, or when `@pr-reviewer` flags a missing test*. Authors tests — especially the negative-path and edge cases the happy path misses (validation failures, auth/tenant denial, boundary inputs, error paths) — runs them against the project's real test runner, and never weakens an assertion or deletes a test to make the suite pass. If a test reveals a real bug it reports it (pointing at `/bug-catcher`) rather than masking it. Read-only on source; writes only test files.
 
 ### Review
 
@@ -109,7 +126,7 @@ The router ships with the **plugin** install. The copy / `install.sh` method ins
 
 - [`docs/architecture.md`](docs/architecture.md) — how the agents hand off, with a full pipeline diagram
 - [`docs/design-philosophy.md`](docs/design-philosophy.md) — the recurring design principles and the failure modes they prevent
-- [`docs/components.md`](docs/components.md) — one-table index of all 20 components
+- [`docs/components.md`](docs/components.md) — one-table index of all 23 components
 - [`examples/`](examples/) — a sample issue, plan (with wireframes), bug dossier, and generated wiki
 
 **License:** [PolyForm Noncommercial 1.0.0](LICENSE) © 2026 Maung Htike. Free to use, run, and adapt for **noncommercial** purposes with attribution preserved; **commercial use requires a separate license** (contact via [github.com/Sfzmango](https://github.com/Sfzmango)). Original, project-agnostic agent designs — no proprietary code; compliance rubrics reference public standards (SOC 2, OWASP, PCI DSS, NIST, CWE).

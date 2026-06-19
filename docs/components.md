@@ -1,6 +1,6 @@
 # Components Reference Index
 
-This is a reference index of all **20 components** that make up the pipeline: **14 agents** (invoked via `@name`) and **6 skills** (invoked via `/name`). Components are grouped by the stage of the dev cycle they serve.
+This is a reference index of all **23 components** that make up the pipeline: **15 agents** (invoked via `@name`) and **8 skills** (invoked via `/name`). Components are grouped by the stage of the dev cycle they serve.
 
 ## Onboarding
 
@@ -38,6 +38,15 @@ The plan stage converts intent into a vetted, committed plan. `@product-owner` s
 
 The build stage is where the approved plan becomes working code. `@developer` implements the plan as a single amended commit #2, auto-detecting the project's test, lint, and build stack, verifying UI changes live with Playwright, and tripping a circuit breaker if quality degrades — all behind strict commit and push gates.
 
+## Testing & migrations
+
+| Component | Kind | One-liner | Invocation |
+| --- | --- | --- | --- |
+| test-author | agent | Authors tests (especially the negative-path/edge cases the happy path misses); runs them against the real test runner; never weakens an assertion to pass; reports real bugs instead of masking them. Read-only on source, writes only test files. | `@test-author` |
+| migration-planner | skill | Read-only pre-flight that produces a risk dossier for a data/schema migration BEFORE it is written: data-loss + lock/downtime risks, backfill, expand/contract rollout, rollback, blast radius. Never writes or runs the migration. | `/migration-planner` |
+
+These two cover the build-time risks the main pipeline doesn't. `@test-author` deepens coverage on the negative paths a reviewer flags as missing, and `/migration-planner` de-risks schema/data changes — the class of change most likely to lose data or lock a table — before any migration is written.
+
 ## Review
 
 | Component | Kind | One-liner | Invocation |
@@ -72,6 +81,7 @@ The bug side-flow is a self-contained diagnose-and-prove loop that feeds back in
 | --- | --- | --- | --- |
 | chore | skill | Lightweight escape hatch for small single-concern PRs that keep the same commit/push gates; re-routes to `/orchestrator` if it grows. | `/chore` |
 | handoff | skill | Drafts a self-contained, drift-aware brief so a zero-context agent (or future self) can resume work cold; never written proactively. | `/handoff` |
+| toolbelt | skill | Self-describing front door: an inventory of all components, recommend-a-component for a stated goal, and a read-only status check (router/MCP/CLAUDE.md). Never invokes anything itself. | `/toolbelt` |
 
 The utility stage provides lightweight escape hatches around the main pipeline. `/chore` handles small, single-concern PRs without the full ceremony while keeping the same commit and push gates, and re-routes to `/orchestrator` if the change grows beyond chore size. `/handoff` drafts a self-contained, drift-aware brief that lets a zero-context agent — or a future self — resume work cold; it is never written proactively.
 

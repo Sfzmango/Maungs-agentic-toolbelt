@@ -6,7 +6,7 @@ feed into or run alongside that main line.
 
 ## Component inventory
 
-The pipeline is **14 agents + 6 skills = 20 components**. The split is deliberate:
+The pipeline is **15 agents + 8 skills = 23 components**. The split is deliberate:
 
 - **Skills (`/name`) are conductors.** They orchestrate a multi-phase process and
   delegate every unit of real work to an agent. They route, gate, and sequence; they
@@ -25,6 +25,8 @@ The pipeline is **14 agents + 6 skills = 20 components**. The split is deliberat
 | Plan | `@architect` | agent | Issue → plan file with all architectural decisions front-loaded; lands plan as PR commit #1 (+ UI/UX flow & wireframes) |
 | Plan | `@plan-reviewer` | agent | Cold, context-blind adversarial critique of the plan; 8-point rubric → SOLID / REVISE / RETHINK |
 | Build | `@developer` | agent | Implements the approved plan as one amended commit #2; auto-detects stack; live Playwright UI verification |
+| Testing | `@test-author` | agent | Authors negative-path/edge tests; runs the real test runner; never weakens assertions to pass |
+| Migrations | `/migration-planner` | skill | Read-only pre-flight risk dossier for schema/data migrations (data-loss, locks, backfill, expand/contract, rollback) before anything is written |
 | Review | `@pr-reviewer` | agent | Fresh-eyes PR review; 7-point rubric; multi-tenant isolation as top bug class → SHIP / SHIP WITH FIXES / DO NOT SHIP |
 | Review | `@security-reviewer` | agent | Cold compliance gate; SAST + dep-CVE + secret scan → ship / no-ship / COMPLIANCE BLOCKER |
 | Review | `@security-mentor` | agent | Same security review, but teaches the *why* (threat model + payload + structurally-immune fix) |
@@ -34,9 +36,12 @@ The pipeline is **14 agents + 6 skills = 20 components**. The split is deliberat
 | Bug | `@bug-catcher-adversary` | agent | Fresh-eyes refuter → CONFIRMED / DISPUTED / WRONG-ROOT-CAUSE / INCONCLUSIVE |
 | Utility | `/chore` | skill | Escape hatch for small single-concern PRs; same commit/push gates; re-routes to `/orchestrator` if it grows |
 | Utility | `/handoff` | skill | Drafts a drift-aware brief so a zero-context agent can resume cold; never written proactively |
+| Utility | `/toolbelt` | skill | Self-describing inventory + recommend-a-component + status (router/MCP/CLAUDE.md checks); read-only |
 | Wiki | `/wiki-generator` | skill | Conductor for a near-100% technical wiki; full-build + incremental `--update`; output Markdown in `docs/wiki/` |
 | Wiki | `@wiki-writer` | agent | Authors/updates ONE wiki page from real code; writes only its page, read-only on code; "verified against commit" stamp |
 | Wiki | `@wiki-auditor` | agent | Fresh-eyes drift detector → CURRENT / STALE / INCORRECT / ORPHANED + delta list; writes nothing |
+
+Plus three plugin **hooks** (not counted above): a `UserPromptSubmit` prompt-router that suggests the fitting component on each prompt, a `PreToolUse` guard that blocks cardinal-rule violations (`git add -A`, `--force`, `--no-verify`, catastrophic `rm -rf`, AI-attributed commits), and a `SessionStart` loader that injects a project snapshot. See the README's "Always-on hooks".
 
 ## End-to-end flow
 

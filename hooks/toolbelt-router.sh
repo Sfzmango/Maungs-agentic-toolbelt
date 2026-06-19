@@ -64,6 +64,13 @@ Looks like preparing a repo for agentic development. Consider:
 - /agentic-onboard — scans the repo and generates the agent-context files the rest of the toolbelt depends on (CLAUDE.md + AGENTS.md + a concise architecture map). Handles cold repos and refreshes stale/outdated context. Add --deep for a full docs/wiki."
 fi
 
+# 0b) Schema / data migration
+if m 'migrat(e|ion|ing)|schema change|alter table|add (a )?column|drop (a )?(column|table)|rename (a )?column|backfill|change the (db|database|schema)|new migration'; then
+  emit "$PREFIX
+Looks like a database/schema migration. Consider:
+- /migration-planner — a read-only pre-flight that produces a risk dossier BEFORE the migration is written: data-loss + lock/downtime risks, a backfill + expand/contract rollout, and a rollback plan. It never writes the migration itself."
+fi
+
 # 1) Security / compliance
 if m 'security|secure\b|vulnerab|injection|xss|csrf|sql ?inj|owasp|soc ?2|pci|hipaa|nist|cve\b|secret(s)?\b|credential|encrypt|authn|authz|authoriz|authentic'; then
   emit "$PREFIX
@@ -85,6 +92,13 @@ if m 'bug\b|broke(n)?\b|not working|does(n.?t| not) work|fail(s|ing|ed)?\b|error
   emit "$PREFIX
 Looks like a bug/defect. Consider:
 - /bug-catcher <symptom> — diagnoses the ROOT cause (not the symptom) with a file:line evidence chain, then adversarially verifies it before any fix is planned. It never edits code itself."
+fi
+
+# 3b) Author tests
+if m 'write (a |unit |some |more )?tests?|add (unit |negative |edge |missing )?tests?|test coverage|missing tests?|cover .* with (a )?tests?|need (more )?tests?|test cases? for'; then
+  emit "$PREFIX
+Looks like adding test coverage. Consider:
+- @test-author — authors tests (especially the negative-path/edge cases the happy path misses), runs them against the project's real test runner, and never weakens an assertion to pass. Read-only on source; writes only test files."
 fi
 
 # 4) Handoff / resume later
@@ -114,6 +128,13 @@ if m 'plan (this|the|out|a)|design (the|a|this)|architect\b|architecture|approac
 Looks like planning / scoping / architecture. Consider:
 - @architect — front-loads every architectural decision into a vetted plan file before any code is written.
 - @product-owner — turns a fuzzy ask into a scoped issue with business-language acceptance criteria (and UI/UX wireframes for user-facing work)."
+fi
+
+# 7b) What can the toolbelt do (meta / discovery)
+if m 'what can (this|the|your|you).*(toolbelt|do|help)|which (component|agent|skill|tool|command)|what.?s in (the|your) toolbelt|list (the )?(agents|skills|tools|components|commands)|toolbelt (help|status|inventory)'; then
+  emit "$PREFIX
+Looks like a question about the toolbelt itself. Consider:
+- /toolbelt — lists the full inventory, recommends the best component for a stated goal, and shows status (router state, MCP servers, whether a CLAUDE.md exists)."
 fi
 
 # 8) Build / implement a feature
