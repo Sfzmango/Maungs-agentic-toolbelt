@@ -12,7 +12,7 @@ cd Maungs-agentic-toolbelt
 ./install.sh          # copy into ~/.claude  (use --symlink to track updates via git pull)
 ```
 
-Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` then `/plugin install maungs-agentic-toolbelt`.
+Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` then `/plugin install maungs-agentic-toolbelt@maung-tools` (the plugin is served from the repo's `maung-tools` marketplace).
 
 > **Zero to running.** The agents use a **GitHub MCP** server (issue/PR tools) and, optionally, a **Playwright MCP** server (`@developer`'s browser checks). These do not need to be wired up by hand — running `/orchestrator` performs an environment **preflight** that detects what's missing, offers to add the MCP servers (behind a confirmation gate), and guides the user through anything that requires manual action (`gh auth login`, restarting Claude Code). Full walkthrough: **[`docs/getting-started.md`](docs/getting-started.md)**.
 

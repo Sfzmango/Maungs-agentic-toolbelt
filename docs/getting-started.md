@@ -16,7 +16,7 @@ cd Maungs-agentic-toolbelt
 ./install.sh                 # copy into ~/.claude   (use --symlink to track updates via git pull)
 ```
 
-Or install as a plugin: `/plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` then `/plugin install maungs-agentic-toolbelt`.
+Or install as a plugin: `/plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` then `/plugin install maungs-agentic-toolbelt@maung-tools` (the plugin name is `maungs-agentic-toolbelt`; `maung-tools` is the marketplace it ships in).
 
 These install **globally** into `~/.claude`, so they're available in every repo on your machine — you don't reinstall per project.
 
