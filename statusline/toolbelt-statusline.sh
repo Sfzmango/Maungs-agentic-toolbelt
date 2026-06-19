@@ -50,10 +50,18 @@ if [ -n "$cost" ]; then
   line="${line}${sep}${dim}${costfmt}${durm:+ · $durm}${rst}"
 fi
 
+# context-window usage segment (green < 60%, yellow 60–85%, red > 85%)
+ctx="$(jget '.context_window.used_percentage')"
+if [ -n "$ctx" ]; then
+  ctxi="${ctx%%.*}"
+  cc="$grn"; [ "${ctxi:-0}" -ge 60 ] 2>/dev/null && cc="$yel"; [ "${ctxi:-0}" -ge 85 ] 2>/dev/null && cc="$red"
+  line="${line}${sep}${dim}ctx${rst} ${cc}${ctxi}%${rst}"
+fi
+
 # toolbelt hook state
 gs="${grn}●${rst}"; [ "${MAUNGS_TOOLBELT_GUARD:-on}" = "off" ] && gs="${red}○${rst}"
 rs="${grn}●${rst}"; [ "${MAUNGS_TOOLBELT_ROUTER:-on}" = "off" ] && rs="${red}○${rst}"
-line="${line}${sep}${dim}guard${rst}${gs} ${dim}router${rst}${rs}"
+line="${line}${sep}${dim}guard${rst} ${gs} ${dim}router${rst} ${rs}"
 
 # model
 line="${line}${sep}${dim}${model}${rst}"
