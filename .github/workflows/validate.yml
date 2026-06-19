@@ -34,3 +34,6 @@ jobs:
             exit 1
           fi
           echo "clean — no private references found"
+
+      - name: Prompt router routes prompts to the intended components
+        run: python3 tests/test_router.py
