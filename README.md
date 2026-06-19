@@ -1,6 +1,6 @@
 # Maungs-agentic-toolbelt
 
-A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **15 agents + 8 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
+A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **15 agents + 9 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
 
 Agents are invoked with `@name`, skills with `/name`.
 
@@ -35,6 +35,7 @@ Installed as a plugin, the toolbelt registers three lightweight hooks. The first
 | "migrate / change the schema" | `/migration-planner` |
 | "write tests / add missing tests" | `@test-author` |
 | "what can this toolbelt do" | `/toolbelt` |
+| "draft release notes / deploy summary" | `/release-notes` |
 
 The hook stays **silent on anything that doesn't fit** (no token cost, no noise), only ever **suggests** — it never auto-runs workflows that commit, push, or open PRs — and is read-only with no network access. It can be disabled at any time:
 
@@ -67,6 +68,8 @@ All three hooks ship with the **plugin** install; the copy / `install.sh` method
 **`/wiki-generator`** — *`/wiki-generator`* (full build) or *`/wiki-generator --update`* (incremental, schedulable). Generates and maintains a near-100%-coverage technical wiki in Markdown at `docs/wiki/` — per-module business analysis, schemas, flow diagrams, related files per page, a glossary, and an onboarding guide. The `--update` mode re-syncs only the pages that drifted, so a scheduled run keeps the wiki current with no manual upkeep. See [`docs/scheduling.md`](docs/scheduling.md).
 
 **`/migration-planner`** — *`/migration-planner <described change | migration file>`*. A read-only pre-flight for risky data/schema migrations: it produces a risk dossier **before** the migration is written — data-loss and lock/downtime risks (flagged by database), a backfill plan, an expand/contract zero-downtime rollout, a rollback plan, and the blast radius of code touching the affected schema. It never writes or runs the migration.
+
+**`/release-notes`** — *`/release-notes [<range> | PR <n>] [--format deploy-comment]`*. Generates grouped release notes (✨ features / 🐛 fixes / ⚠️ breaking / 🗄️ migrations) from a commit range or PRs, with a SemVer bump recommendation and a deploy checklist when migrations or env changes are detected. Read-only — it outputs text and never tags, commits, or posts; `--format deploy-comment` produces a compact block to enrich a deployment comment.
 
 **`/toolbelt`** — *`/toolbelt`* (inventory), *`/toolbelt <goal>`* (recommend a component), or *`/toolbelt status`* (environment check). The self-describing front door: it lists every component grouped by stage, recommends the best fit for a stated goal, and reports what's active (router/guard state, MCP servers, whether a `CLAUDE.md` exists). Read-only.
 
@@ -126,7 +129,7 @@ All three hooks ship with the **plugin** install; the copy / `install.sh` method
 
 - [`docs/architecture.md`](docs/architecture.md) — how the agents hand off, with a full pipeline diagram
 - [`docs/design-philosophy.md`](docs/design-philosophy.md) — the recurring design principles and the failure modes they prevent
-- [`docs/components.md`](docs/components.md) — one-table index of all 23 components
+- [`docs/components.md`](docs/components.md) — one-table index of all 24 components
 - [`examples/`](examples/) — a sample issue, plan (with wireframes), bug dossier, and generated wiki
 
 **License:** [PolyForm Noncommercial 1.0.0](LICENSE) © 2026 Maung Htike. Free to use, run, and adapt for **noncommercial** purposes with attribution preserved; **commercial use requires a separate license** (contact via [github.com/Sfzmango](https://github.com/Sfzmango)). Original, project-agnostic agent designs — no proprietary code; compliance rubrics reference public standards (SOC 2, OWASP, PCI DSS, NIST, CWE).

@@ -1,6 +1,6 @@
 # Components Reference Index
 
-This is a reference index of all **23 components** that make up the pipeline: **15 agents** (invoked via `@name`) and **8 skills** (invoked via `/name`). Components are grouped by the stage of the dev cycle they serve.
+This is a reference index of all **24 components** that make up the pipeline: **15 agents** (invoked via `@name`) and **9 skills** (invoked via `/name`). Components are grouped by the stage of the dev cycle they serve.
 
 ## Onboarding
 
@@ -82,6 +82,7 @@ The bug side-flow is a self-contained diagnose-and-prove loop that feeds back in
 | chore | skill | Lightweight escape hatch for small single-concern PRs that keep the same commit/push gates; re-routes to `/orchestrator` if it grows. | `/chore` |
 | handoff | skill | Drafts a self-contained, drift-aware brief so a zero-context agent (or future self) can resume work cold; never written proactively. | `/handoff` |
 | toolbelt | skill | Self-describing front door: an inventory of all components, recommend-a-component for a stated goal, and a read-only status check (router/MCP/CLAUDE.md). Never invokes anything itself. | `/toolbelt` |
+| release-notes | skill | Generates grouped release notes (features/fixes/breaking/migrations) from a commit range or PRs, with a SemVer bump rec + deploy checklist. Read-only — outputs text, never tags/posts; `--format deploy-comment` enriches a deployment comment. | `/release-notes` |
 
 The utility stage provides lightweight escape hatches around the main pipeline. `/chore` handles small, single-concern PRs without the full ceremony while keeping the same commit and push gates, and re-routes to `/orchestrator` if the change grows beyond chore size. `/handoff` drafts a self-contained, drift-aware brief that lets a zero-context agent — or a future self — resume work cold; it is never written proactively.
 

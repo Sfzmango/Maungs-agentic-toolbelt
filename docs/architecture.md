@@ -6,7 +6,7 @@ feed into or run alongside that main line.
 
 ## Component inventory
 
-The pipeline is **15 agents + 8 skills = 23 components**. The split is deliberate:
+The pipeline is **15 agents + 9 skills = 24 components**. The split is deliberate:
 
 - **Skills (`/name`) are conductors.** They orchestrate a multi-phase process and
   delegate every unit of real work to an agent. They route, gate, and sequence; they
@@ -37,6 +37,7 @@ The pipeline is **15 agents + 8 skills = 23 components**. The split is deliberat
 | Utility | `/chore` | skill | Escape hatch for small single-concern PRs; same commit/push gates; re-routes to `/orchestrator` if it grows |
 | Utility | `/handoff` | skill | Drafts a drift-aware brief so a zero-context agent can resume cold; never written proactively |
 | Utility | `/toolbelt` | skill | Self-describing inventory + recommend-a-component + status (router/MCP/CLAUDE.md checks); read-only |
+| Utility | `/release-notes` | skill | Grouped release notes (features/fixes/breaking/migrations) + SemVer rec from a commit range/PRs; read-only; `--format deploy-comment` enriches a deploy comment |
 | Wiki | `/wiki-generator` | skill | Conductor for a near-100% technical wiki; full-build + incremental `--update`; output Markdown in `docs/wiki/` |
 | Wiki | `@wiki-writer` | agent | Authors/updates ONE wiki page from real code; writes only its page, read-only on code; "verified against commit" stamp |
 | Wiki | `@wiki-auditor` | agent | Fresh-eyes drift detector → CURRENT / STALE / INCORRECT / ORPHANED + delta list; writes nothing |

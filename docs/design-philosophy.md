@@ -1,6 +1,6 @@
 # Design philosophy
 
-This pipeline is **15 agents + 8 skills (23 components)** that take a fuzzy ask all the way to a merged PR — plus side-flows for bug diagnosis, chores, handoffs, and a self-maintaining codebase wiki. Agents are invoked with `@name` and run with a scoped toolset; skills are invoked with `/name` and act as conductors that delegate to agents.
+This pipeline is **15 agents + 9 skills (24 components)** that take a fuzzy ask all the way to a merged PR — plus side-flows for bug diagnosis, chores, handoffs, and a self-maintaining codebase wiki. Agents are invoked with `@name` and run with a scoped toolset; skills are invoked with `/name` and act as conductors that delegate to agents.
 
 What makes it a *system* rather than a bag of prompts is that the same seven design principles recur in every component. They were not retrofitted into a style guide after the fact — each one is a response to a specific, observed failure mode of LLM-driven development (context contamination, scope creep, silent quality regression, runaway token spend, an agent quietly committing on your behalf). This document states each principle, the failure it defends against, and points at the concrete place in the components where it is enforced.
 

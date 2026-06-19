@@ -108,6 +108,13 @@ Looks like transferring or resuming work. Consider:
 - /handoff <issue-id|topic> — drafts a self-contained, drift-aware brief so a zero-context agent (or your future self) can resume cold."
 fi
 
+# 4b) Release notes / changelog / deploy summary
+if m 'release notes?|changelog|cut a release|prepare (a |the )?release|draft (the )?release|deploy(ment)? (comment|notes|description|summary)|what.?s in (this|the) (release|deploy)|release summary'; then
+  emit "$PREFIX
+Looks like preparing release notes or a deploy summary. Consider:
+- /release-notes — generates grouped release notes (features / fixes / breaking / migrations) from a commit range or PRs, with a SemVer bump recommendation. Read-only (outputs text; never tags or posts). Add --format deploy-comment to enrich a deployment comment."
+fi
+
 # 5) Chore-sized change
 if m 'typo|\bbump\b|upgrade (the |a )?(depend|package|version|lib)|dependency (bump|update|upgrade)|rename (a|the|this|that)|small (fix|change|tweak)|one-?liner|config (change|tweak)|update (the )?(readme|comment|changelog|doc)'; then
   emit "$PREFIX
