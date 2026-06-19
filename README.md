@@ -45,7 +45,7 @@ export MAUNGS_TOOLBELT_ROUTER=off
 
 Two more hooks come with the plugin:
 
-**Guardrail (`PreToolUse`).** Before any shell command runs, it **blocks** the actions the agents are forbidden to take — `git add -A`/`.`, `git push --force` (without `--force-with-lease`), `--no-verify` hook bypasses, catastrophic `rm -rf` (on `/` `~` `*`), and AI-attribution in commit messages — turning the cardinal rules into an *enforced* guardrail rather than a request. It denies only clearly-dangerous commands and lets everything else through. Disable with `export MAUNGS_TOOLBELT_GUARD=off`.
+**Guardrail (`PreToolUse`).** Before any shell command runs, it enforces two tiers. **Deny** (hard block) — the always-wrong cardinal-rule violations: `git add -A`/`.`, `git push --force` (without `--force-with-lease`), `--no-verify`, catastrophic `rm -rf` (on `/` `~` `*`), and AI-attributed commits. **Ask** (always prompts, with a detailed reason) — risky/data-loss ops that *might* be legitimate but must be confirmed first: destructive SQL (`DROP`/`TRUNCATE`/`DELETE`/`DROP COLUMN`), `db:drop`/`reset` & datastore flushes, `git reset --hard`/`clean -fd`/`branch -D`/`push --delete`, `rm -rf` of a non-disposable dir, `terraform destroy`/`kubectl delete`/`docker volume rm`, and bulk `find -delete`. Everything else passes untouched. Disable with `export MAUNGS_TOOLBELT_GUARD=off`.
 
 **Session loader (`SessionStart`).** At session start it injects a concise, read-only project snapshot — branch, uncommitted-file count, recent commits, the latest plan, any pending handoff, open PRs, and a nudge to run `/agentic-onboard` if there's no `CLAUDE.md` — so Claude starts warm instead of re-deriving the repo. Disable with `export MAUNGS_TOOLBELT_LOADER=off`.
 
