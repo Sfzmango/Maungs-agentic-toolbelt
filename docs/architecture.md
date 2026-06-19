@@ -6,7 +6,7 @@ feed into or run alongside that main line.
 
 ## Component inventory
 
-The pipeline is **15 agents + 9 skills = 24 components**. The split is deliberate:
+The pipeline is **16 agents + 9 skills = 25 components**. The split is deliberate:
 
 - **Skills (`/name`) are conductors.** They orchestrate a multi-phase process and
   delegate every unit of real work to an agent. They route, gate, and sequence; they

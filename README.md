@@ -1,6 +1,6 @@
 # Maungs-agentic-toolbelt
 
-A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **15 agents + 9 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
+A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **16 agents + 9 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
 
 Agents are invoked with `@name`, skills with `/name`.
 
@@ -112,6 +112,10 @@ The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that 
 
 **`@developer`** — *`@developer implement plan <path>`*. Implements an approved plan as a single amended commit on the PR branch, auto-detecting the project's test/lint/build stack and writing tests. It runs live Playwright browser verification for UI changes, drives explicit commit/push gates, and hard-halts if a fix-loop iteration makes things worse instead of better.
 
+### Translation
+
+**`@code-translator`** — *`@code-translator translate <file-or-snippet> from <lang> to <lang>[, …]`*. A read-only, documentation-grounded translation context provider: given source code and one or more target languages/frameworks, it fetches the real docs for every language involved (Context7 first, web fallback) and returns a translation bundle — translated code, a cited idiom map, and caveats — for you or the `/orchestrator` flow to act on. It resolves framework disambiguation, scales to N targets, works at snippet/file/module granularity, and writes nothing (it only provides grounded context).
+
 ### Testing
 
 **`@test-author`** — *invoke directly, or when `@pr-reviewer` flags a missing test*. Authors tests — especially the negative-path and edge cases the happy path misses (validation failures, auth/tenant denial, boundary inputs, error paths) — runs them against the project's real test runner, and never weakens an assertion or deletes a test to make the suite pass. If a test reveals a real bug it reports it (pointing at `/bug-catcher`) rather than masking it. Read-only on source; writes only test files.
@@ -146,7 +150,7 @@ The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that 
 
 - [`docs/architecture.md`](docs/architecture.md) — how the agents hand off, with a full pipeline diagram
 - [`docs/design-philosophy.md`](docs/design-philosophy.md) — the recurring design principles and the failure modes they prevent
-- [`docs/components.md`](docs/components.md) — one-table index of all 24 components
+- [`docs/components.md`](docs/components.md) — one-table index of all 25 components
 - [`examples/`](examples/) — a sample issue, plan (with wireframes), bug dossier, and generated wiki
 
 **License:** [PolyForm Noncommercial 1.0.0](LICENSE) © 2026 Maung Htike. Free to use, run, and adapt for **noncommercial** purposes with attribution preserved; **commercial use requires a separate license** (contact via [github.com/Sfzmango](https://github.com/Sfzmango)). Original, project-agnostic agent designs — no proprietary code; compliance rubrics reference public standards (SOC 2, OWASP, PCI DSS, NIST, CWE).

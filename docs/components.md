@@ -1,6 +1,6 @@
 # Components Reference Index
 
-This is a reference index of all **24 components** that make up the pipeline: **15 agents** (invoked via `@name`) and **9 skills** (invoked via `/name`). Components are grouped by the stage of the dev cycle they serve.
+This is a reference index of all **25 components** that make up the pipeline: **16 agents** (invoked via `@name`) and **9 skills** (invoked via `/name`). Components are grouped by the stage of the dev cycle they serve.
 
 ## Onboarding
 
@@ -74,6 +74,14 @@ The wrap-up stage gets the PR merge-ready. `@resolution` is the inverse of `@pr-
 | bug-catcher-adversary | agent | Fresh-eyes refuter that tries to prove the diagnosis wrong → CONFIRMED/DISPUTED/WRONG-ROOT-CAUSE/INCONCLUSIVE. | `@bug-catcher-adversary` |
 
 The bug side-flow is a self-contained diagnose-and-prove loop that feeds back into the main pipeline. `/bug-catcher` is the conductor: it runs a bounded debate between `@bug-catcher-rick`, which produces an evidence-backed root-cause dossier (symptom vs cause, a file:line evidence chain, severity, fix direction, and blast radius), and `@bug-catcher-adversary`, a fresh-eyes refuter that tries to prove the diagnosis wrong and returns CONFIRMED, DISPUTED, WRONG-ROOT-CAUSE, or INCONCLUSIVE. The conductor severity-ranks the results and hands a verified fix plan to `/orchestrator` or `/chore`; its `--global` flag sweeps the entire codebase.
+
+## Translation side-flow
+
+| Component | Kind | One-liner | Invocation |
+| --- | --- | --- | --- |
+| code-translator | agent | Read-only, documentation-grounded code-translation context provider: fetches the real docs for every language involved (Context7 first, web fallback), then returns a translation bundle (translated code + cited idiom map + caveats) for the user or `/orchestrator`. Framework disambiguation, N targets, snippet/file/module granularity; writes nothing. | `@code-translator` |
+
+The translation side-flow grounds a cross-language port before any code is written. `@code-translator` takes source code plus one or more target languages/frameworks, fetches the authoritative docs for each (Context7 first, web fallback), and returns a doc-grounded translation bundle — translated code, a cited idiom map, and explicit caveats — for the user or the `/orchestrator` build flow to act on. It resolves framework ambiguity, scales to N targets, and writes nothing; it only provides extra grounded context.
 
 ## Utility
 

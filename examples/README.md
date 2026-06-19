@@ -82,7 +82,7 @@ walkthrough below, your output should look like these.
 
 ### Install the components
 
-Pick one. Both make the 15 agents (`@architect`, `@developer`, `@pr-reviewer`,
+Pick one. Both make the 16 agents (`@architect`, `@developer`, `@pr-reviewer`,
 …) and 9 skills (`/orchestrator`, `/bug-catcher`, `/wiki-generator`, `/chore`,
 `/handoff`) available in any project.
 

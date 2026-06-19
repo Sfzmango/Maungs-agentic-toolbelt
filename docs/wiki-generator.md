@@ -397,7 +397,7 @@ documentation layer should be.
 
 ## See also
 
-- [`components.md`](components.md) — one-line reference for all 24 components.
+- [`components.md`](components.md) — one-line reference for all 25 components.
 - [`scheduling.md`](scheduling.md) — the scheduled self-maintenance variant: how
   to run `/wiki-generator --update` on a cron so the wiki keeps itself current.
 - [`CONTRIBUTING.md`](../CONTRIBUTING.md) — where the `docs/wiki/` location and
