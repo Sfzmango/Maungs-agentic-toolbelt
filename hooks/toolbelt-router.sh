@@ -57,6 +57,13 @@ PREFIX="[Maungs-agentic-toolbelt] An installed toolbelt may help here. Offer the
 
 # --- priority-ordered intent matching (first match wins) --------------------
 
+# 0) Onboard / prep a repo for agentic development
+if m 'claude\.?md|agents\.?md|onboard (this|the|my|a|our)|set ?up (this|the|my|a|our)[a-z ]*(repo|codebase|project)|make (this|the|my|our) (repo|codebase|project) agent|agent-ready|prep (this|the|my|a|our) (repo|codebase|project)|bootstrap (the )?(context|repo|project)|generate (a |the )?claude|there.?s no claude|missing (a )?claude|no (claude|agent|ai)[- ]?(context|config|setup)'; then
+  emit "$PREFIX
+Looks like preparing a repo for agentic development. Consider:
+- /agentic-onboard — scans the repo and generates the agent-context files the rest of the toolbelt depends on (CLAUDE.md + AGENTS.md + a concise architecture map). Handles cold repos and refreshes stale/outdated context. Add --deep for a full docs/wiki."
+fi
+
 # 1) Security / compliance
 if m 'security|secure\b|vulnerab|injection|xss|csrf|sql ?inj|owasp|soc ?2|pci|hipaa|nist|cve\b|secret(s)?\b|credential|encrypt|authn|authz|authoriz|authentic'; then
   emit "$PREFIX

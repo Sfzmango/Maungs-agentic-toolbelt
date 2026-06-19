@@ -6,7 +6,7 @@ feed into or run alongside that main line.
 
 ## Component inventory
 
-The pipeline is **12 agents + 5 skills = 17 components**. The split is deliberate:
+The pipeline is **14 agents + 6 skills = 20 components**. The split is deliberate:
 
 - **Skills (`/name`) are conductors.** They orchestrate a multi-phase process and
   delegate every unit of real work to an agent. They route, gate, and sequence; they
@@ -17,6 +17,9 @@ The pipeline is **12 agents + 5 skills = 17 components**. The split is deliberat
 
 | Phase | Component | Type | One-line responsibility |
 |---|---|---|---|
+| Onboarding | `/agentic-onboard` | skill | Preps any repo for agentic development — scans it and emits CLAUDE.md + AGENTS.md + a concise architecture map; cold-generate or stale-refresh; `--deep` builds the full wiki |
+| Onboarding | `@context-writer` | agent | Authors the context files from one verified project profile; read-only on source, writes only the context files |
+| Onboarding | `@context-auditor` | agent | Fresh-eyes drift detector for stale context → CURRENT / STALE / INCORRECT / MISSING + delta list |
 | Conductor | `/orchestrator` | skill | Step 0 env preflight (gh auth + MCP servers), then runs the full issue→merge cycle; delegates every phase; never codes |
 | Plan | `@product-owner` | agent | Fuzzy ask → scoped GitHub issue with business-language acceptance criteria (+ UI/UX flow & wireframes for user-facing work) |
 | Plan | `@architect` | agent | Issue → plan file with all architectural decisions front-loaded; lands plan as PR commit #1 (+ UI/UX flow & wireframes) |

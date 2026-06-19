@@ -1,6 +1,16 @@
 # Components Reference Index
 
-This is a reference index of all **17 components** that make up the pipeline: **12 agents** (invoked via `@name`) and **5 skills** (invoked via `/name`). Components are grouped by the stage of the dev cycle they serve.
+This is a reference index of all **20 components** that make up the pipeline: **14 agents** (invoked via `@name`) and **6 skills** (invoked via `/name`). Components are grouped by the stage of the dev cycle they serve.
+
+## Onboarding
+
+| Component | Kind | One-liner | Invocation |
+| --- | --- | --- | --- |
+| agentic-onboard | skill | Conductor that preps any repo for agentic development: scans it and emits the context files the toolbelt depends on (CLAUDE.md + AGENTS.md + concise architecture map). Cold-generate or stale-refresh (diff-before-write); `--deep` also builds the full wiki; pluggable `--target`. | `/agentic-onboard` |
+| context-writer | agent | Authors the context files (CLAUDE.md, AGENTS.md, docs/architecture.md) from one verified project profile; read-only on source, writes only context files; never fabricates. | `@context-writer` |
+| context-auditor | agent | Fresh-eyes drift detector for stale context → CURRENT/STALE/INCORRECT/MISSING + a delta list for context-writer; writes nothing. | `@context-auditor` |
+
+The onboarding stage is the on-ramp every other component depends on — they all auto-detect `CLAUDE.md` and a plan-file convention. `/agentic-onboard` scans an existing repo (cold, or with stale context), builds one canonical project profile, and delegates authoring to `@context-writer` and drift-detection to `@context-auditor`, emitting the Claude (`CLAUDE.md`) and cross-agent (`AGENTS.md`) targets now and others later. It writes the working tree only and diffs before overwriting.
 
 ## Conductor
 

@@ -1,6 +1,6 @@
 # Maungs-agentic-toolbelt
 
-A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **12 agents + 5 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
+A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **14 agents + 6 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
 
 Agents are invoked with `@name`, skills with `/name`.
 
@@ -24,6 +24,7 @@ Installed as a plugin, the toolbelt registers a lightweight `UserPromptSubmit` h
 
 | A request like… | …surfaces |
 | --- | --- |
+| "set up / onboard this repo (no CLAUDE.md)" | `/agentic-onboard` |
 | "build / implement this feature" | `/orchestrator`, `@architect`, `@product-owner` |
 | "this test is failing / why does X error" | `/bug-catcher` |
 | "review this PR" | `@pr-reviewer`, `@security-reviewer` |
@@ -44,6 +45,8 @@ The router ships with the **plugin** install. The copy / `install.sh` method ins
 
 ## Skills
 
+**`/agentic-onboard`** — *`/agentic-onboard`* (lean) or *`/agentic-onboard --deep --target all`*. The on-ramp: scans an existing repo and generates the agent-context files the rest of the toolbelt depends on — `CLAUDE.md` + `AGENTS.md` (cross-agent) + a concise architecture map. It detects whether the repo is **cold** (no context) or **stale** (drifted, via `@context-auditor`) and diffs before writing; `--deep` also builds the full `docs/wiki`. Writes the working tree only — never commits.
+
 **`/orchestrator`** — *`/orchestrator <issue-id>`* (or a topic; `--experiment` for a local dry run). The conductor: it runs a full issue→merge cycle by delegating each phase to the agents below and never writes code itself. It auto-detects the project's conventions and enforces the universal rules — a 3-commit PR structure, a full local quality gate, explicit per-commit/per-push confirmation, and a hard halt if review quality degrades.
 
 **`/bug-catcher`** — *`/bug-catcher <symptom>`* (or `--global` to sweep the whole codebase). A diagnose-and-prove conductor that never fixes code itself. It runs a bounded debate between `@bug-catcher-rick` and `@bug-catcher-adversary`, assigns a severity, and hands a verified fix plan to `/orchestrator` or `/chore`.
@@ -57,6 +60,12 @@ The router ships with the **plugin** install. The copy / `install.sh` method ins
 ---
 
 ## Agents
+
+### Onboarding
+
+**`@context-writer`** — *delegated by `/agentic-onboard`*. Reads the repo and authors the context files (`CLAUDE.md`, `AGENTS.md`, a concise `docs/architecture.md`) from one canonical project profile, so they never disagree. Every command and claim is verified against the repo (it cites the manifest or script it came from); anything unverifiable is flagged, never invented. Read-only on source code; writes only the context files.
+
+**`@context-auditor`** — *delegated by `/agentic-onboard` in stale mode*. A fresh-eyes drift detector: it re-derives the truth from the code and classifies each claim in an existing `CLAUDE.md` / `AGENTS.md` as CURRENT / STALE / INCORRECT / MISSING, with evidence, so `@context-writer` fixes only what drifted. Writes nothing.
 
 ### Plan
 
@@ -100,7 +109,7 @@ The router ships with the **plugin** install. The copy / `install.sh` method ins
 
 - [`docs/architecture.md`](docs/architecture.md) — how the agents hand off, with a full pipeline diagram
 - [`docs/design-philosophy.md`](docs/design-philosophy.md) — the recurring design principles and the failure modes they prevent
-- [`docs/components.md`](docs/components.md) — one-table index of all 17 components
+- [`docs/components.md`](docs/components.md) — one-table index of all 20 components
 - [`examples/`](examples/) — a sample issue, plan (with wireframes), bug dossier, and generated wiki
 
 **License:** [PolyForm Noncommercial 1.0.0](LICENSE) © 2026 Maung Htike. Free to use, run, and adapt for **noncommercial** purposes with attribution preserved; **commercial use requires a separate license** (contact via [github.com/Sfzmango](https://github.com/Sfzmango)). Original, project-agnostic agent designs — no proprietary code; compliance rubrics reference public standards (SOC 2, OWASP, PCI DSS, NIST, CWE).
