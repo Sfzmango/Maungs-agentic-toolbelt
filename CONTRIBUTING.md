@@ -43,12 +43,26 @@ The single highest-leverage thing you can add to a target project is a good
    rules, explicit auto-detection, a circuit-breaker table, a token budget, and
    human gates for any outward-facing action.
 3. Re-run `./install.sh` (or `git pull` if you symlinked).
+4. **Update the counts + descriptions** — see [Keeping counts & descriptions in sync](#keeping-counts--descriptions-in-sync). The `validate` workflow fails until they match.
 
 ## Adding a new skill
 
 Create `skills/<your-skill>/SKILL.md` with frontmatter (`name`, `description`,
 `disable-model-invocation`). Skills are conductors — prefer delegating heavy
-work to agents over doing it inline.
+work to agents over doing it inline. Then **update the counts + descriptions** (below).
+
+## Keeping counts & descriptions in sync
+
+Adding or removing a component changes the totals, and the `validate` workflow **fails**
+until every in-repo description matches the real counts (derived at CI time from
+`agents/*.md` + `skills/*/SKILL.md`). After adding an agent or skill, update:
+
+- **the listing** — the README "Agents"/"Skills" section and the `docs/components.md` index;
+- **the counts** (`N agents + M skills`, `N+M components`) in `README.md`, `docs/components.md`,
+  `docs/architecture.md`, `docs/design-philosophy.md`, and `.claude-plugin/{plugin,marketplace}.json`;
+- **the GitHub "About"** description — out-of-band metadata (not a file, and not writable by the
+  default CI token), so `validate` only *warns* with the exact command to run:
+  `gh repo edit <owner>/<repo> --description "…"`.
 
 ## House-style checklist
 
@@ -58,3 +72,4 @@ work to agents over doing it inline.
 - [ ] Circuit-breaker table for failure modes
 - [ ] Token budget with checkpoints
 - [ ] Fresh-eyes reviewers never read prior reviews of the same artifact
+- [ ] Counts + descriptions updated (CI `validate` enforces the in-repo ones; update the GitHub About too)

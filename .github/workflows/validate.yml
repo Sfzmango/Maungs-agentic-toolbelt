@@ -40,3 +40,33 @@ jobs:
 
       - name: Translator eval — reference solutions pass their vectors (multi-language)
         run: python3 tests/translator_eval/eval.py
+
+      - name: Component descriptions stay in sync with the real counts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Derive the real counts from the filesystem and assert every description
+          # matches. Adding/removing an agent or skill forces a description update here.
+          A=$(ls agents/*.md | wc -l | tr -d ' ')
+          S=$(ls skills/*/SKILL.md | wc -l | tr -d ' ')
+          C=$((A + S))
+          echo "Derived: ${A} agents + ${S} skills = ${C} components"
+          fail=0
+          chk() { grep -qF "$2" "$1" || { echo "::error file=$1::stale count — expected \"$2\" (did you add/remove a component?)"; fail=1; }; }
+          chk README.md                        "${A} agents + ${S} skills"
+          chk README.md                        "all ${C} components"
+          chk docs/components.md               "**${C} components**"
+          chk docs/components.md               "**${A} agents**"
+          chk docs/architecture.md             "${A} agents + ${S} skills = ${C} components"
+          chk docs/design-philosophy.md        "${A} agents + ${S} skills (${C} components)"
+          chk .claude-plugin/plugin.json       "${A} subagents + ${S} skills"
+          chk .claude-plugin/marketplace.json  "${A} agents + ${S} skills"
+          # The GitHub repo "About" is out-of-band metadata (not a file in the repo and not
+          # writable by the default GITHUB_TOKEN), so we WARN with the exact fix rather than
+          # fail — keeping it in sync is a documented release step (see CONTRIBUTING.md).
+          want="${A} agents + ${S} skills"
+          desc="$(gh repo view "$GITHUB_REPOSITORY" --json description --jq .description 2>/dev/null || true)"
+          if [ -n "$desc" ] && ! printf '%s' "$desc" | grep -qF "$want"; then
+            echo "::warning::GitHub 'About' is stale (want \"$want\"). Fix: gh repo edit $GITHUB_REPOSITORY --description \"...\""
+          fi
+          exit $fail
