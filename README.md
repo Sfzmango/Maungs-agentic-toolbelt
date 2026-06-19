@@ -18,6 +18,30 @@ Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-age
 
 ---
 
+## Always-on: the toolbelt offers itself
+
+Installed as a plugin, the toolbelt registers a lightweight `UserPromptSubmit` hook that inspects each prompt and — **only when it matches a toolbelt capability** — nudges Claude to offer the relevant component, so the right one surfaces without anyone remembering the command.
+
+| A request like… | …surfaces |
+| --- | --- |
+| "build / implement this feature" | `/orchestrator`, `@architect`, `@product-owner` |
+| "this test is failing / why does X error" | `/bug-catcher` |
+| "review this PR" | `@pr-reviewer`, `@security-reviewer` |
+| "is this secure / SOC 2 / injection" | `@security-reviewer`, `@security-mentor` |
+| "how does this module work / document the codebase" | `/wiki-generator` |
+| "bump a dependency / fix a typo" | `/chore` |
+| "write a handoff / resume later" | `/handoff` |
+
+The hook stays **silent on anything that doesn't fit** (no token cost, no noise), only ever **suggests** — it never auto-runs workflows that commit, push, or open PRs — and is read-only with no network access. It can be disabled at any time:
+
+```bash
+export MAUNGS_TOOLBELT_ROUTER=off
+```
+
+The router ships with the **plugin** install. The copy / `install.sh` method installs the agents and skills without the prompt hook.
+
+---
+
 ## Skills
 
 **`/orchestrator`** — *`/orchestrator <issue-id>`* (or a topic; `--experiment` for a local dry run). The conductor: it runs a full issue→merge cycle by delegating each phase to the agents below and never writes code itself. It auto-detects the project's conventions and enforces the universal rules — a 3-commit PR structure, a full local quality gate, explicit per-commit/per-push confirmation, and a hard halt if review quality degrades.
