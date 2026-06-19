@@ -58,10 +58,33 @@ if [ -n "$ctx" ]; then
   line="${line}${sep}${dim}ctx${rst} ${cc}${ctxi}%${rst}"
 fi
 
+# pipeline cockpit segment — populated by /orchestrator on the user's local
+# machine (~/.claude/toolbelt-status.json; never written into a project repo).
+# Shown only when the status is fresh (< 30 min) and matches the current repo.
+st="$HOME/.claude/toolbelt-status.json"
+if [ -f "$st" ] && command -v jq >/dev/null 2>&1; then
+  s_repo="$(jq -r '.repo // empty' "$st" 2>/dev/null)"
+  s_upd="$(jq -r '.updated // 0' "$st" 2>/dev/null)"; s_upd="${s_upd%.*}"
+  now="$(date +%s 2>/dev/null)"; cur="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [ -n "$s_repo" ] && [ "$s_repo" = "$cur" ] && [ $((now - ${s_upd:-0})) -lt 1800 ] 2>/dev/null; then
+    sp="$(jq -r '.phase // empty' "$st" 2>/dev/null)"
+    spr="$(jq -r '.pr // empty' "$st" 2>/dev/null)"
+    sv="$(jq -r '.verdict // empty' "$st" 2>/dev/null)"
+    seg="${cyan}◷ ${sp}${rst}"
+    [ -n "$spr" ] && seg="${seg} ${dim}PR#${rst}${spr}"
+    if [ -n "$sv" ]; then
+      case "$sv" in *"DO NOT"*|*BLOCK*) vc="$red";; *FIXES*) vc="$yel";; *SHIP*|*ready*) vc="$grn";; *) vc="$dim";; esac
+      seg="${seg} ${vc}${sv}${rst}"
+    fi
+    line="${line}${sep}${seg}"
+  fi
+fi
+
 # toolbelt hook state
 gs="${grn}●${rst}"; [ "${MAUNGS_TOOLBELT_GUARD:-on}" = "off" ] && gs="${red}○${rst}"
 rs="${grn}●${rst}"; [ "${MAUNGS_TOOLBELT_ROUTER:-on}" = "off" ] && rs="${red}○${rst}"
-line="${line}${sep}${dim}guard${rst} ${gs} ${dim}router${rst} ${rs}"
+ls="${grn}●${rst}"; [ "${MAUNGS_TOOLBELT_LOADER:-on}" = "off" ] && ls="${red}○${rst}"
+line="${line}${sep}${dim}guard${rst} ${gs} ${dim}router${rst} ${rs} ${dim}loader${rst} ${ls}"
 
 # model
 line="${line}${sep}${dim}${model}${rst}"
