@@ -196,7 +196,7 @@ if ARGS.verbose:
     by = collections.defaultdict(list)
     for ok, p, exp, got in results:
         by["/".join(sorted(exp))].append((ok, p, got))
-    print("PER-CASE (grouped by expected intent):")
+    print("PER-CASE (grouped by expected intent; what was passed → what the router returned):")
     for key in sorted(by):
         rows = by[key]
         g = sum(1 for r in rows if r[0])
@@ -204,8 +204,7 @@ if ARGS.verbose:
         for ok, p, got in rows:
             sym = "✓" if ok else "✗"
             word = "PASS" if ok else "FAIL"
-            extra = "" if ok else f"   (got={got})"
-            print(f"    {sym} {word}  {p}{extra}")
+            print(f"    {sym} {word}  passed={p!r}  expected={key}  returned={got}")
     print()
 
 # per-expected-category accuracy (always)

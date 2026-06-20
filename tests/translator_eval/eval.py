@@ -52,6 +52,12 @@ def runnable(lang):
 def norm(s):
     return "\n".join(line.rstrip() for line in s.replace("\r\n", "\n").rstrip("\n").split("\n"))
 
+def clip(s, n=120):
+    """One-line, length-capped rendering of an I/O value for verbose logs."""
+    s = s if isinstance(s, str) else str(s)
+    s = s.replace("\r\n", "\n")
+    return s if len(s) <= n else s[:n] + f"…(+{len(s)-n} more chars)"
+
 def run_source(lang, src_path, stdin_text, timeout=20):
     """Build (if needed) and run a single source file with stdin_text; return stdout."""
     cfg = LANGS[lang]
@@ -93,6 +99,7 @@ def tier_check(verbose=False):
     per_lang = collections.defaultdict(lambda: [0, 0])   # lang -> [ok, total]
     per_prob = collections.defaultdict(lambda: [0, 0])   # slug -> [ok, total]
     cells = []                                           # (slug, lang, ok, total)
+    io_rows = []                                         # (slug, lang, i, stdin, expected, got, ok)
     for p in probs:
         for lang in run_langs:
             if lang not in p["refs"]:
@@ -102,12 +109,16 @@ def tier_check(verbose=False):
                 total += 1; ctot += 1
                 try:
                     got = run_source(lang, p["refs"][lang], c["stdin"])
-                    if norm(got) == norm(c["stdout"]):
+                    okc = norm(got) == norm(c["stdout"])
+                    if okc:
                         ok += 1; cok += 1
                     else:
                         fails.append((p["slug"], lang, i, c["stdout"], got))
                 except Exception as e:
+                    okc = False; got = f"<error: {e}>"
                     fails.append((p["slug"], lang, i, "<error>", str(e)))
+                if verbose:
+                    io_rows.append((p["slug"], lang, i, c["stdin"], c["stdout"], got, okc))
             per_lang[lang][0] += cok; per_lang[lang][1] += ctot
             per_prob[p["slug"]][0] += cok; per_prob[p["slug"]][1] += ctot
             cells.append((p["slug"], lang, cok, ctot))
@@ -127,9 +138,16 @@ def tier_check(verbose=False):
         print("\n  PER-PROBLEM × LANGUAGE:")
         for slug, lang, cok, ctot in cells:
             print(f"    {'✓' if cok == ctot else '✗'} {slug:16} [{lang:10}] {cok}/{ctot}")
+        print("\n  PER-CASE I/O (what was passed → expected vs. what was returned):")
+        for slug, lang, i, stdin, exp, got, okc in io_rows:
+            sym = "✓" if okc else "✗"
+            print(f"    {sym} {slug:16} [{lang:10}] case#{i}")
+            print(f"        passed   (stdin)  = {clip(stdin)!r}")
+            print(f"        expected (stdout) = {clip(exp)!r}")
+            print(f"        returned (stdout) = {clip(got)!r}")
         print()
     for slug, lang, i, exp, got in fails:
-        print(f"  ✗ FAIL {slug} [{lang}] case#{i}: expected={exp!r} got={got!r}")
+        print(f"  ✗ FAIL {slug} [{lang}] case#{i}: expected={clip(exp)!r} got={clip(got)!r}")
     print(f"\nRESULT: {'PASS' if not fails else 'FAIL'}  ({ok}/{total} case-runs)")
     return 0 if not fails else 1
 
