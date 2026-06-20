@@ -229,7 +229,10 @@ force_push_denies() {
   # whole-string behavior: deny when force flag present and no lease anywhere.
   case "$scan" in
     *'$('*|*'`'*|*'<<'*)
-      printf '%s' "$scan" | grep -qE -- 'force-with-lease' && return 1
+      # Untrustworthy segment boundaries (command substitution / backtick /
+      # here-doc): the pre-filter already confirmed a BARE force flag (not the
+      # --force-with-lease form) is present somewhere, so fail CLOSED and DENY —
+      # a lease in one segment must NOT excuse a bare force-push in another.
       return 0
       ;;
   esac
@@ -242,7 +245,7 @@ force_push_denies() {
   while IFS= read -r seg; do
     printf '%s' "$seg" | grep -qE -- 'git([[:space:]]|.)*push' || continue
     printf '%s' "$seg" | grep -qE -- '(--force([[:space:]=]|$)|[[:space:]]-f([[:space:]]|$))' || continue
-    printf '%s' "$seg" | grep -qE -- 'force-with-lease' && continue
+    printf '%s' "$seg" | grep -qE -- '--force-with-lease([[:space:]=]|$)' && continue
     return 0   # this segment is a real force-push without lease
   done < <(printf '%s\n' "$scan" | sed -E 's/(\&\&|\|\||;|\|)/\n/g')
 
@@ -264,9 +267,19 @@ if has '--no-verify\b'; then
   deny "Toolbelt cardinal rule: never bypass the pre-commit/pre-push hooks with --no-verify. Fix what the hook flags instead. (MAUNGS_TOOLBELT_GUARD=off to override.)"
 fi
 
-# 4) catastrophic recursive delete
-if has 'rm[[:space:]]+-[a-zA-Z]*[rR][a-zA-Z]*[fF]|rm[[:space:]]+-[a-zA-Z]*[fF][a-zA-Z]*[rR]|rm[[:space:]].*--no-preserve-root'; then
-  if has 'rm[[:space:]].*[[:space:]](/|~|\$HOME|\*)([[:space:]]|$)|--no-preserve-root|rm[[:space:]]+-[rRfF]+[[:space:]]+(/|~|\*)'; then
+# 4) catastrophic recursive delete — matched against the RAW command with quote
+#    characters stripped (rm_scan), NOT the neutralized `scan`. A dangerous target
+#    is commonly QUOTED in real, recommended usage — `rm -rf "$HOME"` is the
+#    canonical safe-quoting style — and neutralizing that span would turn the single
+#    most dangerous form (a quoted /, ~, $HOME or *) from a hard DENY into a mere
+#    ask. Stripping the quote chars keeps the real target visible to the same regex.
+#    Erring toward DENY on a bare documentation mention (`echo "rm -rf /"`) is the
+#    safe, fail-closed direction for a catastrophic delete. (Same rationale as the
+#    hasraw AI-attribution rule: the dangerous content lives inside quotes.)
+rm_scan="$(printf '%s' "$cmd" | tr -d "\"'")"
+rmhas() { printf '%s' "$rm_scan" | grep -qE -- "$1"; }
+if rmhas 'rm[[:space:]]+-[a-zA-Z]*[rR][a-zA-Z]*[fF]|rm[[:space:]]+-[a-zA-Z]*[fF][a-zA-Z]*[rR]|rm[[:space:]].*--no-preserve-root'; then
+  if rmhas 'rm[[:space:]].*[[:space:]](/|~|\$HOME|\*)([[:space:]]|$)|--no-preserve-root|rm[[:space:]]+-[rRfF]+[[:space:]]+(/|~|\*)'; then
     deny "Refusing a catastrophic recursive delete (rm -rf targeting / ~ \$HOME or *). Delete a specific subdirectory instead. (MAUNGS_TOOLBELT_GUARD=off to override.)"
   fi
 fi

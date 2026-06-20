@@ -105,6 +105,12 @@ add("B", [
     # AI-attribution trailer on a real commit (assembled at runtime)
     ('git commit -m "subject" --trailer "' + AI_TRAILER + '"', "deny"),
     ("git commit -m 'subject' --trailer '" + AI_GEN + "'", "deny"),
+    # quoted catastrophic targets must STILL deny — quoting is shell-safe style,
+    # not documentation; `rm -rf "$HOME"` is the most dangerous *real* form
+    ('rm -rf "$HOME"', "deny"),
+    ('rm -rf "/"', "deny"),
+    ('rm -rf "~"', "deny"),
+    ("rm -rf '*'", "deny"),
 ])
 
 # === C. Allowed-by-design (must NOT deny) ====================================
@@ -113,6 +119,7 @@ add("C", [
     ("git add path/to/file", "allow"),                  # ordinary staged path
     ("git add src/app.py docs/readme.md", "allow"),
     ("ls -la", "allow"),
+    (PUSH + " " + LEASE + " a && echo ok", "allow"),    # legit lease push in a chain still allowed
 ])
 
 # === D. Chaining / substitution / here-doc edge cases (fail-closed) ==========
@@ -161,6 +168,12 @@ add("F", [
     # fail-closed: a force flag inside a substitution/backtick in the same
     # string as a push (boundaries untrustworthy) => do not split => deny
     (PUSH + " origin main ; echo `rm " + FLAG_F + " x`", "deny"),
+    # lease check is FLAG-anchored: a branch NAMED force-with-lease must not
+    # excuse a real bare force-push (was a fail-OPEN substring match)
+    (PUSH + " " + FORCE + " origin force-with-lease", "deny"),
+    # a lease push in one segment must not mask a bare force-push in another,
+    # even when a substitution makes the boundaries untrustworthy (fail-closed)
+    ("x=$(date) ; " + PUSH + " " + LEASE + " a ; " + PUSH + " " + FORCE + " b", "deny"),
 ])
 
 # === G. Fail-OPEN contract intact (guard never wedges the workflow) ==========
