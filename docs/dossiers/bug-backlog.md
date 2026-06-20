@@ -27,6 +27,45 @@ _Last sweep: 2026-06-20 · against `origin/main` @ `3b7574c`_
 - **Blast radius:** Single hook file; deny-tier only. No change to already-denied exact spelling; no other rule touched. It hardens the security-surface guard, so it warrants a review pass.
 - **Suggested route:** `/orchestrator` (touches the structural security guard; SEV3).
 
+### SEV3 — force-push guard false-positives: a legitimate `git push` is denied when the command line also carries an unrelated `-f` short flag
+- **File:** `hooks/pretooluse-guard.sh:51`
+- **First seen:** 2026-06-20
+- **Status:** open
+- **Symptom:** A non-force `git push` is **denied** ("no git push --force") whenever the same command line contains an unrelated ` -f ` short flag — e.g. `git push origin main && grep -f pats.txt file.txt`, or `… && make -f Makefile build`, `… && tar -f out.tar …`. The deny reason wrongly claims a force push.
+- **Root cause:** Rule 2 is `has 'git([[:space:]]|.)*push' && has '(--force([[:space:]=]|$)|[[:space:]]-f([[:space:]]|$))' && ! has 'force-with-lease'`. The two `has` clauses are evaluated independently against the **whole** line: `git([[:space:]]|.)*push` matches "git…push" anywhere (`.` ≈ any char), and `[[:space:]]-f([[:space:]]|$)` matches a `-f` that belongs to a *different* command in a `&&`/`;`/`|` chain. So an unrelated `git push` segment and an unrelated `-f` segment together satisfy the rule. (This is the **over-match** twin of the `-fv` **under-match** filed above — same rule, opposite-direction defect, independent fix.)
+- **Evidence chain:** `hooks/pretooluse-guard.sh:51`. Live: `git push origin main && grep -f pats.txt file.txt` → **DENY**; `git push origin main && make -f Makefile build` → **DENY**; `git push --force` → `deny` (correct); `git push --force-with-lease` → `ALLOW` (correct).
+- **Adversarial check:** Considered "chaining a `git push` with a `-f` command is rare." Rejected — `-f` is among the most common short flags (`grep`/`make`/`tar`/`find`/`ssh`/`docker`), and chaining `git push` after a build/cleanup step is routine; both live cases reproduce. Considered "plan 7 (PR #12) will fix it" — rejected: plan 7 neutralizes *quoted* spans only, and here the `-f` is unquoted and belongs to a separate chained command, so quote-neutralization leaves it matched.
+- **Fix direction:** Bind the `-f`/`--force` match to the `git push` invocation itself (scan within the `git … push …` segment, or split on chain operators and evaluate per segment) rather than the whole line. Keep the real `git push --force` deny and the `--force-with-lease` allow intact.
+- **Regression test:** `git push origin main && grep -f x y` → allow; `git push --force` → deny; `git push --force-with-lease` → allow.
+- **Blast radius:** Single hook file; deny-tier only. False-positive blocks a legitimate `git push`; workaround is `MAUNGS_TOOLBELT_GUARD=off` or unchaining. The fix must not weaken the real force-push deny (block B invariants).
+- **Suggested route:** `/orchestrator` (touches the structural security guard; can be batched with the other guard fixes in one pass + a `@security-reviewer` gate).
+
+### SEV3 — catastrophic-`rm` deny is bypassed by separated or long flags (`rm -r -f /`, `rm --recursive --force /`)
+- **File:** `hooks/pretooluse-guard.sh:61-64` (and the mirrored ask-tier at `:94`)
+- **First seen:** 2026-06-20
+- **Status:** open
+- **Symptom:** `rm -r -f /` is **allowed** (no decision emitted), although the script's header comment states it "Blocks: … catastrophic rm -rf (/ ~ $HOME *)". The same gap applies to `rm -f -r /` and `rm --recursive --force /`.
+- **Root cause:** Both the deny gate (`:61`) and the ask gate (`:94`) require `r` and `f` in a **single** flag token: `rm[[:space:]]+-[a-zA-Z]*[rR][a-zA-Z]*[fF]|rm[[:space:]]+-[a-zA-Z]*[fF][a-zA-Z]*[rR]`. Separated flags (`rm -r -f /`) and long flags (`rm --recursive --force /`) never co-locate both letters in one token, so neither tier fires; the command falls through to the normal permission flow with no guard-level block.
+- **Evidence chain:** `hooks/pretooluse-guard.sh:61` (deny outer regex) + `:94` (ask outer regex). Live: `rm -r -f /` → **ALLOW**; `rm -rf /` → `deny`; `rm -fr /` → `deny`.
+- **Adversarial check:** Considered "the guard is best-effort/fail-open, so this is by design." Rejected — the header explicitly *claims* catastrophic `rm -rf` is blocked, and separated/long flags are ordinary usage, not exotic; the bypass reproduces. Considered "the ask tier still catches it" — rejected: the ask-tier `rm` rule uses the *same* combined-token regex, so it misses too. This is **under**-enforcement (a real catastrophic command slips the hard block); the normal permission prompt still applies, so it is not a silent execution.
+- **Fix direction:** Detect recursive-AND-force intent across separated/long flags — e.g. require `(-[rR]\b|--recursive)` AND `(-[fF]\b|--force)` near `rm`, in addition to the combined-token form — in both the deny and ask gates. Avoid a false positive on a benign `rm -r` of a safe relative dir.
+- **Regression test:** `rm -r -f /` → deny; `rm --recursive --force /` → deny; `rm -rf /` → deny (unchanged).
+- **Blast radius:** Single hook file; deny + ask tiers. Defense-in-depth safety control.
+- **Suggested route:** `/orchestrator` (security guard; batchable with the other guard fixes + `@security-reviewer`).
+
+### SEV3 — catastrophic-`rm` deny false-positives on ANY absolute path (`rm -rf /tmp/build`, `/var/log/...`), overriding the ask-tier disposable allowlist
+- **File:** `hooks/pretooluse-guard.sh:62`
+- **First seen:** 2026-06-20
+- **Status:** open
+- **Symptom:** `rm -rf /tmp/build`, `rm -rf /var/log/myapp`, and `rm -rf /home/foo` are all **denied** outright, though they target specific sub-paths, not `/`. The deny reason misleadingly says the target is "/ ~ $HOME or *". `/tmp` is even on the ask-tier's own disposable-path allowlist (`:95`), yet it is denied because the deny tier short-circuits before the ask tier runs.
+- **Root cause:** The third alternative of the inner deny regex at `:62`, `rm[[:space:]]+-[rRfF]+[[:space:]]+(/|~|\*)`, matches `rm -rf /` followed by **any** path beginning with `/` (or `~`/`*`) — not a bare `/`/`~`/`*` token. So every `rm -rf /absolute/path` is treated as catastrophic. The companion alternative `…[[:space:]](/|~|\$HOME|\*)([[:space:]]|$)` is correctly anchored to a standalone token; this one is not.
+- **Evidence chain:** `hooks/pretooluse-guard.sh:62` (third alternative) vs. the disposable allowlist at `:95` (lists `/tmp`, `tmp/`, …, unreachable for any abs path because deny wins first). Live: `rm -rf /tmp/build` → **DENY**; `rm -rf /var/log/myapp` → **DENY**; `rm -rf /home/foo` → **DENY**; `rm -rf ./build` → `ask` (correct).
+- **Adversarial check:** Considered "denying all abs-path `rm -rf` is intentionally conservative." Rejected — it directly contradicts the ask-tier design (a disposable-path allowlist that is unreachable for abs paths) and the deny reason string's own scope ("/ ~ $HOME or *"). The two tiers are inconsistent; this is a defect, not intent. (Note: this **over-match** and BUG above's **under-match** are independent regex defects in the same `rm` block, with opposite directions and independent fixes.)
+- **Fix direction:** Anchor the third alternative to a *bare* root/home/glob target, e.g. `rm[[:space:]]+-[rRfF]+[[:space:]]+(/|~|\$HOME|\*)([[:space:]]|$)`, so a specific abs path like `/tmp/build` correctly falls through to the ask tier and its disposable allowlist.
+- **Regression test:** `rm -rf /` → deny; `rm -rf ~` → deny; `rm -rf /tmp/build` → ask (not deny); `rm -rf /var/log/app` → ask.
+- **Blast radius:** Single hook file; deny-tier only. False positive blocks legitimate abs-path cleanup; workaround exists. The fix must keep `rm -rf /` and `rm -rf ~` denied.
+- **Suggested route:** `/orchestrator` (security guard; batchable with the other guard fixes + `@security-reviewer`).
+
 ### SEV4 — force-push guard misses combined short flags (`git push -fv` / `-vf` are allowed)
 - **File:** `hooks/pretooluse-guard.sh:51`
 - **First seen:** 2026-06-20
@@ -75,6 +114,13 @@ explicitly documented behaviour), recorded here so a future sweep doesn't re-lit
   silently. Latent risk, not a reproducing bug.
 - **`git commit -am …` is not denied.** It stages all *tracked* modifications; whether that falls under
   the documented `git add -A/.` rule is a scope judgment, not a clear defect. Left as an observation.
+- **usage-tracker bare-slug fallback leans on `CLAUDE_PLUGIN_ROOT`** (`hooks/usage-tracker.sh:56-61`).
+  The comment says the bare-slug resolution handles "a copy/install.sh install with no namespace," but
+  the resolution requires `CLAUDE_PLUGIN_ROOT` (a plugin-mode variable), and `install.sh` copies only
+  `agents/` + `skills/` (not `hooks/`), so a copy install has neither this hook nor that env var. The
+  path is reachable only in plugin mode (where components are usually already namespace-matched). Reads
+  as a misleading comment rather than a proven functional bug — confirming needs Claude Code's runtime
+  `subagent_type`/`CLAUDE_PLUGIN_ROOT` values, which an offline sweep cannot observe.
 
 ## Sweep scope & bounds (no silent truncation)
 
