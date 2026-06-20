@@ -42,7 +42,7 @@ The pipeline is **16 agents + 9 skills = 25 components**. The split is deliberat
 | Wiki | `@wiki-writer` | agent | Authors/updates ONE wiki page from real code; writes only its page, read-only on code; "verified against commit" stamp |
 | Wiki | `@wiki-auditor` | agent | Fresh-eyes drift detector → CURRENT / STALE / INCORRECT / ORPHANED + delta list; writes nothing |
 
-Plus three plugin **hooks** (not counted above): a `UserPromptSubmit` prompt-router that suggests the fitting component on each prompt, a `PreToolUse` guard that blocks cardinal-rule violations (`git add -A`, `--force`, `--no-verify`, catastrophic `rm -rf`, AI-attributed commits), and a `SessionStart` loader that injects a project snapshot. See the README's "Always-on hooks".
+Plus four plugin **hooks** (not counted above): a `UserPromptSubmit` prompt-router that suggests the fitting component on each prompt, a `PreToolUse` guard that blocks cardinal-rule violations (`git add -A`, `--force`, `--no-verify`, catastrophic `rm -rf`, AI-attributed commits), a `SessionStart` loader that injects a project snapshot, and an opt-in `PreToolUse` usage-tracker (on `Task`/`Skill`) that records when components are offered vs. actually used (enable with `MAUNGS_TOOLBELT_DEBUG=on`; view via `/toolbelt metrics`). See the README's "Always-on hooks".
 
 ## End-to-end flow
 
