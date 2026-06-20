@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # Seed the job summary table. Every check below appends one row, so the
-      # summary shows ALL five results (pass and fail) at a glance — not just the
+      # summary shows ALL six results (pass and fail) at a glance — not just the
       # first failure. `if: always()` on every check keeps them all running and
       # reporting even after one fails; the job still goes red if any step exits non-zero.
       - name: Init summary
@@ -160,5 +160,67 @@ jobs:
           else
             echo "Component counts: ❌ FAIL — $((n-okc))/${n} count strings stale"
             echo "| 5 | Component counts | ❌ FAIL | $((n-okc))/${n} stale |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $fail
+
+      - name: 6 · Interview catalogs — each catalog's buckets appear in its consumer(s)
+        if: always()
+        run: |
+          # Drift guard for the interview-catalog pattern (docs/design-philosophy.md §8).
+          # Each consuming component EMBEDS its catalog's buckets so it is self-contained at
+          # runtime; that embedded copy can drift from the canonical catalog file. For every
+          # catalog we derive its bucket headers FROM the catalog file (so adding a bucket
+          # auto-extends coverage), then assert each one appears verbatim in every declared
+          # consumer. A consumer missing a bucket — or a declared-but-absent consumer (orphan
+          # catalog) — fails the build, same family as the count-string drift guard above.
+          echo "::group::Interview-catalog drift (catalog buckets ⊆ each consumer)"
+          fail=0; total=0; okc=0
+          # Each entry: "<catalog file> <consumer file> [<consumer file> ...]".
+          # Add a row here (and the catalog under docs/interview-catalogs/) for a new catalog.
+          check_catalog() {
+            catalog="$1"; shift
+            if [ ! -f "$catalog" ]; then
+              echo "  ✗ FAIL $catalog — catalog file not found"
+              echo "::error file=$catalog::declared catalog file is missing"; fail=1; return
+            fi
+            # Bucket headers are markdown lines like "### Bucket 1 — Product framing"; the
+            # consumer embeds the same "Bucket N — <name>" text at a different heading depth,
+            # so we match the heading TEXT (leading #'s + spaces stripped) as a fixed substring.
+            # Write them to a temp file so the while-loop below reads via a redirect (not a
+            # pipe) and its counters survive — no subshell, no heredoc to de-indent the YAML.
+            bfile="$(mktemp)"
+            grep -E '^#+ Bucket [0-9]+ — ' "$catalog" | sed -E 's/^#+ //' > "$bfile"
+            if [ ! -s "$bfile" ]; then
+              echo "  ✗ FAIL $catalog — no 'Bucket N — <name>' headers found"
+              echo "::error file=$catalog::catalog defines no buckets"; fail=1; rm -f "$bfile"; return
+            fi
+            for consumer in "$@"; do
+              if [ ! -f "$consumer" ]; then
+                echo "  ✗ FAIL $catalog — declared consumer $consumer not found (orphan catalog)"
+                echo "::error file=$catalog::declared consumer $consumer is missing"; fail=1; continue
+              fi
+              while IFS= read -r bucket; do
+                [ -z "$bucket" ] && continue
+                total=$((total+1))
+                if grep -qF -- "$bucket" "$consumer"; then
+                  echo "  ✓ PASS $consumer ⊇ \"$bucket\" (from $catalog)"; okc=$((okc+1))
+                else
+                  echo "  ✗ FAIL $consumer — missing \"$bucket\" (from $catalog)"
+                  echo "::error file=$consumer::interview-catalog drift — embed \"$bucket\" from $catalog"
+                  fail=1
+                fi
+              done < "$bfile"
+            done
+            rm -f "$bfile"
+          }
+          check_catalog docs/interview-catalogs/greenfield.md agents/architect.md
+          check_catalog docs/interview-catalogs/migration.md  skills/migration-planner/SKILL.md
+          echo "::endgroup::"
+          if [ "$fail" -eq 0 ]; then
+            echo "Interview catalogs: ✅ PASS — ${okc}/${total} bucket→consumer checks match"
+            echo "| 6 | Interview catalogs | ✅ PASS | ${okc}/${total} bucket→consumer checks |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Interview catalogs: ❌ FAIL — $((total-okc))/${total} bucket→consumer checks drifted"
+            echo "| 6 | Interview catalogs | ❌ FAIL | $((total-okc))/${total} drifted |" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $fail

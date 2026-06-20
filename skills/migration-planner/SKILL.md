@@ -71,6 +71,39 @@ Map the proposed change to one or more of these classes — each drives specific
 
 A change can be several at once (e.g. "add NOT NULL `tenant_id` with FK" is DATA-LOSS-adjacent + LOCK + BACKFILL + CONSTRAINT all together).
 
+## FRONT-LOADED DISCOVERY (walk this BEFORE the dossier)
+
+Before producing the dossier, walk the **migration discovery catalog** so the dossier is grounded in answers rather than assumptions. This is instance #2 of the toolbelt's [interview-catalog pattern](../../docs/interview-catalogs/README.md); the canonical catalog is **[`docs/interview-catalogs/migration.md`](../../docs/interview-catalogs/migration.md)** and its buckets are embedded below so this skill is self-contained at runtime.
+
+Surface the buckets via `AskUserQuestion` (≤4 questions per call) FIRST. **Coverage rule:** every line is either **asked** or explicitly **marked `n/a — <reason>`** (e.g. "n/a — additive nullable column, no data state to assess") in the dossier's DETECTED CONTEXT / AFFECTED SCHEMA — never silently skipped. Some answers you can derive read-only from the schema source (current nullability/defaults, the operation shape) — derive what you can, ask what you can't, and don't re-ask something the schema already tells you. For a genuinely trivial change (additive nullable column, no data, no lock) a quick pass that marks most lines "n/a — trivial additive change" is fine — don't manufacture an interrogation.
+
+### Migration discovery catalog (instance #2 of the interview-catalog pattern)
+
+#### Bucket 1 — Change shape
+- **Operation** — add / drop / rename / type-change / constraint (NOT NULL, unique, FK)?
+- **Reversibility** — is the change reversible or destructive?
+
+#### Bucket 2 — Data state
+- **Row count** — approximate row count of the affected table(s)?
+- **Existing data** — any existing data needing a backfill?
+- **Current shape** — current nullability / defaults on the affected column(s)?
+
+#### Bucket 3 — Lock & downtime
+- **Downtime budget** — is any downtime acceptable, and for how long?
+- **Traffic constraints** — peak-traffic windows to avoid?
+
+#### Bucket 4 — Rollout
+- **Strategy** — single migration, or expand/contract (parallel-change) for zero downtime?
+- **Feature flags** — any feature-flag coupling the rollout depends on?
+
+#### Bucket 5 — Rollback
+- **Undo shape** — what does "undo" look like — reverse migration, restore from snapshot, or forward-fix only?
+
+#### Bucket 6 — Blast radius
+- **Readers & writers** — which code reads/writes the affected schema, and who owns it?
+
+The answers feed the dossier directly: **Change shape** + **Data state** → AFFECTED SCHEMA + RISK CLASSIFICATION; **Lock & downtime** → LOCK / DOWNTIME RISKS; **Rollout** → EXPAND / CONTRACT ROLLOUT; **Rollback** → ROLLBACK PLAN; **Blast radius** → seeds (but never replaces) the BLAST RADIUS grep. Discovery adds questions only — it does not change the dossier's output format, the read-only posture, or the HANDOFF GATE.
+
 ## The MIGRATION RISK DOSSIER (your only deliverable)
 
 Produce this, in order. Omit a section only when it genuinely doesn't apply, and say *why* inline rather than dropping it silently.
@@ -151,7 +184,7 @@ A genuinely complex change (many dependent tables, a long blast radius) may warr
 ## Example invocations
 
 > `/migration-planner make users.email NOT NULL and add a unique index`
-Detect ORM + Postgres → read `users` current schema (nullable? existing NULLs? duplicates?) → classify DATA-LOSS (NOT NULL over existing NULLs) + LOCK (unique index build) + BACKFILL + CONSTRAINT → dossier: mark row count "verify against prod-like data", give the EXPAND/CONTRACT (add `NOT VALID`-style nullable handling → backfill/clean NULLs → build unique index `CONCURRENTLY` → validate → flip NOT NULL), a reversible rollback, the blast radius of code reading `email`, and the verify-before-ship queries → HANDOFF GATE → stop.
+Detect ORM + Postgres → read `users` current schema (nullable? existing NULLs? duplicates?) → **walk the migration discovery catalog first** (change shape, data state, lock/downtime budget, rollout, rollback, blast radius — asked or marked "n/a") → classify DATA-LOSS (NOT NULL over existing NULLs) + LOCK (unique index build) + BACKFILL + CONSTRAINT → dossier: mark row count "verify against prod-like data", give the EXPAND/CONTRACT (add `NOT VALID`-style nullable handling → backfill/clean NULLs → build unique index `CONCURRENTLY` → validate → flip NOT NULL), a reversible rollback, the blast radius of code reading `email`, and the verify-before-ship queries → HANDOFF GATE → stop.
 
 > `/migration-planner db/migrate/20260618_drop_legacy_status.rb`
 Read the migration file → it's a `DROP COLUMN` → classify DATA-LOSS + IRREVERSIBLE (data not archived) → dossier: name the snapshot as the real recovery path, give the EXPAND/CONTRACT contract-phase ordering (stop reading the column in code FIRST, bake, THEN drop), grep the blast radius for every reference to `status`, mark the column's row/size "verify against prod-like data" → recommend `@developer` for the multi-deploy sequence → HANDOFF GATE → stop. Never run the drop.

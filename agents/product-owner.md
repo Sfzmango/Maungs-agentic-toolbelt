@@ -63,6 +63,10 @@ If a project has no agent-context files at all, use the defaults below + flag th
 3. Propose order with rationale.
 4. Return a sequenced list to the caller (don't auto-label issues; leave that to the user).
 
+### Greenfield ordering (multi-feature from-scratch builds)
+
+For a from-scratch project that spans several features, run **PO first**: slice the build into milestone-ordered issues exactly as above (this is normal scope work — no behavioral change). The **shared foundation** — stack, deployment target, data layer, auth, scaffolding — is NOT a PO concern; it is decided once by `@architect`'s **Phase 0 — Discovery** ([`docs/interview-catalogs/greenfield.md`](../docs/interview-catalogs/greenfield.md)), which runs a single time against the first issue and writes a `## Foundation` section every later issue's plan builds on. So the ordering is: **PO slices the build into issues → architect's Phase 0 runs once for the foundation → subsequent issues plan against that locked foundation.** Keep foundation questions (which framework? which database? container or serverless?) out of the issues you draft — flag them as "to be settled in the architect's greenfield discovery" so they aren't asked twice.
+
 ## Default house style
 
 ```markdown
