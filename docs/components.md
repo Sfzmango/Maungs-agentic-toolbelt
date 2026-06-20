@@ -87,12 +87,12 @@ The translation side-flow grounds a cross-language port before any code is writt
 
 | Component | Kind | One-liner | Invocation |
 | --- | --- | --- | --- |
-| chore | skill | Lightweight escape hatch for small single-concern PRs that keep the same commit/push gates; re-routes to `/orchestrator` if it grows. | `/chore` |
+| chore | skill | Lightweight escape hatch for small single-concern PRs that keep the same commit/push gates; re-routes to `/orchestrator` if it grows. `--concurrently` isolates the chore in a git worktree off the default branch (concurrency-safe alongside other sessions); `--bypass` admin-merges once CI is green. | `/chore`, `/chore --concurrently` |
 | handoff | skill | Drafts a self-contained, drift-aware brief so a zero-context agent (or future self) can resume work cold; never written proactively. | `/handoff` |
 | toolbelt | skill | Self-describing front door: an inventory of all components, recommend-a-component for a stated goal, and a read-only status check (router/MCP/CLAUDE.md). Never invokes anything itself. | `/toolbelt` |
 | release-notes | skill | Generates grouped release notes (features/fixes/breaking/migrations) from a commit range or PRs, with a SemVer bump rec + deploy checklist. Read-only — outputs text, never tags/posts; `--format deploy-comment` enriches a deployment comment. | `/release-notes` |
 
-The utility stage provides lightweight escape hatches around the main pipeline. `/chore` handles small, single-concern PRs without the full ceremony while keeping the same commit and push gates, and re-routes to `/orchestrator` if the change grows beyond chore size. `/handoff` drafts a self-contained, drift-aware brief that lets a zero-context agent — or a future self — resume work cold; it is never written proactively.
+The utility stage provides lightweight escape hatches around the main pipeline. `/chore` handles small, single-concern PRs without the full ceremony while keeping the same commit and push gates, and re-routes to `/orchestrator` if the change grows beyond chore size. Two opt-in flags extend it without loosening any safety check: `--concurrently` runs the entire chore in a throwaway git worktree based on `origin/<default-branch>` — so a chore can ship alongside an in-flight `/orchestrator` run or another agent without touching the shared checkout's `HEAD`/index — and `--bypass` (with `--concurrently`) admin-merges the moment CI is green. Neither skips CI, the chore-scope gate, or the cardinal no-`--no-verify`/no-`-A`/no-`--force` rules. `/handoff` drafts a self-contained, drift-aware brief that lets a zero-context agent — or a future self — resume work cold; it is never written proactively.
 
 ## Wiki side-flow
 
