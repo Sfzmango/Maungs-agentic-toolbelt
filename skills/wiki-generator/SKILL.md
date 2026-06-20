@@ -1,6 +1,6 @@
 ---
 name: wiki-generator
-description: Conductor that generates and maintains a near-100%-technical-coverage WIKI for ANY codebase, written in Markdown and living at docs/wiki/ inside the target repo. Auto-detects the codebase shape (languages, frameworks, module/service boundaries, schema/migrations, routes/API, entrypoints, tests, build/deploy, monorepo packages), derives a PAGE PLAN, and FANS OUT to the @wiki-writer agent (one page per topic), then assembles a Home index with a no-gaps-hidden COVERAGE REPORT. NEVER writes application code; read-only on code, writes only under docs/wiki/. `--update` runs the incremental drift-sync mode via @wiki-auditor (the mode the scheduler invokes). `--publish` ships the already-generated docs/wiki/ pages UNCHANGED to an external wiki platform through a pluggable, target-agnostic adapter seam (GitHub repository wiki shipped; Confluence + Azure DevOps wiki are documented future targets), always behind a mandatory dry-run preview and an explicit human approval gate. The wiki is dual-audience: durable context for future agents AND a reference for new hires. Invoke as `/wiki-generator` (full build), `/wiki-generator --update` (incremental), or `/wiki-generator --publish [--target github] [--dry-run]` (publish).
+description: Conductor that generates and maintains a near-100%-technical-coverage WIKI for ANY codebase, written in Markdown and living at docs/wiki/ inside the target repo. Auto-detects the codebase shape (languages, frameworks, module/service boundaries, schema/migrations, routes/API, entrypoints, tests, build/deploy, monorepo packages), derives a PAGE PLAN, and FANS OUT to the @wiki-writer agent (one page per topic), then assembles a Home index with a no-gaps-hidden COVERAGE REPORT. NEVER writes application code; read-only on code, writes only under docs/wiki/. `--update` runs the incremental drift-sync mode via @wiki-auditor (the mode the scheduler invokes) AND a read-only repo-wide documentation-drift sweep across READMEs, agent-context files (CLAUDE.md/AGENTS.md), other docs/, and the repo description — delegating each fix to the tool that owns the path (@context-auditor/@context-writer for context files, @wiki-writer for docs/wiki/) or /chore, gating the repo-description update and never writing those non-wiki paths itself. `--publish` ships the already-generated docs/wiki/ pages UNCHANGED to an external wiki platform through a pluggable, target-agnostic adapter seam (GitHub repository wiki shipped; Confluence + Azure DevOps wiki are documented future targets), always behind a mandatory dry-run preview and an explicit human approval gate. The wiki is dual-audience: durable context for future agents AND a reference for new hires. Invoke as `/wiki-generator` (full build), `/wiki-generator --update` (incremental), or `/wiki-generator --publish [--target github] [--dry-run]` (publish).
 disable-model-invocation: false
 ---
 
@@ -14,7 +14,7 @@ The wiki is **dual-audience**, and every decision serves both:
 
 The argument is in `$ARGUMENTS`. Modes:
 - **(A) Full build** — `/wiki-generator` (no flag): build or rebuild the whole wiki from scratch.
-- **(B) Incremental** — `/wiki-generator --update`: diff the codebase against the last-synced commit SHA recorded in the wiki, audit existing pages for drift, and re-sync only what changed. **This is the mode the scheduler invokes** — see `docs/scheduling.md` in this plugin repo for the scheduled variant and its human gate.
+- **(B) Incremental** — `/wiki-generator --update`: diff the codebase against the last-synced commit SHA recorded in the wiki, audit existing pages for drift, and re-sync only what changed. **Beyond the `docs/wiki/` pages, `--update` also runs a read-only repo-wide documentation-drift sweep** — READMEs, agent-context files (`CLAUDE.md`/`AGENTS.md`), other `docs/` Markdown, and the repo description — and DELEGATES every fix to the tool that owns that path; the conductor itself writes nothing outside `docs/wiki/` (see Mode B, Part 2). **This is the mode the scheduler invokes** — see `docs/scheduling.md` in this plugin repo for the scheduled variant and its human gate.
 - **(C) Publish** — `/wiki-generator --publish`: ship the already-generated `docs/wiki/` pages, UNCHANGED, to an external wiki platform through a pluggable target adapter. Two sub-flags refine it:
   - **`--target <name>`** — which platform adapter to publish through (default `github`). See the PUBLISH-TARGETS table for the shipped + future targets. An unknown value is echoed and stopped, pointing at that table.
   - **`--dry-run`** — render the publish preview and STOP without pushing. (The preview is *always* rendered even without this flag — `--dry-run` just suppresses the approval gate and the push.)
@@ -32,8 +32,8 @@ This skill is a **router/conductor**: it is lightweight, deterministic about pla
 
 These hold for every invocation in every project. The target project's `CLAUDE.md` may add conventions, but never removes these:
 
-1. **NEVER write application code.** Not a fix, not a comment, not a config tweak, not a "quick" rename. This skill is read-only against all source, build, schema, and config files. The ONLY paths you (or your agents) may write are under `docs/wiki/` in the target repo. If you spot a real bug while reading, record it in the relevant page's "Open questions / SME review" note and, if the project has `/bug-catcher`, point the human there — do not fix it here.
-2. **Least privilege.** Read-only on everything except `docs/wiki/`. No commits, no pushes, no PRs, no GitHub writes, no deletes outside `docs/wiki/`. The only outward action this skill may take is opening a wiki-sync PR in scheduled mode, and ONLY behind the human gate in the OUTWARD-ACTION GATES section.
+1. **NEVER write application code.** Not a fix, not a comment, not a config tweak, not a "quick" rename. This skill is read-only against all source, build, schema, and config files. The ONLY paths you and your wiki agents (`@wiki-writer`/`@wiki-auditor`) may write are under `docs/wiki/` in the target repo. The Mode B documentation-drift sweep may surface drift in OTHER docs (READMEs, `CLAUDE.md`/`AGENTS.md`, other `docs/`) and in the repo description, but it NEVER writes them itself — it DELEGATES each fix to the tool that owns that path (`@context-auditor`/`@context-writer` for context files, `@wiki-writer` for `docs/wiki/`, `/chore` for arbitrary READMEs/docs) and gates the repo-description change; the conductor's own write scope stays `docs/wiki/`-only. If you spot a real bug while reading, record it in the relevant page's "Open questions / SME review" note and, if the project has `/bug-catcher`, point the human there — do not fix it here.
+2. **Least privilege.** Read-only on everything except `docs/wiki/`. No commits, no pushes, no PRs, no deletes outside `docs/wiki/`. The conductor's outward/GitHub-write actions are limited to two, each behind the human gate in the OUTWARD-ACTION GATES section: (a) opening a wiki-sync PR in scheduled mode, and (b) updating the **repo description** via `gh repo edit --description` in the Mode B doc sweep. Context-file and README fixes are not written by the conductor at all — they are DELEGATED to the owning agent (`@context-writer`) or to `/chore`, which carry their own gates.
 3. **Never hide a gap.** Coverage you could not produce — a skipped generated file, an unparseable module, an ambiguous purpose — is reported explicitly in the page and rolled up into `Home.md`'s COVERAGE REPORT. A wiki that silently omits an area is worse than one that flags the omission.
 4. **Never fabricate.** If a module's purpose is ambiguous and not derivable from code + docs + naming, the page is marked **"needs SME review"** with the specific question — you do NOT invent a plausible-sounding business summary. A confident wrong page poisons every future agent that reads it.
 5. **Every page carries a drift stamp.** Each page ends with `Last verified against commit <sha>` (the exact SHA the page was generated against). `Home.md` records the wiki-wide `Last synced: <sha>`. Drift detection in `--update` depends on these — a page without a stamp is treated as STALE.
@@ -103,7 +103,9 @@ Plus, when applicable: an **"Open questions / needs SME review"** note listing a
 
 ## Mode B — incremental update (`/wiki-generator --update`)
 
-This is the scheduler-invoked mode. It must be cheap, drift-accurate, and never re-write a page that is still CURRENT.
+This is the scheduler-invoked mode. It must be cheap, drift-accurate, and never re-write a page that is still CURRENT. It runs in **two parts**: Part 1 re-syncs the `docs/wiki/` pages; Part 2 sweeps the rest of the repo's documentation for drift and routes each fix to the tool that owns it.
+
+### Part 1 — wiki-page drift (`docs/wiki/`)
 
 1. **Acknowledge** — "Updating wiki for `<repo>` (incremental)."
 2. **Read the last-synced SHA** from `docs/wiki/Home.md` (`Last synced: <sha>`). If absent or the wiki is missing, halt and tell the human to run a full build first — do NOT silently fall back to a full build (it would blow the budget unannounced).
@@ -117,6 +119,25 @@ This is the scheduler-invoked mode. It must be cheap, drift-accurate, and never 
 6. **Re-generate** only STALE / INCORRECT pages and the new pages via `@wiki-writer`, stamped against the new HEAD SHA.
 7. **Update `Home.md`** — new `Last synced: <sha>`, refreshed COVERAGE REPORT (including newly-orphaned/removed pages).
 8. **OUTWARD ACTION (scheduled only)** — if this run is a scheduled wiki-sync (see `docs/scheduling.md`), opening a wiki-sync PR is the one outward action allowed, and ONLY behind the human gate in OUTWARD-ACTION GATES. An interactive `--update` writes the working tree and stops; the human commits.
+
+### Part 2 — repo-wide documentation-drift sweep (read-only detect → delegated/gated fix)
+
+`--update` does not stop at `docs/wiki/`. After Part 1, sweep the rest of the repo's documentation for drift — but the **conductor writes none of it**: it DETECTS (read-only) and ROUTES each fix to the tool that owns the path (cardinal rules 1–2). This **reuses existing machinery rather than duplicating it** — context-file drift is the same job `/agentic-onboard` STALE mode already does via `@context-auditor`/`@context-writer`, so the sweep delegates to those agents instead of re-implementing drift detection.
+
+1. **Enumerate the doc surface** (read-only): the agent-context files (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`), every `README*` in the tree, other Markdown under `docs/` *outside* `docs/wiki/`, and the repo's GitHub **description** (`gh repo view --json description` when `gh` is available). Honor any project "do not document" rule; note intentional skips in the report, don't hide them.
+2. **Detect drift by document class** — re-derive the truth from code + manifests at `HEAD` with the same fresh-eyes discipline as the wiki audit (never trust the doc's own narrative):
+   - **Context files** (`CLAUDE.md`/`AGENTS.md`/architecture overview) → invoke `@context-auditor`, ONE file per invocation, for a per-claim **CURRENT / STALE / INCORRECT / MISSING** verdict + delta list. This is the *same* auditor `/agentic-onboard` STALE mode uses — reuse it; do not re-implement drift detection here.
+   - **`docs/wiki/` pages** → already handled by Part 1's `@wiki-auditor`.
+   - **READMEs + other `docs/` Markdown** → audit read-only against the code (commands, paths, counts, install/setup steps, links); produce a delta list with `file:line` evidence.
+   - **Repo description** → compare the live description against what the repo now is (name, one-line purpose, and component counts if the project tracks them); flag if it lags.
+3. **Route each fix to its owner — the conductor writes nothing in this part:**
+   - **Context-file deltas** → hand to `@context-writer` with the auditor's delta list (it owns `CLAUDE.md`/`AGENTS.md`/`docs/architecture.md`, applies ONLY the deltas, and diffs before writing). For a full re-derive, point the human at `/agentic-onboard`.
+   - **`docs/wiki/` deltas** → `@wiki-writer` (Part 1).
+   - **README / other-`docs/` deltas** → present the delta list and route to `/chore` (no agent owns those arbitrary write paths; a human-gated chore PR is the sanctioned vehicle).
+   - **Repo-description drift** → propose the new text and, behind the OUTWARD-ACTION gate, apply it via `gh repo edit <owner>/<repo> --description "…"` (owner/repo derived from the repo's own `origin`). Never auto-apply.
+4. **Roll the sweep into a DOCUMENTATION DRIFT REPORT** alongside the wiki COVERAGE REPORT: per doc — its verdict, who the fix was routed to, and what is still pending a human gate. Never silently skip a stale doc.
+
+The sweep is **read-only in the conductor**; every actual write happens in a delegated agent that owns the path or behind an explicit human gate. If a delegate is missing (e.g. no `@context-writer` installed), the sweep **degrades to report-only** for that class and says so — it never writes the file itself to compensate (cardinal rules 1–2).
 
 ## Mode C — publish (`/wiki-generator --publish [--target <name>] [--dry-run]`)
 
@@ -201,6 +222,8 @@ Any action that leaves the working tree requires an explicit human gate. The con
 - **Full build / interactive update**: NEVER commits, pushes, or opens a PR. It writes files under `docs/wiki/` and stops; the human reviews the diff and commits.
 - **Scheduled wiki-sync PR** (the one permitted outward action): governed by `docs/scheduling.md`. The scheduled run prepares the branch + page diffs and presents a gate — **the human approves before any push or PR open.** No auto-merge, ever. If the scheduler runs unattended, it must stop at "branch + diff prepared, awaiting human approval" and notify; it must not open the PR until a human approves per the scheduling doc's gate.
 - **Deleting an ORPHANED page**: removal under `docs/wiki/` is allowed (it is within the writable scope), but a removal that drops a whole topic is surfaced in the summary so the human can object.
+- **Updating the repo description (`--update` doc sweep)**: changing the GitHub repo description via `gh repo edit --description` is an outward action — the conductor proposes the new text and waits for explicit human approval; it never edits the description autonomously. Owner/repo derive from the repo's own `origin`, never from external input.
+- **Delegated context-file / README fixes (`--update` doc sweep)**: the conductor does NOT write these. It hands `@context-auditor`'s delta list to `@context-writer` (context files) or routes READMEs / other `docs/` to `/chore`; those tools carry their own commit/push gates. The conductor only detects and routes — it never edits `CLAUDE.md`/`AGENTS.md`/READMEs itself.
 - **Publishing to an external wiki (`--publish`)**: the push to the target platform is an outward action and is gated unconditionally. The core ALWAYS renders the dry-run preview first (target, resolved destination, page set → mapped names, init status), then holds an **explicit human approval gate**; only on approval does the adapter push. `--dry-run` previews and stops with no gate and no push. There is **no autonomous or scheduled external publish** — any future automation rides this same gate. On reject, nothing leaves the working tree.
 
 ## CIRCUIT-BREAKER table (failure modes)
@@ -216,6 +239,9 @@ Any action that leaves the working tree requires an explicit human gate. The con
 | **Diff too large to audit cheaply** (sweeping refactor touched most of the tree) | Switch to package-chunked re-audit; if still over budget, escalate to the human to schedule a staged full rebuild rather than a single mega-run. |
 | **Tempted to write/fix code while reading** | Refuse (CARDINAL RULE 1). Record the issue as an "Open questions / SME review" note and point at `/bug-catcher`. |
 | **`@wiki-writer` / `@wiki-auditor` returns off-contract output** | Surface the mismatch; do not paper over it by editing the page yourself into "code" territory — request a regeneration. |
+| **Doc sweep finds drift but the owning delegate isn't installed** (`@context-auditor`/`@context-writer` absent) | Degrade to **report-only** for that doc class — emit the delta list in the DOCUMENTATION DRIFT REPORT and name the tool to run/install. NEVER write the context file or README yourself to compensate (cardinal rules 1–2). |
+| **Doc sweep tempted to edit a `README`/`CLAUDE.md` directly** | Refuse. The conductor detects; the owning agent (`@context-writer`) or `/chore` writes. Route the delta, don't apply it. |
+| **Repo description stale but `gh` is unavailable / unauthenticated** | Put the proposed new description in the DOCUMENTATION DRIFT REPORT with the exact `gh repo edit … --description` command for the human to run; don't block the rest of the sweep. |
 | **Token budget exceeded** (see below) | Checkpoint at 60%, escalate at 80%; stop fanning out new pages, finish in-flight ones, write the COVERAGE REPORT marking the rest UNCOVERED-BUDGET, and hand the remaining plan to the human for a follow-up run. |
 | **`--publish` with no/empty `docs/wiki/`** | HALT with "nothing to publish — run a full build first." Do NOT auto-build (it would blow the budget unannounced). |
 | **`--publish --target <unknown>`** | Echo the unknown target and point at the PUBLISH-TARGETS table's shipped + future rows; stop. Do not guess a platform. |
@@ -238,6 +264,7 @@ A full first-time build of a large repo is expected to span multiple waves/runs 
 
 - **To `@wiki-writer`** (per page): topic · code slice (exact dirs/files to read) · output path under `docs/wiki/` · the PAGE CONTRACT · target SHA · detected conventions + glossary. Returns: page path · coverage status (COMPLETE / NEEDS-SME-REVIEW / PARTIAL+reason) · any touched-but-undocumented areas.
 - **To `@wiki-auditor`** (`--update`): the diff (`<last-sha>..HEAD`) · the existing page list · module boundaries. Returns: per-page classification (CURRENT / STALE / INCORRECT / ORPHANED) + the changed slice driving each call.
+- **To `@context-auditor` → `@context-writer`** (`--update` doc sweep): the context file to audit (ONE per invocation) → returns a per-claim verdict (CURRENT / STALE / INCORRECT / MISSING) + delta list; the conductor forwards STALE/INCORRECT/MISSING deltas to `@context-writer`, which applies ONLY those deltas to `CLAUDE.md`/`AGENTS.md`/`docs/architecture.md` (diff-before-write). The conductor never writes those files itself.
 - **Assembly**: the conductor reconciles agent returns into `Home.md` + the COVERAGE REPORT. The conductor never injects page prose itself beyond navigation and the coverage table.
 
 ## When something goes wrong
@@ -249,7 +276,7 @@ A full first-time build of a large repo is expected to span multiple waves/runs 
 
 ## Scheduled variant
 
-`docs/scheduling.md` (in this plugin repo) defines the scheduled wiki-sync: it invokes `/wiki-generator --update`, prepares the page diffs + branch, and **stops at the human-approval gate before opening the wiki-sync PR**. The scheduler never merges and never pushes without that approval. Keep this skill's `--update` behavior consistent with that doc; if they diverge, the human gate in `docs/scheduling.md` wins.
+`docs/scheduling.md` (in this plugin repo) defines the scheduled wiki-sync: it invokes `/wiki-generator --update`, prepares the page diffs + branch, and **stops at the human-approval gate before opening the wiki-sync PR**. The scheduler never merges and never pushes without that approval. The Part 2 doc-sweep's outward actions (a `gh repo edit` description change, and any `@context-writer` / `/chore` follow-up) are **equally gated** in scheduled mode — an unattended run stops at "drift detected, fixes routed, awaiting human approval" and notifies; it applies nothing autonomously. Keep this skill's `--update` behavior consistent with that doc; if they diverge, the human gate in `docs/scheduling.md` wins.
 
 ## Example invocations
 
@@ -257,7 +284,7 @@ A full first-time build of a large repo is expected to span multiple waves/runs 
 Detect ExampleApp's shape → derive the PAGE PLAN → confirm with the human → fan out to `@wiki-writer` per page → assemble `docs/wiki/Home.md` with the COVERAGE REPORT → summarize (no commit).
 
 > `/wiki-generator --update`
-Read `Last synced` SHA → diff against HEAD → `@wiki-auditor` classifies pages CURRENT/STALE/INCORRECT/ORPHANED → regenerate only STALE/INCORRECT + add pages for new modules → refresh `Home.md` → (scheduled only) prepare the wiki-sync PR and stop at the human gate.
+Read `Last synced` SHA → diff against HEAD → `@wiki-auditor` classifies pages CURRENT/STALE/INCORRECT/ORPHANED → regenerate only STALE/INCORRECT + add pages for new modules → refresh `Home.md` → **then the repo-wide doc sweep**: `@context-auditor` audits `CLAUDE.md`/`AGENTS.md` (deltas → `@context-writer`), READMEs + other `docs/` are audited read-only (deltas → `/chore`), and a stale repo description is proposed for a gated `gh repo edit` — all surfaced in the DOCUMENTATION DRIFT REPORT, the conductor writing nothing outside `docs/wiki/` itself → (scheduled only) prepare the wiki-sync PR and stop at the human gate.
 
 > `/wiki-generator --publish --dry-run`
 Read the `docs/wiki/` page set → resolve the `github` adapter (default) → probe (`gh api … --jq .has_wiki`, then `ls-remote` the `*.wiki.git` remote) → map pages (`Home.md → Home`, generated `_Sidebar`) → render the PUBLISH PREVIEW (target · destination · init status · page set → mapped names) → STOP. No gate, no push. (Against this repo's own wiki — Wiki feature enabled, not yet initialized — the preview reports `UNINITIALIZED` with the create-first-page instruction rather than a raw error.)
