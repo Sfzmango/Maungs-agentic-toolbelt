@@ -43,19 +43,21 @@ The hook stays **silent on anything that doesn't fit** (no token cost, no noise)
 export MAUNGS_TOOLBELT_ROUTER=off
 ```
 
-Two more hooks come with the plugin:
+Three more hooks come with the plugin:
 
 **Guardrail (`PreToolUse`).** Before any shell command runs, it enforces two tiers. **Deny** (hard block) — the always-wrong cardinal-rule violations: `git add -A`/`.`, `git push --force` (without `--force-with-lease`), `--no-verify`, catastrophic `rm -rf` (on `/` `~` `*`), and AI-attributed commits. **Ask** (always prompts, with a detailed reason) — risky/data-loss ops that *might* be legitimate but must be confirmed first: destructive SQL (`DROP`/`TRUNCATE`/`DELETE`/`DROP COLUMN`), `db:drop`/`reset` & datastore flushes, `git reset --hard`/`clean -fd`/`branch -D`/`push --delete`, `rm -rf` of a non-disposable dir, `terraform destroy`/`kubectl delete`/`docker volume rm`, and bulk `find -delete`. Everything else passes untouched. Disable with `export MAUNGS_TOOLBELT_GUARD=off`.
 
 **Session loader (`SessionStart`).** At session start it injects a concise, read-only project snapshot — branch, uncommitted-file count, recent commits, the latest plan, any pending handoff, open PRs, and a nudge to run `/agentic-onboard` if there's no `CLAUDE.md` — so Claude starts warm instead of re-deriving the repo. Disable with `export MAUNGS_TOOLBELT_LOADER=off`.
 
-All three hooks ship with the **plugin** install; the copy / `install.sh` method installs the agents and skills without them.
+**Usage telemetry (`PreToolUse` on `Task`/`Skill`).** A pass-through hook that records *when the toolbelt actually gets used* — paired with the router's *suggested* events, it answers "is this thing earning its keep?" It is **opt-in and off by default**: nothing is written unless you set `export MAUNGS_TOOLBELT_DEBUG=on` (or `=verbose`, which also traces each event to stderr — visible under `claude --debug`). When on, the router logs every component it **offers** and this hook logs every toolbelt agent/skill that actually **runs**, to an append-only JSONL log on your machine (`~/.claude/maungs-toolbelt/usage.jsonl`, override with `MAUNGS_TOOLBELT_LOG`) — never inside a project repo. It never blocks a tool, only counts our own components (built-in and third-party agents are ignored), and is read-only apart from that log. View a summary anytime with **`/toolbelt metrics`** — suggestions by intent, invocations by component, and the same-session suggestion→use conversion rate.
+
+All four hooks ship with the **plugin** install; the copy / `install.sh` method installs the agents and skills without them.
 
 ---
 
 ## Cockpit statusline (optional)
 
-A bundled status line, `statusline/toolbelt-statusline.sh`, renders a one-line cockpit: the active git branch (with dirty / ahead counts), session cost + duration, context-window usage, the live toolbelt hook state (`guard ● router ● loader ●`), the model — and, while `/orchestrator` is running, a **pipeline segment** showing the current phase, PR number, and review verdict.
+A bundled status line, `statusline/toolbelt-statusline.sh`, renders a one-line cockpit: the active git branch (with dirty / ahead counts), session cost + duration, context-window usage, the live toolbelt hook state (`guard ● router ● loader ● debug ●`), the model — and, while `/orchestrator` is running, a **pipeline segment** showing the current phase, PR number, and review verdict. The `debug` dot reflects the usage-telemetry flag (dim `○` when off, yellow `●` while recording); when recording, it's followed by this session's `offered▸used` tally (e.g. `debug ● 3▸1`).
 
 Unlike the hooks, it is **not** auto-enabled (Claude Code's status line is a user setting). Opt in by pointing `~/.claude/settings.json` at the script:
 

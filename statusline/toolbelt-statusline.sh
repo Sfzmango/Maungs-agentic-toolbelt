@@ -28,6 +28,7 @@ jget() { command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r "$1 // em
 model="$(jget '.model.display_name')"; [ -z "$model" ] && model="Claude"
 cost="$(jget '.cost.total_cost_usd')"
 dur_ms="$(jget '.cost.total_duration_ms')"
+sid="$(jget '.session_id')"
 
 line="${mark}⚒${rst}"
 
@@ -80,11 +81,26 @@ if [ -f "$st" ] && command -v jq >/dev/null 2>&1; then
   fi
 fi
 
-# toolbelt hook state
+# toolbelt hook state (guard / router / loader / debug)
 gs="${grn}●${rst}"; [ "${MAUNGS_TOOLBELT_GUARD:-on}" = "off" ] && gs="${red}○${rst}"
 rs="${grn}●${rst}"; [ "${MAUNGS_TOOLBELT_ROUTER:-on}" = "off" ] && rs="${red}○${rst}"
 ls="${grn}●${rst}"; [ "${MAUNGS_TOOLBELT_LOADER:-on}" = "off" ] && ls="${red}○${rst}"
-line="${line}${sep}${dim}guard${rst} ${gs} ${dim}router${rst} ${rs} ${dim}loader${rst} ${ls}"
+# debug telemetry is opt-in (off by default → dim ○); yellow ● = actively recording.
+ds="${dim}○${rst}"; dbg_on=0
+case "${MAUNGS_TOOLBELT_DEBUG:-off}" in on|1|true|yes|verbose) ds="${yel}●${rst}"; dbg_on=1 ;; esac
+line="${line}${sep}${dim}guard${rst} ${gs} ${dim}router${rst} ${rs} ${dim}loader${rst} ${ls} ${dim}debug${rst} ${ds}"
+
+# while recording, append this session's tally — offered ▸ used (from the usage log)
+if [ "$dbg_on" = "1" ] && [ -n "$sid" ] && command -v jq >/dev/null 2>&1; then
+  tbl="${MAUNGS_TOOLBELT_LOG:-$HOME/.claude/maungs-toolbelt/usage.jsonl}"
+  if [ -s "$tbl" ]; then
+    tally="$(jq -rs --arg s "$sid" '[.[]|select(.session==$s)] | "\([.[]|select(.event=="suggested")]|length) \([.[]|select(.event=="invoked")]|length)"' "$tbl" 2>/dev/null)"
+    tb_off="${tally%% *}"; tb_use="${tally##* }"
+    if [ "${tb_off:-0}" -gt 0 ] 2>/dev/null || [ "${tb_use:-0}" -gt 0 ] 2>/dev/null; then
+      line="${line} ${dim}${tb_off:-0}▸${tb_use:-0}${rst}"
+    fi
+  fi
+fi
 
 # model
 line="${line}${sep}${dim}${model}${rst}"

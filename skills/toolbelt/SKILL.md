@@ -1,6 +1,6 @@
 ---
 name: toolbelt
-description: The self-describing front door for the whole toolbelt — a discoverability surface over all installed agents + skills + hooks. With no argument it prints a stage-grouped INVENTORY (Onboarding / Conductor / Plan / Build / Review / Wrap-up / Bug / Utility / Wiki), each component with a one-line purpose + exact invocation. With a goal/intent it RECOMMENDS the best-fit component(s) with why + the exact invocation. `status` runs a read-only environment check (prompt-router active? GitHub/Playwright MCP connected? CLAUDE.md present? which components installed?). READ-ONLY — it never invokes a component on the user's behalf and never writes/commits/pushes; it only suggests. Invoke as `/toolbelt`, `/toolbelt <goal>`, or `/toolbelt status`.
+description: The self-describing front door for the whole toolbelt — a discoverability surface over all installed agents + skills + hooks. With no argument it prints a stage-grouped INVENTORY (Onboarding / Conductor / Plan / Build / Review / Wrap-up / Bug / Utility / Wiki), each component with a one-line purpose + exact invocation. With a goal/intent it RECOMMENDS the best-fit component(s) with why + the exact invocation. `status` runs a read-only environment check (prompt-router active? GitHub/Playwright MCP connected? CLAUDE.md present? which components installed?). `metrics` summarizes the usage telemetry — how often the toolbelt was offered vs actually used (opt-in via MAUNGS_TOOLBELT_DEBUG). READ-ONLY — it never invokes a component on the user's behalf and never writes/commits/pushes; it only suggests. Invoke as `/toolbelt`, `/toolbelt <goal>`, `/toolbelt status`, or `/toolbelt metrics`.
 disable-model-invocation: false
 ---
 
@@ -8,13 +8,14 @@ disable-model-invocation: false
 
 You are a **map, not a driver**. This skill exists so a user (or a fresh-context agent) can discover what the toolbelt offers, find the right component for a goal, and confirm the environment is wired up — WITHOUT you running any of those components for them. You describe and recommend; the human chooses and invokes.
 
-The argument is in `$ARGUMENTS`. Three modes, dispatched by what `$ARGUMENTS` contains:
+The argument is in `$ARGUMENTS`. Four modes, dispatched by what `$ARGUMENTS` contains:
 
 - **(A) Inventory** — empty `$ARGUMENTS`: print the stage-grouped INVENTORY of every installed component.
 - **(B) Recommend** — free-text goal/intent (e.g. `find why a test fails`, `prep this repo`, `document the codebase`): map the goal to the best-fit component(s), explain why, and print the exact invocation. Suggest; never run.
 - **(C) Status** — `$ARGUMENTS` is exactly `status`: a read-only environment check (router, MCP servers, CLAUDE.md, installed components).
+- **(D) Metrics** — `$ARGUMENTS` is exactly `metrics`: a read-only summary of the usage telemetry (how often the toolbelt was offered vs actually used).
 
-If `$ARGUMENTS` contains an unrecognized flag (anything starting `--`), echo it and stop — do not guess intent.
+Dispatch the reserved keywords `status` and `metrics` to modes C and D BEFORE treating `$ARGUMENTS` as a free-text goal (mode B). If `$ARGUMENTS` contains an unrecognized flag (anything starting `--`), echo it and stop — do not guess intent.
 
 ## Purpose
 
@@ -111,6 +112,7 @@ A read-only environment check. Run only the read-only probes from AUTO-DETECTION
 | **Playwright MCP** | `claude mcp list` + own live `mcp__playwright__*` toolset | `CONNECTED` / `NOT CONNECTED (optional)` |
 | **CLAUDE.md (current repo)** | file presence in the repo root | `PRESENT` / `MISSING → suggest /agentic-onboard` |
 | **git identity** | `git config --get user.email` | `SET` / `UNSET` |
+| **Usage telemetry** | `MAUNGS_TOOLBELT_DEBUG` env | `RECORDING (on/verbose) → see /toolbelt metrics` / `OFF (opt-in)` |
 | **Components installed** | enumerate `skills/*` + `agents/*` | counts, e.g. `9 skills + 16 agents (+ hooks router)` |
 
 For each gap, print the read-only consequence and the user-owned remediation — but **do not run the remediation**. Examples:
@@ -119,6 +121,18 @@ For each gap, print the read-only consequence and the user-owned remediation —
 - Newly-added MCP servers do not load until Claude Code restarts; if you observe a server in `claude mcp list` but its tools are absent from your live toolset, report it as `CONFIGURED — restart required`, not `CONNECTED`.
 
 Status is purely informational. It changes nothing.
+
+## Mode D — Metrics (`/toolbelt metrics`)
+
+A read-only summary of the toolbelt's own usage telemetry: how often the prompt-router **offered** a component, how often an agent/skill was actually **invoked**, and how often a suggestion **converted** into a run in the same session. This is opt-in and off by default — the hooks only record when `MAUNGS_TOOLBELT_DEBUG` is `on` (or `verbose`, which also traces each event to stderr). Records land in an append-only JSONL log on the user's machine (`~/.claude/maungs-toolbelt/usage.jsonl`, override with `MAUNGS_TOOLBELT_LOG`) — never inside a project repo.
+
+**How to produce the summary:** run the bundled read-only summarizer and print its output verbatim. It is the source of truth — do NOT hand-parse the JSONL yourself.
+
+1. Locate it (in order): `"${CLAUDE_PLUGIN_ROOT}"/bin/toolbelt-metrics.sh`, else the `bin/toolbelt-metrics.sh` next to the detected install root.
+2. Run it read-only: `bash "<path>/bin/toolbelt-metrics.sh"`. It needs `jq`. It only READS the log — it never writes, edits, or deletes (consistent with CARDINAL RULE 1).
+3. Print its output. If telemetry is OFF or the log is empty, the script already prints the enable instructions — relay them. Add one line that the live state is also visible on the optional cockpit statusline as `debug ●` (yellow = recording) with a per-session `offered▸used` tally.
+
+If you cannot run the script (no `bash`/`jq`, or the file isn't found), say so plainly and show the manual fallback — the log path above and `export MAUNGS_TOOLBELT_DEBUG=on` to start recording — rather than inventing numbers. Never fabricate metrics.
 
 ## OUTWARD-ACTION GATES (human-in-the-loop)
 
@@ -155,4 +169,7 @@ Detect the installed set → group by stage → print the inventory (one line pe
 Echo the goal → recommend `/bug-catcher <symptom>` (root-cause diagnosis + adversarial verification, never edits code) with `/chore` or `/orchestrator` noted as the fix path once the cause is known → invite the user to run it.
 
 > `/toolbelt status`
-Read-only check: router `ACTIVE`/`DISABLED`/`NOT INSTALLED`, GitHub + Playwright MCP `CONNECTED`/`NOT CONNECTED`, `CLAUDE.md` present?, git identity set?, and the installed component counts — each with the user-owned remediation for any gap. Changes nothing.
+Read-only check: router `ACTIVE`/`DISABLED`/`NOT INSTALLED`, GitHub + Playwright MCP `CONNECTED`/`NOT CONNECTED`, `CLAUDE.md` present?, git identity set?, telemetry `RECORDING`/`OFF`, and the installed component counts — each with the user-owned remediation for any gap. Changes nothing.
+
+> `/toolbelt metrics`
+Run the bundled `bin/toolbelt-metrics.sh` and print its summary — suggestions offered (by intent), agents/skills invoked (by component), and the same-session suggestion→use conversion. If telemetry is off, relay the one-line enable instructions (`export MAUNGS_TOOLBELT_DEBUG=on`). Reads the usage log; writes nothing.
