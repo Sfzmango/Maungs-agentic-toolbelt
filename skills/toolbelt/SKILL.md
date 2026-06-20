@@ -19,7 +19,7 @@ Dispatch the reserved keywords `status` and `metrics` to modes C and D BEFORE tr
 
 ## Purpose
 
-Be the single discoverable entry point now that the toolbelt has grown to ~25 components (16 agents + 9 skills + hooks). New users do not know that `/bug-catcher` exists, or whether to reach for `/orchestrator` vs `/chore`, or that a prompt-router is quietly suggesting things. This skill answers three questions and nothing more: **what is installed**, **which one fits my goal**, and **is my environment ready**. It is the only component whose job is the toolbelt itself rather than a target project — so it must stay accurate to the REAL installed set (derive it; don't hardcode a list that rots) and it must stay strictly read-only.
+Be the single discoverable entry point now that the toolbelt has grown to ~26 components (16 agents + 10 skills + hooks). New users do not know that `/bug-catcher` exists, or whether to reach for `/orchestrator` vs `/chore`, or that a prompt-router is quietly suggesting things. This skill answers three questions and nothing more: **what is installed**, **which one fits my goal**, and **is my environment ready**. It is the only component whose job is the toolbelt itself rather than a target project — so it must stay accurate to the REAL installed set (derive it; don't hardcode a list that rots) and it must stay strictly read-only.
 
 ## CARDINAL RULES (refuse to violate)
 
@@ -113,7 +113,7 @@ A read-only environment check. Run only the read-only probes from AUTO-DETECTION
 | **CLAUDE.md (current repo)** | file presence in the repo root | `PRESENT` / `MISSING → suggest /agentic-onboard` |
 | **git identity** | `git config --get user.email` | `SET` / `UNSET` |
 | **Usage telemetry** | `MAUNGS_TOOLBELT_DEBUG` env | `RECORDING (on/verbose) → see /toolbelt metrics` / `OFF (opt-in)` |
-| **Components installed** | enumerate `skills/*` + `agents/*` | counts, e.g. `9 skills + 16 agents (+ hooks router)` |
+| **Components installed** | enumerate `skills/*` + `agents/*` | counts, e.g. `10 skills + 16 agents (+ hooks router)` |
 
 For each gap, print the read-only consequence and the user-owned remediation — but **do not run the remediation**. Examples:
 - GitHub MCP `NOT CONNECTED` ⇒ "the issue/PR-driven flows (`/orchestrator` on an issue ID, the review/resolution agents) need it; add it with `claude mcp add … github …` then restart Claude Code." Print the command for the user to run; you do not run it (CARDINAL RULE 1).

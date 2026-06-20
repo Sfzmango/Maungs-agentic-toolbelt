@@ -6,7 +6,7 @@ feed into or run alongside that main line.
 
 ## Component inventory
 
-The pipeline is **16 agents + 9 skills = 25 components**. The split is deliberate:
+The pipeline is **16 agents + 10 skills = 26 components**. The split is deliberate:
 
 - **Skills (`/name`) are conductors.** They orchestrate a multi-phase process and
   delegate every unit of real work to an agent. They route, gate, and sequence; they
@@ -38,6 +38,7 @@ The pipeline is **16 agents + 9 skills = 25 components**. The split is deliberat
 | Utility | `/handoff` | skill | Drafts a drift-aware brief so a zero-context agent can resume cold; never written proactively |
 | Utility | `/toolbelt` | skill | Self-describing inventory + recommend-a-component + status (router/MCP/CLAUDE.md checks); read-only |
 | Utility | `/release-notes` | skill | Grouped release notes (features/fixes/breaking/migrations) + SemVer rec from a commit range/PRs; read-only; `--format deploy-comment` enriches a deploy comment |
+| Utility | `/overnight` | skill | Conductor that stands up overnight CLOUD routines (bug · security · wiki) for a repo via `RemoteTrigger`; each its own routine feeding one rolling `[overnight] Dossier` issue (per-job race-safe comments); bug auto-devs top non-SEV1 findings into DRAFT never-merged fix PRs, wiki opens one rolling propose-only PR; gates the one outward create/update/run |
 | Wiki | `/wiki-generator` | skill | Conductor for a near-100% technical wiki; full-build + incremental `--update`; output Markdown in `docs/wiki/` |
 | Wiki | `@wiki-writer` | agent | Authors/updates ONE wiki page from real code; writes only its page, read-only on code; "verified against commit" stamp |
 | Wiki | `@wiki-auditor` | agent | Fresh-eyes drift detector → CURRENT / STALE / INCORRECT / ORPHANED + delta list; writes nothing |

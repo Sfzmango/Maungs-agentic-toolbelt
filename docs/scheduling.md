@@ -207,3 +207,24 @@ This repo ships the design and the config shape. To make it live in *your* envir
 
 Everything above the checklist is portable and project-agnostic; only steps 1–4 are
 environment-specific.
+
+---
+
+## 8. The other scheduler: `/overnight` (cloud RemoteTrigger path)
+
+The path documented above is the **local daemon** scheduler: a 5-field **local-time** cron
+in `.claude/scheduled_tasks.json`, daemon-gated, that re-runs `/wiki-generator --update`
+on an always-on host you control. There is a second, complementary scheduler — the
+**`/overnight` skill** — that targets the **cloud `RemoteTrigger`** path instead:
+
+- **Cron is UTC** (not local) with a **1h-minimum** interval, and is DST-naive (a fixed
+  UTC hour drifts ±1h across a daylight-saving transition until the routine is re-saved).
+- It needs **no local daemon** — the routines fire in the claude.ai/code cloud, authenticated
+  by the account-level GitHub connector (not a local checkout's credentials).
+- It stands up **three** overnight routines (bug · security · wiki) that feed one rolling
+  `[overnight] Dossier` issue, and the wiki routine opens **one rolling propose-only PR**
+  (the same propose-only posture as §6).
+
+Use the **local-daemon** path here for a self-maintaining wiki on a host you own; use
+**`/overnight`** for unattended cloud routines that need no local daemon. They are
+complementary mechanisms — pick by where you want the job to run.
