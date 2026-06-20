@@ -38,7 +38,7 @@ The declarative catalog keeps the one thing the middleware got right — guarant
 
 A catalog must **earn its keep** — add one only when a real, observed coverage gap justifies it. To add one:
 
-1. Write `docs/interview-catalogs/<name>.md` with bucketed questions, a `## Consumers` line naming the component(s) that walk it, and the coverage rule restated.
+1. Write `docs/interview-catalogs/<name>.md` with bucketed questions, a `**Consumers:**` line naming the component(s) that walk it, and the coverage rule restated.
 2. Embed its buckets in each consuming component and add the canonical-file pointer.
 3. Add a row to the index below.
 4. Add the catalog + its consumer(s) to the CI drift check (`.github/workflows/validate.yml`) so the bucket headers stay in sync.

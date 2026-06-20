@@ -118,7 +118,7 @@ Catalogs live in one home, `docs/interview-catalogs/`: an index/README defining 
 
 ## Codex parity (implementation-time, not this PR)
 
-`agents/*.md` and `skills/*/SKILL.md` are **canonical** sources; the Codex artifacts under `codex-agents/`, `codex-hooks/`, and `plugins/maungs-agentic-toolbelt/skills/` are **generated** from them (`docs/codex.md`, `CLAUDE.md` generator section). The implementing PR therefore MUST run `python3 tools/build.py --target codex` after editing the canonical files (`@architect`, `/orchestrator`, `@product-owner`, `/migration-planner`), or CI's drift guard fails on the diff. New `docs/interview-catalogs/` files are Codex-neutral. **This PR is plan-only — it edits no canonical component — so it is drift-safe and requires no regeneration.**
+`agents/*.md` and `skills/*/SKILL.md` are **canonical** sources; the Codex artifacts under `codex-agents/`, `codex-hooks/`, and `plugins/maungs-agentic-toolbelt/skills/` are **generated** from them (`docs/codex.md`, `CLAUDE.md` generator section). The implementing PR therefore MUST run `python3 tools/build.py --target codex` after editing the canonical files (`@architect`, `/orchestrator`, `@product-owner`, `/migration-planner`), or CI's drift guard fails on the diff. New `docs/interview-catalogs/` files are Codex-neutral. **Note: the Codex generator is not yet on `main` (it lives in the unmerged codex-port branch), so regeneration is deferred until it lands — at which point the four canonical edits in this PR must be regenerated and committed. There are no Codex artifacts on this base to drift against yet.**
 
 ## Migrations
 

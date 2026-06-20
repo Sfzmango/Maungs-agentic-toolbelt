@@ -1,6 +1,6 @@
 # Migration discovery catalog
 
-**Consumers:** `/migration-planner` (front-loaded discovery, walked *before* the risk dossier is produced); also `@architect` when a plan includes a migration.
+**Consumers:** `/migration-planner` (front-loaded discovery, walked *before* the risk dossier is produced).
 
 `/migration-planner` already emits a rich MIGRATION RISK DOSSIER, but a dossier is only as good as the facts it rests on. This catalog formalizes the front-loaded questions the planner should ask the user *first*, so the dossier is grounded in answers rather than assumptions — which change is proposed, how much data it touches, whether downtime is acceptable, how it rolls out and rolls back, and who else reads the affected schema.
 

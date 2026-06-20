@@ -174,11 +174,11 @@ jobs:
           # consumer. A consumer missing a bucket — or a declared-but-absent consumer (orphan
           # catalog) — fails the build, same family as the count-string drift guard above.
           echo "::group::Interview-catalog drift (catalog buckets ⊆ each consumer)"
-          fail=0; total=0; okc=0
+          fail=0; total=0; okc=0; checked=""
           # Each entry: "<catalog file> <consumer file> [<consumer file> ...]".
           # Add a row here (and the catalog under docs/interview-catalogs/) for a new catalog.
           check_catalog() {
-            catalog="$1"; shift
+            catalog="$1"; shift; checked="$checked $catalog"
             if [ ! -f "$catalog" ]; then
               echo "  ✗ FAIL $catalog — catalog file not found"
               echo "::error file=$catalog::declared catalog file is missing"; fail=1; return
@@ -189,7 +189,7 @@ jobs:
             # Write them to a temp file so the while-loop below reads via a redirect (not a
             # pipe) and its counters survive — no subshell, no heredoc to de-indent the YAML.
             bfile="$(mktemp)"
-            grep -E '^#+ Bucket [0-9]+ — ' "$catalog" | sed -E 's/^#+ //' > "$bfile"
+            grep -E '^#+ Bucket [0-9]+ [—–-] ' "$catalog" | sed -E 's/^#+ //' > "$bfile"
             if [ ! -s "$bfile" ]; then
               echo "  ✗ FAIL $catalog — no 'Bucket N — <name>' headers found"
               echo "::error file=$catalog::catalog defines no buckets"; fail=1; rm -f "$bfile"; return
@@ -215,6 +215,16 @@ jobs:
           }
           check_catalog docs/interview-catalogs/greenfield.md agents/architect.md
           check_catalog docs/interview-catalogs/migration.md  skills/migration-planner/SKILL.md
+          # Orphan-catalog guard: every catalog file MUST be covered by a check_catalog
+          # row above, so a new docs/interview-catalogs/*.md cannot ship unguarded.
+          for cat in docs/interview-catalogs/*.md; do
+            [ "$(basename "$cat")" = "README.md" ] && continue
+            case " $checked " in
+              *" $cat "*) ;;
+              *) echo "  ✗ FAIL $cat — catalog has no drift-check row (orphan)"
+                 echo "::error file=$cat::add a check_catalog row for this catalog"; fail=1 ;;
+            esac
+          done
           echo "::endgroup::"
           if [ "$fail" -eq 0 ]; then
             echo "Interview catalogs: ✅ PASS — ${okc}/${total} bucket→consumer checks match"
