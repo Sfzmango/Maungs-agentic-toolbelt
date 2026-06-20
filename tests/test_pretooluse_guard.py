@@ -111,6 +111,10 @@ add("B", [
     ('rm -rf "/"', "deny"),
     ('rm -rf "~"', "deny"),
     ("rm -rf '*'", "deny"),
+    # force flag abutting a shell metachar with NO space is still a real force-push
+    (PUSH + " " + FORCE + ";ls", "deny"),
+    (PUSH + " " + FORCE + "|cat", "deny"),
+    (PUSH + " " + FLAG_F + ";ls", "deny"),
 ])
 
 # === C. Allowed-by-design (must NOT deny) ====================================

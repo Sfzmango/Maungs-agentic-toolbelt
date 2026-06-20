@@ -232,7 +232,7 @@ ask() {
 force_push_denies() {
   # whole-string force-push signal first (cheap pre-filter)
   printf '%s' "$scan" | grep -qE -- 'git([[:space:]]|.)*push' || return 1
-  printf '%s' "$scan" | grep -qE -- '(--force([[:space:]=]|$)|[[:space:]]-f([[:space:]]|$))' || return 1
+  printf '%s' "$scan" | grep -qE -- '(--force([[:space:]=;|&)<>]|$)|[[:space:]]-f([[:space:]=;|&)<>]|$))' || return 1
 
   # If the scan string contains constructs whose boundaries we cannot trust to
   # split on (command substitution / backticks / here-doc), fall back to today's
@@ -254,17 +254,18 @@ force_push_denies() {
   local seg
   while IFS= read -r seg; do
     printf '%s' "$seg" | grep -qE -- 'git([[:space:]]|.)*push' || continue
-    printf '%s' "$seg" | grep -qE -- '(--force([[:space:]=]|$)|[[:space:]]-f([[:space:]]|$))' || continue
+    printf '%s' "$seg" | grep -qE -- '(--force([[:space:]=;|&)<>]|$)|[[:space:]]-f([[:space:]=;|&)<>]|$))' || continue
     printf '%s' "$seg" | grep -qE -- '--force-with-lease([[:space:]=]|$)' && continue
     return 0   # this segment is a real force-push without lease
-  # Collapse shell line-continuations (a trailing backslash + newline is ONE
-  # command, not two) BEFORE splitting, so a continued push ... --force stays a
-  # single segment and still denies. A bare newline stays a real command
-  # separator, so a legit multi-line script (a push on one line, an unrelated
-  # rm -f on another) stays precise and is not over-denied.
+  # Join shell line-continuations (a trailing backslash + newline is ONE command,
+  # not two) AND split on top-level separators (&& || ; |) — BOTH done inside awk
+  # so we don't depend on the sed dialect turning \n into a real newline (classic
+  # BSD sed emits a literal 'n', which would silently degrade the split). A
+  # continued push ... --force stays one segment and denies; a bare newline stays
+  # a real separator, so a legit multi-line script (a push on one line, an
+  # unrelated rm -f on another) stays precise and is not over-denied.
   done < <(printf '%s\n' "$scan" \
-    | awk '{ if (h!=""){ $0=h $0; h="" } if ($0 ~ /\\$/){ h=substr($0,1,length($0)-1) " "; next } print } END{ if(h!="") print h }' \
-    | sed -E 's/(\&\&|\|\||;|\|)/\n/g')
+    | awk '{ if (h!=""){ $0=h $0; h="" } if ($0 ~ /\\$/){ h=substr($0,1,length($0)-1) " "; next } gsub(/(\&\&|\|\||;|\|)/,"\n"); print } END{ if(h!=""){ gsub(/(\&\&|\|\||;|\|)/,"\n",h); print h } }')
 
   return 1
 }
