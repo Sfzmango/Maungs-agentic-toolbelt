@@ -153,6 +153,7 @@ The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that 
 - [`docs/architecture.md`](docs/architecture.md) — how the agents hand off, with a full pipeline diagram
 - [`docs/design-philosophy.md`](docs/design-philosophy.md) — the recurring design principles and the failure modes they prevent
 - [`docs/components.md`](docs/components.md) — one-table index of all 25 components
+- [`docs/faq.md`](docs/faq.md) — how the toolbelt behaves in practice (e.g. how workers handle their adversary's feedback)
 - [`examples/`](examples/) — a sample issue, plan (with wireframes), bug dossier, and generated wiki
 
 **License:** [PolyForm Noncommercial 1.0.0](LICENSE) © 2026 Maung Htike. Free to use, run, and adapt for **noncommercial** purposes with attribution preserved; **commercial use requires a separate license** (contact via [github.com/Sfzmango](https://github.com/Sfzmango)). Original, project-agnostic agent designs — no proprietary code; compliance rubrics reference public standards (SOC 2, OWASP, PCI DSS, NIST, CWE).
