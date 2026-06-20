@@ -25,7 +25,7 @@ Two tiers:
            each reference[from] into each target, then VERIFY (run) where possible or
            SHOWCASE (docs cited + code emitted) where there's no toolchain.
 """
-import os, sys, glob, json, argparse, subprocess, tempfile, shutil
+import os, sys, glob, json, argparse, subprocess, tempfile, shutil, collections
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PROBLEMS = os.path.join(ROOT, "problems")
@@ -83,33 +83,54 @@ def load_problems():
     return probs
 
 # ---------------- tier 1: --check --------------------------------------------
-def tier_check():
+def tier_check(verbose=False):
     probs = load_problems()
     ref_langs = sorted({l for p in probs for l in p["refs"]})
     run_langs = [l for l in ref_langs if runnable(l)]
     skip_langs = [l for l in ref_langs if not runnable(l)]
     total = ok = 0
     fails = []
+    per_lang = collections.defaultdict(lambda: [0, 0])   # lang -> [ok, total]
+    per_prob = collections.defaultdict(lambda: [0, 0])   # slug -> [ok, total]
+    cells = []                                           # (slug, lang, ok, total)
     for p in probs:
         for lang in run_langs:
             if lang not in p["refs"]:
                 continue
+            cok = ctot = 0
             for i, c in enumerate(p["spec"]["cases"]):
-                total += 1
+                total += 1; ctot += 1
                 try:
                     got = run_source(lang, p["refs"][lang], c["stdin"])
                     if norm(got) == norm(c["stdout"]):
-                        ok += 1
+                        ok += 1; cok += 1
                     else:
                         fails.append((p["slug"], lang, i, c["stdout"], got))
                 except Exception as e:
                     fails.append((p["slug"], lang, i, "<error>", str(e)))
+            per_lang[lang][0] += cok; per_lang[lang][1] += ctot
+            per_prob[p["slug"]][0] += cok; per_prob[p["slug"]][1] += ctot
+            cells.append((p["slug"], lang, cok, ctot))
     print(f"[--check] {ok}/{total} reference case-runs pass | {len(probs)} problems")
     print(f"          verified languages: {', '.join(run_langs)}")
     if skip_langs:
         print(f"          references present but no toolchain here (skipped): {', '.join(skip_langs)}")
+    if verbose:
+        print("\n  PER-LANGUAGE (case-runs):")
+        for l in sorted(per_lang):
+            g, n = per_lang[l]
+            print(f"    {'✓' if g == n else '✗'} {l:12} {g}/{n}")
+        print("\n  PER-PROBLEM (case-runs across all verified languages):")
+        for slug in sorted(per_prob):
+            g, n = per_prob[slug]
+            print(f"    {'✓' if g == n else '✗'} {slug:16} {g}/{n}")
+        print("\n  PER-PROBLEM × LANGUAGE:")
+        for slug, lang, cok, ctot in cells:
+            print(f"    {'✓' if cok == ctot else '✗'} {slug:16} [{lang:10}] {cok}/{ctot}")
+        print()
     for slug, lang, i, exp, got in fails:
-        print(f"  FAIL {slug} [{lang}] case#{i}: expected={exp!r} got={got!r}")
+        print(f"  ✗ FAIL {slug} [{lang}] case#{i}: expected={exp!r} got={got!r}")
+    print(f"\nRESULT: {'PASS' if not fails else 'FAIL'}  ({ok}/{total} case-runs)")
     return 0 if not fails else 1
 
 # ---------------- tier 2: --live ---------------------------------------------
@@ -194,10 +215,12 @@ def main():
     ap.add_argument("--live", action="store_true", help="invoke @code-translator (costs tokens)")
     ap.add_argument("--from", dest="src", default="python")
     ap.add_argument("--to", dest="to", default="all", help="comma-separated targets, or 'all'")
+    ap.add_argument("-v", "--verbose", action="store_true",
+                    help="print per-language / per-problem detail (pass AND fail)")
     a = ap.parse_args()
     if a.live:
         sys.exit(tier_live(a.src, [t.strip() for t in a.to.split(",") if t.strip()]))
-    sys.exit(tier_check())
+    sys.exit(tier_check(a.verbose))
 
 if __name__ == "__main__":
     main()

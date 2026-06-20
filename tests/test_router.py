@@ -13,7 +13,7 @@ Labels are the router's intent blocks; "SILENT" means the router emits nothing.
 Most cases are template-expanded (label-correct by construction); the rest are
 hand-authored edge / mis-route / priority / negative cases.
 """
-import os, sys, json, subprocess, itertools, collections
+import os, sys, json, subprocess, itertools, collections, argparse
 
 ROUTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "hooks", "toolbelt-router.sh")
 
@@ -168,6 +168,11 @@ add("SILENT", ["what's the capital of France","explain how TCP works","thanks, t
                "define photosynthesis","what's the population of Japan","suggest a workout routine"])
 
 # ---------------- run -------------------------------------------------------
+ap = argparse.ArgumentParser(description="Prompt-router regression test (drives hooks/toolbelt-router.sh).")
+ap.add_argument("-v", "--verbose", action="store_true",
+                help="print every case (pass AND fail), grouped by expected intent")
+ARGS = ap.parse_args()
+
 results = []
 for p, exp in cases:
     out = subprocess.run(["bash", ROUTER], input=json.dumps({"prompt": p}),
@@ -178,9 +183,32 @@ for p, exp in cases:
 
 total = len(results)
 passed = sum(1 for r in results if r[0])
+intents = sorted(set(LEADS.values())) + ["SILENT"]
+
+print("PROMPT ROUTER REGRESSION")
+print(f"  router under test : {os.path.relpath(ROUTER)}")
+print(f"  intents under test: {', '.join(intents)} ({len(intents)} labels)")
+print(f"  corpus            : {total} labeled prompts\n")
 print(f"TOTAL PROMPTS: {total}    PASS: {passed}    FAIL: {total-passed}    ({100*passed//total}%)\n")
 
-# per-expected-category accuracy
+# per-case detail (pass AND fail), grouped by expected intent — only under -v
+if ARGS.verbose:
+    by = collections.defaultdict(list)
+    for ok, p, exp, got in results:
+        by["/".join(sorted(exp))].append((ok, p, got))
+    print("PER-CASE (grouped by expected intent):")
+    for key in sorted(by):
+        rows = by[key]
+        g = sum(1 for r in rows if r[0])
+        print(f"\n  [{key}]  {g}/{len(rows)}")
+        for ok, p, got in rows:
+            sym = "✓" if ok else "✗"
+            word = "PASS" if ok else "FAIL"
+            extra = "" if ok else f"   (got={got})"
+            print(f"    {sym} {word}  {p}{extra}")
+    print()
+
+# per-expected-category accuracy (always)
 bycat = collections.defaultdict(lambda: [0,0])
 for ok,p,exp,got in results:
     key = "/".join(sorted(exp))
@@ -188,11 +216,15 @@ for ok,p,exp,got in results:
 print("PER-EXPECTATION:")
 for k in sorted(bycat):
     n,g = bycat[k]
-    print(f"  {k:28} {g}/{n}")
+    sym = "✓" if g == n else "✗"
+    print(f"  {sym} {k:28} {g}/{n}")
 
 fails = [r for r in results if not r[0]]
 print(f"\nFAILURES ({len(fails)}):")
+if not fails:
+    print("  (none)")
 for ok,p,exp,got in fails:
-    print(f"  expected={'/'.join(sorted(exp)):20} got={got:10} | {p}")
+    print(f"  ✗ expected={'/'.join(sorted(exp)):20} got={got:10} | {p}")
 
+print(f"\nRESULT: {'PASS' if not fails else 'FAIL'}  ({passed}/{total} prompts routed as expected)")
 sys.exit(0 if not fails else 1)
