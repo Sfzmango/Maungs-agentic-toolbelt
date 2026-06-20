@@ -84,8 +84,8 @@ walkthrough below, your output should look like these.
 ### Install the components
 
 Pick one. Both make the 16 agents (`@architect`, `@developer`, `@pr-reviewer`,
-…) and 9 skills (`/orchestrator`, `/bug-catcher`, `/wiki-generator`, `/chore`,
-`/handoff`) available in any project.
+…) and 10 skills (`/orchestrator`, `/bug-catcher`, `/wiki-generator`, `/chore`,
+`/handoff`, `/overnight`) available in any project.
 
 **Option A — `install.sh` (copies into `~/.claude`)**
 

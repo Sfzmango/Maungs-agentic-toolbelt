@@ -559,7 +559,7 @@ force-pushed over the human's out-of-band edit.
 
 ## See also
 
-- [`components.md`](components.md) — one-line reference for all 25 components.
+- [`components.md`](components.md) — one-line reference for all 26 components.
 - [`scheduling.md`](scheduling.md) — the scheduled self-maintenance variant: how
   to run `/wiki-generator --update` on a cron so the wiki keeps itself current.
 - [`CONTRIBUTING.md`](../CONTRIBUTING.md) — where the `docs/wiki/` location and

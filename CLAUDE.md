@@ -4,7 +4,7 @@
 
 ## Project overview
 
-This repo is a project-agnostic, human-gated multi-agent workflow **for** Claude Code — and it is itself a Claude Code **plugin**, not an application. It ships **16 agents + 9 skills (25 components)**: agents are `@name` subagents (specialized workers) and skills are `/name` conductors (orchestrators). Together they take a piece of work from a raw idea to a security-reviewed, merge-ready PR, and keep a codebase's docs current. Every component auto-detects the **host** project's stack and conventions at runtime — nothing is hardcoded to one language or framework. It is distributed two ways: as a Claude Code plugin via the `maung-tools` marketplace, and via a copy/symlink `install.sh` into `~/.claude`.
+This repo is a project-agnostic, human-gated multi-agent workflow **for** Claude Code — and it is itself a Claude Code **plugin**, not an application. It ships **16 agents + 10 skills (26 components)**: agents are `@name` subagents (specialized workers) and skills are `/name` conductors (orchestrators). Together they take a piece of work from a raw idea to a security-reviewed, merge-ready PR, and keep a codebase's docs current. Every component auto-detects the **host** project's stack and conventions at runtime — nothing is hardcoded to one language or framework. It is distributed two ways: as a Claude Code plugin via the `maung-tools` marketplace, and via a copy/symlink `install.sh` into `~/.claude`.
 
 ## Stack
 
@@ -40,7 +40,7 @@ Every command below is cited to its source. There is no install/build/lint/forma
 Top-level layout (roles below; for the full component inventory and the end-to-end flow diagram, see [`docs/architecture.md`](docs/architecture.md) — it is the canonical map and is CI-load-bearing, so this section references it rather than duplicating it):
 
 - **`agents/`** — 16 subagent definitions (`*.md`, flat directory; frontmatter `name`/`description`/`tools`). The specialized workers invoked as `@name`.
-- **`skills/`** — 9 skill conductors (`<name>/SKILL.md`, foldered; frontmatter `name`/`description`/`disable-model-invocation`). Model-invocable and slash-invoked orchestrators.
+- **`skills/`** — 10 skill conductors (`<name>/SKILL.md`, foldered; frontmatter `name`/`description`/`disable-model-invocation`). Model-invocable and slash-invoked orchestrators. Includes `overnight` (stands up overnight cloud routines via `RemoteTrigger`).
 - **`hooks/`** — `toolbelt-router.sh` (UserPromptSubmit suggester), `pretooluse-guard.sh` (PreToolUse/Bash deny+ask guard), `usage-tracker.sh` (PreToolUse on Task/Skill, opt-in telemetry), `sessionstart-loader.sh` (SessionStart snapshot), `lib-telemetry.sh` (shared lib), `hooks.json` (registration).
 - **`docs/`** — `architecture.md`, `components.md`, `design-philosophy.md`, `getting-started.md`, `scheduling.md`, `wiki-generator.md`.
 - **`tests/`** — `test_router.py` (router: 16 intents, 100+ cases) and `translator_eval/` (`eval.py` + 10 problems, each with `reference/` solutions across ~11 languages and `spec.json` I/O vectors).
@@ -78,11 +78,11 @@ Top-level layout (roles below; for the full component inventory and the end-to-e
 *(lead footguns first — these are the ones CI hard-fails on)*
 
 - **Leak-grep (CI hard-fail):** CI runs a case-insensitive `grep` across `*.md`/`*.json`/`*.sh` and fails on any match against a small denylist — two private/employer name fragments plus the pattern for an absolute macOS home path (`/Users/<lowercase>`). The exact regex lives in `.github/workflows/validate.yml:30`. **Never** write an absolute home path (use `~/...` or a repo-relative path), and never write the private name fragments. Note: even *documenting* these strings literally would trip the grep, so refer to them by description, not by spelling them out. *(`.github/workflows/validate.yml:26-36`)*
-- **Component counts are load-bearing (CI hard-fail):** adding or removing an agent or skill changes the totals, and CI derives the real counts from the filesystem and asserts the exact strings in **six files** — `README.md`, `docs/components.md`, `docs/architecture.md`, `docs/design-philosophy.md`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`. Update all six (and update the GitHub "About" via `gh repo edit <owner>/<repo> --description "…"`, which CI only *warns* on). Today the count is **16 agents + 9 skills = 25 components**. *(`.github/workflows/validate.yml:44-72`, `CONTRIBUTING.md:54-65`)*
+- **Component counts are load-bearing (CI hard-fail):** adding or removing an agent or skill changes the totals, and CI derives the real counts from the filesystem and asserts the exact strings in **six files** — `README.md`, `docs/components.md`, `docs/architecture.md`, `docs/design-philosophy.md`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`. Update all six (and update the GitHub "About" via `gh repo edit <owner>/<repo> --description "…"`, which CI only *warns* on). Today the count is **16 agents + 10 skills = 26 components**. *(`.github/workflows/validate.yml:44-72`, `CONTRIBUTING.md:54-65`)*
 - **No AI-assistant attribution** in commit messages, PR bodies, or files — and the shipped `pretooluse-guard.sh` *denies* commits that carry an AI co-author trailer or a "generated by an AI assistant" footer. *(`CONTRIBUTING.md:28`, `hooks/pretooluse-guard.sh:67-69`)*
 - **Frontmatter is mandatory:** every `agents/*.md` and `skills/*/SKILL.md` must start with `---` and declare a `name:` field, or CI fails. *(`.github/workflows/validate.yml:13-24`)*
 - **The "product" is prompt markdown** — the test suite validates **routing** and the **translator eval**, not application logic. There is nothing to "build."
-- **`plugin.json` uses strict semver** (currently `0.3.0`). *(`.claude-plugin/plugin.json`)*
+- **`plugin.json` uses strict semver** (currently `0.4.0`). *(`.claude-plugin/plugin.json`)*
 
 ## Plan-file convention
 

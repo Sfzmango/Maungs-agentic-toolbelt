@@ -1,6 +1,6 @@
 # Maungs-agentic-toolbelt
 
-A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **16 agents + 9 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
+A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **16 agents + 10 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
 
 Agents are invoked with `@name`, skills with `/name`.
 
@@ -92,6 +92,8 @@ The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that 
 
 **`/release-notes`** — *`/release-notes [<range> | PR <n>] [--format deploy-comment]`*. Generates grouped release notes (✨ features / 🐛 fixes / ⚠️ breaking / 🗄️ migrations) from a commit range or PRs, with a SemVer bump recommendation and a deploy checklist when migrations or env changes are detected. Read-only — it outputs text and never tags, commits, or posts; `--format deploy-comment` produces a compact block to enrich a deployment comment.
 
+**`/overnight`** — *`/overnight [repo] [--bug --security --wiki] [--max-fixes n] [--time hh:mm --tz IANA] [--status --disable --run-now]`*. A conductor that stands up the toolbelt's overnight **cloud** routines for any target repo with one command, via the `RemoteTrigger` tool (the claude.ai/code routines API). By default it sets up three scheduled routines — bug · security · wiki — each its own routine, all feeding **one** rolling `[overnight] Dossier` tracking issue (each job owns its own marker-tagged comment, race-safe). The bug routine sweeps the codebase and auto-develops the top `--max-fixes` (default 5) non-SEV1 findings into **DRAFT, never-merged** fix PRs (SEV1 stays issue-only); the security routine runs a generic repo-wide compliance sweep (issue-only); the wiki routine runs a full-coverage build and opens **one** rolling propose-only PR. Reads and preflights for free; gates the one outward action (the routine create/update/run) behind an explicit human confirmation that shows the exact config first. Complementary to the local-daemon scheduler in [`docs/scheduling.md`](docs/scheduling.md).
+
 **`/toolbelt`** — *`/toolbelt`* (inventory), *`/toolbelt <goal>`* (recommend a component), or *`/toolbelt status`* (environment check). The self-describing front door: it lists every component grouped by stage, recommends the best fit for a stated goal, and reports what's active (router/guard state, MCP servers, whether a `CLAUDE.md` exists). Read-only.
 
 ---
@@ -154,7 +156,7 @@ The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that 
 
 - [`docs/architecture.md`](docs/architecture.md) — how the agents hand off, with a full pipeline diagram
 - [`docs/design-philosophy.md`](docs/design-philosophy.md) — the recurring design principles and the failure modes they prevent
-- [`docs/components.md`](docs/components.md) — one-table index of all 25 components
+- [`docs/components.md`](docs/components.md) — one-table index of all 26 components
 - [`docs/faq.md`](docs/faq.md) — how the toolbelt behaves in practice (e.g. how workers handle their adversary's feedback)
 - [`examples/`](examples/) — a sample issue, plan (with wireframes), bug dossier, and generated wiki
 

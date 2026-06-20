@@ -9,7 +9,7 @@ Answers are grouped by topic and **collapsed by default** — click a question t
 <details>
 <summary><strong>Is this an application, or a plugin — and what does it actually ship?</strong></summary>
 
-It is a Claude Code **plugin**, not a standalone application (`CLAUDE.md`, Project overview). It ships **16 agents + 9 skills (25 components)** — agents are `@name` subagents (specialized workers) and skills are `/name` conductors (orchestrators) — that take work from a raw idea to a security-reviewed, merge-ready PR and keep a codebase's docs current (`CLAUDE.md`, Project overview). The deliverable itself is **Markdown prompt definitions** (`agents/*.md` and `skills/<name>/SKILL.md` with YAML frontmatter), backed by supporting Bash hooks/scripts, stdlib Python 3 tests, and JSON config; there is no package manager or build system in the repo (`CLAUDE.md`, Stack). It is distributed two ways: as a plugin via the `maung-tools` marketplace (`.claude-plugin/marketplace.json`) and via a copy/symlink `install.sh` into `~/.claude` (`CLAUDE.md`, Project overview), with `plugin.json` pinned at version `0.3.0` under the PolyForm-Noncommercial-1.0.0 license (`.claude-plugin/plugin.json`).
+It is a Claude Code **plugin**, not a standalone application (`CLAUDE.md`, Project overview). It ships **16 agents + 10 skills (26 components)** — agents are `@name` subagents (specialized workers) and skills are `/name` conductors (orchestrators) — that take work from a raw idea to a security-reviewed, merge-ready PR and keep a codebase's docs current (`CLAUDE.md`, Project overview). The deliverable itself is **Markdown prompt definitions** (`agents/*.md` and `skills/<name>/SKILL.md` with YAML frontmatter), backed by supporting Bash hooks/scripts, stdlib Python 3 tests, and JSON config; there is no package manager or build system in the repo (`CLAUDE.md`, Stack). It is distributed two ways: as a plugin via the `maung-tools` marketplace (`.claude-plugin/marketplace.json`) and via a copy/symlink `install.sh` into `~/.claude` (`CLAUDE.md`, Project overview), with `plugin.json` pinned at version `0.4.0` under the PolyForm-Noncommercial-1.0.0 license (`.claude-plugin/plugin.json`).
 
 </details>
 
@@ -21,7 +21,7 @@ Agents and skills are the two component types in the pipeline (`docs/architectur
 - **Agents (`@name`) are workers.** Each owns exactly one phase, runs in its own context with a least-privilege scoped toolset, and is invoked as `@name` (`docs/architecture.md:14`, `docs/design-philosophy.md:3`). The capability boundary is enforced by the toolset itself, not just by prose — for example a read-only reviewer has no `Edit`/`Write` tool and so cannot modify the code it reviews (`docs/design-philosophy.md:30`).
 - **Skills (`/name`) are conductors.** They orchestrate a multi-phase process and delegate every unit of real work to an agent — they route, gate, and sequence rather than doing the engineering themselves (`docs/architecture.md:11-12`, `docs/design-philosophy.md:3`).
 
-The current inventory is 16 agents + 9 skills = 25 components (`docs/architecture.md:9`).
+The current inventory is 16 agents + 10 skills = 26 components (`docs/architecture.md:9`).
 
 </details>
 
@@ -35,7 +35,7 @@ No. The toolbelt is project-agnostic: no component hardcodes a stack, and every 
 <details>
 <summary><strong>Does it only work with Claude, or can it target other AI models?</strong></summary>
 
-No — the toolbelt is model-agnostic and also targets the OpenAI Codex CLI; the same 16 agents and 9 skills run on both Claude Code and Codex (`docs/codex.md`). Components are defined once as canonical `agents/*.md` + `skills/*/SKILL.md`, and a pure-stdlib generator (`tools/build.py`) renders them into each target's native form via per-target emitters: `python3 tools/build.py --target codex|claude|all [--check]` (`tools/build.py`, header/docstring). Codex artifacts are **generated, never hand-edited** — edit canonical then regenerate, and a CI drift guard fails on any diff (`CLAUDE.md`, `tools/` section). The generator is a target-agnostic core (`build.py`, `common.py`, `transforms.py`) plus per-target emitters, so adding a target like cursor or aider is "add an emitter + a target-table row," not a rearchitecture (`docs/codex.md`).
+No — the toolbelt is model-agnostic and also targets the OpenAI Codex CLI; the same 16 agents and 10 skills run on both Claude Code and Codex (`docs/codex.md`). Components are defined once as canonical `agents/*.md` + `skills/*/SKILL.md`, and a pure-stdlib generator (`tools/build.py`) renders them into each target's native form via per-target emitters: `python3 tools/build.py --target codex|claude|all [--check]` (`tools/build.py`, header/docstring). Codex artifacts are **generated, never hand-edited** — edit canonical then regenerate, and a CI drift guard fails on any diff (`CLAUDE.md`, `tools/` section). The generator is a target-agnostic core (`build.py`, `common.py`, `transforms.py`) plus per-target emitters, so adding a target like cursor or aider is "add an emitter + a target-table row," not a rearchitecture (`docs/codex.md`).
 
 </details>
 
