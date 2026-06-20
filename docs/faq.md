@@ -150,3 +150,19 @@ Within that frame, each worker keeps a **judgement floor** that stops it from be
 **The pattern, in one line.** Adversaries carry independent weight; conductors and humans adjudicate; workers re-execute and retain only a hard floor — verify-don't-fabricate, stop-if-regressing — that prevents pure compliance. This is the [conductor-never-codes split, §7](design-philosophy.md) applied to review feedback: the worker does the work, the conductor and the human own the decision.
 
 </details>
+
+<details>
+<summary><strong>If two concurrent <code>/chore --concurrently</code> runs touch the same file, do they conflict — and could one silently overwrite the other?</strong></summary>
+
+`/chore --concurrently` does the whole chore in a throwaway git **worktree** based on the freshly-fetched default branch, so the shared checkout's `HEAD`, index, and uncommitted edits are never touched and two sessions can edit at the same time without stepping on each other's live state (`skills/chore/SKILL.md`, the `--concurrently` flag). What it isolates is the **working tree** — it does **not** merge concurrent edits to the same lines for you. It is *optimistic* concurrency: isolate now, reconcile at merge.
+
+Because each worktree branches off `origin/<default-branch>` and commits to its own branch and PR, the two changes meet only at merge time, under normal git semantics:
+
+- **The first PR to merge lands clean.**
+- **The second** then diverges from a default branch that already has the first's change. If the two edits touched **different regions** of the file, git **auto-merges** both cleanly (the line numbers just shift). If they touched the **same or immediately-adjacent lines** — e.g. both add a method at the same spot — git raises a **merge conflict** that a human resolves. Git does **not** "reroute" the second change to fresh line numbers: its three-way merge reasons about the *common ancestor's* line ranges, not the post-merge ones, so two different edits to the same base region cannot be combined automatically.
+
+Nothing is silently clobbered. A conflicted (or non-fast-forwardable) PR cannot merge until it is rebased and the conflict resolved — exactly what branch protection enforces. The chore is also told to **flag overlap** when it can see it — "whoever merges first wins and the other rebases" (`skills/chore/SKILL.md`, overlap check) — but it can only see work already in a **branch/PR**; a sibling session's *unpushed*, in-worktree edits are invisible until they land, so the conflict surfaces at the second merge, not before.
+
+The practical rule: `--concurrently` is built for **small, single-concern, low-overlap** changes (the chore-scope gate already limits it to a handful of files). Two sessions doing heavy overlapping edits to the *same* file just manufacture a merge conflict — sequence that work (let one merge, the other rebases onto it) or do it as one piece via `/orchestrator`, rather than running two parallel chores on a contended file. In this repo specifically, editing the same `agents/*.md` also regenerates its Codex artifact, so two concurrent edits to one agent conflict in *both* the canonical file and the generated `codex-*` output — another reason to sequence same-file work. A worked end-to-end run, with worktree-isolation and parallel-timeline diagrams, is in [`examples/sample-concurrent-chore/`](../examples/sample-concurrent-chore/).
+
+</details>

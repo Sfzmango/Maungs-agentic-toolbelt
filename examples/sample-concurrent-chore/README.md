@@ -24,6 +24,44 @@ touches the in-flight branch.
 /chore --concurrently fix the "recieve" typo in the README invitations section
 ```
 
+## The mechanic at a glance
+
+`--concurrently` does the whole chore in a throwaway worktree based on
+`origin/main`, so the shared checkout — and whatever it has in flight — is never
+touched:
+
+```mermaid
+flowchart TD
+    subgraph CH["/chore --concurrently — isolated worktree"]
+      A["fetch origin main"] --> B["worktree add off origin/main"]
+      B --> C["edit + scoped add (worktree only)"]
+      C --> D{"commit gate → yes"}
+      D --> E{"push gate → yes"}
+      E --> F["push branch + open PR"]
+      F --> G["worktree remove (keep branch)"]
+    end
+    subgraph SH["Shared checkout — untouched"]
+      X["HEAD stays on 218-team-invitations<br/>(another session's /orchestrator run)"]
+    end
+```
+
+The two sessions run on the same repo at the same time without colliding —
+separate `HEAD`s, no stash, no waiting:
+
+```mermaid
+sequenceDiagram
+    participant A as Session A — /orchestrator 218
+    participant R as origin
+    participant B as Session B — /chore concurrently
+    A->>R: mid-build on 218-team-invitations (HEAD here)
+    B->>R: git fetch origin main
+    B->>B: worktree add off origin/main (isolated)
+    Note over A,B: parallel — no shared HEAD, no stash
+    B->>R: push chore branch + open PR #231
+    A->>R: still mid-build, untouched
+    B->>B: worktree remove (branch kept)
+```
+
 ## What you'd see
 
 ### 1 — Scope + "is it a chore?"
