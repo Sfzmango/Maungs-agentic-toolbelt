@@ -177,3 +177,22 @@ What `--bypass` **never** does — hard lines, even for an ASAP merge:
 `--concurrently` is what makes the toolbelt safe to run **in parallel with
 itself** — the reason a chore can ride alongside a live `/orchestrator` build
 instead of waiting in line behind it.
+
+## Beyond chores — the same isolation covers reverts & merge-resolution
+
+The isolated-worktree mechanic isn't chore-specific. **Any** branch operation that
+would otherwise move the shared checkout's `HEAD` — a revert, a `git merge main` to
+bring a PR up to date, or resolving the resulting conflict — can run the same way:
+in its **own isolated instance** (a worktree off the relevant branch), concurrently
+with other work, without touching the active checkout or another session's state.
+
+The rule is identical to chores: **one isolated instance per operation.** Two
+reverts (or two merge-resolutions) run safely in parallel as long as each lives in
+its own worktree and they don't edit the same lines of the same file — at which
+point the normal reconcile-at-merge rules apply (whoever lands first wins; the other
+rebases). They never collide *while editing*, because each instance is isolated.
+
+> Dogfood note: the `main`-merge consolidation on this very branch was done exactly
+> this way — a revert of a mis-resolved merge, then a fresh, correctly-resolved
+> `git merge main` in a throwaway worktree, while unrelated reviews ran in the
+> background and the shared checkout stayed on its own branch, untouched.
