@@ -1,6 +1,6 @@
 # 8 — `/overnight`: one-command setup for overnight cloud "dossier" routines
 
-**GitHub item:** _none yet — open an issue titled "Add a repo-agnostic `/overnight` conductor skill that sets up the overnight cloud 'dossier' routines (bug backlog + wiki drift-sync) for any target repo" and back-link this plan. The repo keys plan filenames to issue numbers; `8` is the next number and matches the issue this plan should be filed against._
+**GitHub item:** _none yet — open an issue titled "Add a repo-agnostic `/overnight` conductor skill that sets up the overnight cloud 'dossier' routines (bug dossier + wiki coverage build) for any target repo" and back-link this plan. The repo keys plan filenames to issue numbers; `8` is the next number and matches the issue this plan should be filed against._
 
 > **Open decisions to confirm (front-loaded — defaults chosen, each trivially overridable).** AskUserQuestion is unavailable from the architect subagent context, so these four genuine decisions are surfaced here with the architect's recommended default baked into the plan. Confirm or override before implementation begins; none touches the core flow, so a change here is cheap.
 > 1. **Skill name / slash command** — default **`/overnight`** (skill dir `skills/overnight/`, slug `overnight-routines-skill`). Alternatives considered: `/nightly` (CI connotation), `/dossier` (names the output, hides the scheduling). The name bakes into the Codex artifact path, the router corpus, and the six count-string files, so it is the most expensive thing to rename later.
@@ -10,16 +10,16 @@
 
 ## Goal
 
-Add a new project-agnostic **conductor skill** `skills/overnight/SKILL.md` (model-invocable + slash-invoked) that stands up the toolbelt's overnight **cloud routines** for any target repo with one command. `/overnight <repo>` (or no arg → auto-detect the current checkout's `git remote`) creates two scheduled cloud routines via the `RemoteTrigger` tool that run unattended overnight and leave **rolling "dossier" PRs** to review in the morning:
+Add a new project-agnostic **conductor skill** `skills/overnight/SKILL.md` (model-invocable + slash-invoked) that stands up the toolbelt's overnight **cloud routines** for any target repo with one command. `/overnight <repo>` (or no arg → auto-detect the current checkout's `git remote`) creates two scheduled cloud routines via the `RemoteTrigger` tool that run unattended overnight and maintain a **rolling "dossier" tracking issue** (per job) to review in the morning:
 
-- a **bug backlog** routine that runs `/bug-catcher --global` (or a generic adversarial sweep when the target repo lacks the toolbelt), and
-- a **wiki drift-sync** routine that runs `/wiki-generator --update` (or a generic doc-drift sweep).
+- a **bug dossier** routine that runs `/bug-catcher --global` (or a generic adversarial sweep when the target repo lacks the toolbelt), maintains a rolling **issue** of all confirmed findings (with a prominent SEV1/SEV2 section pinned at the top), and **auto-develops the top non-SEV1 findings into DRAFT fix PRs** (capped, default 5) linked to that issue — SEV1 is left for the morning dev, and
+- a **wiki dossier** routine that runs `/wiki-generator` toward **near-100% coverage** (drift-sync existing pages + add a FAQ and pages for every un-documented module/topic) and maintains a rolling issue **plus one PR per page**, each linked to that issue.
 
 Both are set up **by default**, with `--bug-only` / `--wiki-only` to scope, `--time <hh:mm>` / `--tz <IANA>` to schedule, `--disable` / `--status` to tear down / inspect, and `--run-now` to smoke-test. The skill is a conductor in the house style: it **reads and preflights for free**, and **gates the one outward action** (calling `RemoteTrigger {action:"create"|"update"|"run"}`) behind an explicit human confirmation that shows the exact config first. Its entire value is encoding eight hard-won operational lessons (idempotency, commit identity, connector preflight, rolling-PR dedup, revision stamps, no-AI-attribution, repo-agnostic methodology, human-gating) so a user never re-learns them by hand.
 
 ## Architecture
 
-The skill is a **conductor** (`§7` of `docs/design-philosophy.md`): it routes, preflights, gates, and reports — it does **not** itself sweep for bugs or write wiki pages. The work happens later, **in the cloud**, when each scheduled routine fires; the routine's *prompt* is what invokes `/bug-catcher --global` or `/wiki-generator --update` (or a generic fallback) inside the claude.ai/code environment. So this skill's job is purely **setup + lifecycle of the schedule**, and the heavy lifting is delegated twice over: first to the cloud routine, then (inside the routine) to the existing toolbelt skills.
+The skill is a **conductor** (`§7` of `docs/design-philosophy.md`): it routes, preflights, gates, and reports — it does **not** itself sweep for bugs or write wiki pages. The work happens later, **in the cloud**, when each scheduled routine fires; the routine's *prompt* is what invokes `/bug-catcher --global` or `/wiki-generator` (a full-coverage build; or a generic fallback) inside the claude.ai/code environment. So this skill's job is purely **setup + lifecycle of the schedule**, and the heavy lifting is delegated twice over: first to the cloud routine, then (inside the routine) to the existing toolbelt skills.
 
 Cloud routines are created with the **`RemoteTrigger`** tool (the claude.ai/code routines API). The create body shape — verified working — is:
 
@@ -76,12 +76,24 @@ flowchart TD
     J -->|"no"| R
     K -->|"yes"| RUN["RemoteTrigger run trigger_id"]
     K -->|"no"| R
-    RUN --> R["REPORT: routine ids, next fire (local+UTC),<br/>where the dossier PR will appear,<br/>any connector warning"]
+    RUN --> R["REPORT: routine ids, next fire (local+UTC),<br/>where the dossier issue (+ PRs) will appear,<br/>any connector warning"]
 ```
 
-Each routine, when it fires in the cloud, maintains **exactly one rolling dossier PR** for its job. The routine prompt itself encodes the rolling-PR discipline (open-PR lookup → update-in-place-or-create), the visible revision stamp, the commit-identity config, the no-AI-attribution + footer-strip step, and the **HYBRID repo-agnostic methodology**: run the toolbelt skill if the target repo / the user's plugins provide it, otherwise perform a generic stack-adapted sweep. This skill *writes those prompts*; the cloud routine *executes* them. The two are separate concerns and the plan keeps them separate — the skill is tested/reviewed as a conductor, and the prompt text is reviewed as the contract handed to the cloud.
+### Dossier output model (revised per user direction)
 
-A note on the existing scheduling surface: `docs/scheduling.md` documents a **local daemon** cron path for `/wiki-generator --update` (5-field *local*-time cron in `.claude/scheduled_tasks.json`). This skill targets the **cloud RemoteTrigger** path instead (UTC cron, account-bound connector, dossier PRs) — a different, complementary mechanism. The plan adds a cross-reference between the two so a reader isn't confused about which scheduler is which; it does not change the local-daemon doc's behavior.
+The dossier is a **rolling GitHub tracking ISSUE**, and the two jobs differ in what they additionally produce.
+
+**Bug job — issue + bounded auto-developed DRAFT fix PRs.**
+1. Sweep + adversarially verify, then create/maintain ONE rolling issue `[overnight] Bug dossier`. Its body opens with a **prominent, visually-distinct top section — `## 🚨 SEV1 & SEV2 — review first`** — listing every SEV1 and SEV2 finding so the highest-impact items are the first thing seen; below it, the full SEV-ranked checklist (SEV1 → SEV4), one item per finding (`- [ ] SEV# · <title> · file:line · root cause · fix direction · route · First seen <date>`, plus a link to its fix PR when one was auto-developed).
+2. **Auto-develop** the top **N (default 5, `--max-fixes`)** findings **by severity among SEV2–SEV4 only** — for each, run an autonomous `/orchestrator`-style implement cycle (branch → fix → write/run tests → local quality gate) and open a **DRAFT, clearly-marked "auto-generated, unreviewed" fix PR** linked to the dossier issue (`Part of #<issue>`). **SEV1 is NEVER auto-developed** — it stays an issue item for the morning dev (a wrong unattended SEV1 security/data-loss fix is the worst case). Skip auto-dev for any finding whose fix is genuinely ambiguous; leave it as an issue item.
+3. Fix PRs are **never merged**; each runs the project's local quality gate. Findings beyond the cap stay as issue items for manual triage.
+
+**Wiki job — issue + per-page PRs, full-coverage build.**
+Maintains ONE rolling issue `[overnight] Wiki dossier` (a coverage tracker: pages present · stale-synced · newly-added · still-missing) **and** opens **one PR per wiki page** added or drift-synced, each linked to that issue. Scope is a **full build toward near-100% coverage**: drift-sync existing pages, **add a FAQ page and a page for every un-documented module/topic**, plus a Home index + coverage report. These PRs carry real page content (legitimate deliverables, not speculative fixes).
+
+**Rolling discipline (both jobs, applied to the ISSUE first):** each run FIRST does `gh issue list … "[overnight] … dossier in:title"`; on an open match it **rolls the issue forward in place** (adds new items with `First seen:`, leaves still-open items unchanged — their original date is the reference, checks off resolved ones, bumps `Last updated: <date>`); absent, it creates one. Auto-developed fix PRs and wiki page PRs each follow the same find-open-then-update-else-create rule (one rolling PR per finding/page). A quiet night touches nothing. The prompts encode this plus commit-identity config, the no-AI-attribution + footer-strip step, and the **HYBRID repo-agnostic methodology** (run the toolbelt skill if available, else a generic stack-adapted sweep/build). This skill *writes those prompts*; the cloud routine *executes* them — reviewed as separate concerns.
+
+A note on the existing scheduling surface: `docs/scheduling.md` documents a **local daemon** cron path for `/wiki-generator --update` (5-field *local*-time cron in `.claude/scheduled_tasks.json`). This skill targets the **cloud RemoteTrigger** path instead (UTC cron, account-bound connector, dossier issues + PRs) — a different, complementary mechanism. The plan adds a cross-reference between the two so a reader isn't confused about which scheduler is which; it does not change the local-daemon doc's behavior.
 
 ## Files to add
 
@@ -121,7 +133,7 @@ None. No package manager exists in this repo and none is introduced. The skill i
 
 ## UI/UX
 
-None — backend/tooling skill, no web/mobile UI surface. The only human-visible surfaces are **text**: the skill's gated-confirm panel (the exact routine config), its `--status` table, its final report, and the **dossier PRs** the cloud routines open in the morning (rendered by GitHub, not by this skill). For completeness, the confirm panel's shape (a text mockup, not a UI screen) is:
+None — backend/tooling skill, no web/mobile UI surface. The only human-visible surfaces are **text**: the skill's gated-confirm panel (the exact routine config), its `--status` table, its final report, and the **dossier issues + PRs** the cloud routines open in the morning (rendered by GitHub, not by this skill). For completeness, the confirm panel's shape (a text mockup, not a UI screen) is:
 
 ```text
 About to CREATE 2 overnight routines for Sfzmango/Maungs-agentic-toolbelt
@@ -129,9 +141,9 @@ About to CREATE 2 overnight routines for Sfzmango/Maungs-agentic-toolbelt
   │   fires: 04:00 America/Los_Angeles  →  cron (UTC): 0 11 * * *
   │   model: claude-opus-4-8   runs: /bug-catcher --global (HYBRID fallback)
   │   action: CREATE (no existing routine matched)
-  ├ wiki drift    overnight-wiki · Sfzmango/Maungs-agentic-toolbelt
+  ├ wiki build    overnight-wiki · Sfzmango/Maungs-agentic-toolbelt
   │   fires: 04:07 America/Los_Angeles  →  cron (UTC): 7 11 * * *
-  │   model: claude-opus-4-8   runs: /wiki-generator --update (HYBRID fallback)
+  │   model: claude-opus-4-8   runs: /wiki-generator (full build; HYBRID fallback)
   │   action: UPDATE (matched existing routine trigger_id=…)
   └ commits will attribute to: Maung Htike <…@users.noreply.github.com>
   ⚠ connector check: the claude.ai GitHub connection authenticates the push/PR —
@@ -146,10 +158,10 @@ The skill MUST encode each of these; they are acceptance criteria, not suggestio
 1. **Idempotency / no-duplicate routines.** Before any create, `RemoteTrigger {action:"list"}` and match on the deterministic per-repo+job name; on a match, **UPDATE** that routine, never create a second. The API cannot delete, so a duplicate is permanent — design it out. (Mirrors the idempotent-flow discipline in `docs/scheduling.md §4`.)
 2. **Commit identity.** The routine prompt sets `git config user.name` / `user.email` to the **invoking user's** identity — read from `git config` during preflight, *especially the GitHub-noreply email* that maps commits to their account — so the dossier commits attribute to them, not the cloud env's default bot.
 3. **GitHub connector preflight + warning.** The account that authenticates the push / opens the PR is the **claude.ai GitHub connection** (account-level, bound at routine creation), **NOT settable from the routine prompt**. The skill MUST (a) detect/warn if the connected account looks like a bot vs the repo owner, and (b) document the fix click-path (claude.ai connectors; or `gh auth login` + `/web-setup`; re-create or re-save routines after switching, since identity binds at creation). It **cannot** switch the connector itself — only warn.
-4. **Rolling dossier (no spam).** Each routine maintains **ONE** rolling PR: first `gh pr list … in:title` for an open dossier PR; if present, check out its branch and **UPDATE in place** (never open a duplicate); if absent, create one. A still-open finding keeps its original `First seen:` date; resolved ones flip to resolved; a quiet night = **no PR**. (Same propose-only, reuse-the-open-PR posture as `docs/scheduling.md §4/§6`.)
-5. **Visible revision stamp.** The bug backlog file carries `**Last updated: <date>** — swept against main @ <sha>` at the top plus a dated `## Revision log`; the wiki PR body carries `Last synced: <date>`. Bumped every refresh.
+4. **Rolling dossier ISSUE + bounded auto-dev (no spam).** The dossier is a rolling **GitHub issue** (not a PR), rolled forward in place via `gh issue list … "[overnight] … dossier in:title"` (open match → update, never a duplicate; new items get `First seen:`, resolved items checked off, `Last updated:` bumped; quiet night → nothing). The **bug** job additionally **auto-develops the top `--max-fixes` (default 5) non-SEV1 findings** (SEV2→SEV4 by severity; **SEV1 stays issue-only**) into **DRAFT, never-merged** fix PRs, each its own rolling PR linked to the issue. The **wiki** job maintains one rolling PR per page. (Same reuse-the-open-artifact posture as `docs/scheduling.md §4/§6`.)
+5. **Visible revision stamp + SEV1/2-first.** The bug dossier issue carries `**Last updated: <date>** — swept against main @ <sha>` near the top, a prominent `## 🚨 SEV1 & SEV2 — review first` section above the full list, and a dated revision log; the wiki dossier issue + page-PR bodies carry `Last synced: <date>`. Bumped every refresh.
 6. **No AI attribution + footer-strip.** PR bodies/commits carry **NO** AI attribution; if the platform auto-appends a "Generated by Claude Code" footer, the routine strips it via `gh pr edit <n> --body …`. (Aligns with the repo cardinal rule + the shipped `pretooluse-guard.sh` which denies AI-attributed commits.)
-7. **Repo-agnostic methodology (HYBRID).** The routine prompt says: **if** the target repo / the user's plugins provide `/bug-catcher` and `/wiki-generator`, run those; **otherwise** perform a generic sweep adapted to the detected stack (read manifests → derive language/test framework → diagnose → adversarially verify → drop unconfirmed findings). The current toolbelt-specific prompts (which read `skills/bug-catcher/SKILL.md` from the checkout) must be **generalized** — an arbitrary repo won't have those files.
+7. **Repo-agnostic methodology (HYBRID).** The routine prompt says: **if** the target repo / the user's plugins provide `/bug-catcher` and `/wiki-generator`, run those (`/bug-catcher --global` for the sweep; `/wiki-generator` for a **full-coverage** build); **otherwise** a generic equivalent on the detected stack (read manifests → derive language/test framework → for bugs: diagnose → adversarially verify → drop unconfirmed; for wiki: enumerate modules/topics → write/refresh a page each + FAQ + coverage index). The current toolbelt-specific prompts (which read `skills/bug-catcher/SKILL.md` from the checkout) must be **generalized** — an arbitrary repo won't have those files.
 8. **Human-gated.** The skill shows the **exact** routine config (repo, cron in local + UTC, model, prompt summary, create-vs-update) and requires an explicit confirmation **BEFORE** any `RemoteTrigger create/update`. Reading/preflight is free; creating routines (and `--run-now`) are the gated outward actions, each its own fresh "yes" — never bundled, never inferred. (`§4` of `docs/design-philosophy.md`.)
 
 ## Flags (the full surface)
@@ -158,7 +170,8 @@ The skill MUST encode each of these; they are acceptance criteria, not suggestio
 |---|---|
 | _(none)_ + optional `<repo>` | Set up **both** routines for `<repo>` (or the cwd's `git remote` if omitted). |
 | `--bug-only` | Only the bug-backlog routine. |
-| `--wiki-only` | Only the wiki-drift routine. |
+| `--wiki-only` | Only the wiki-build routine (full-coverage build + FAQ). |
+| `--max-fixes <n>` | Cap on overnight auto-developed DRAFT fix PRs per bug run (default **5**, SEV2–SEV4 by severity). SEV1 is never auto-developed regardless. |
 | `--time <hh:mm>` | Local fire time (default **04:00**). Bug routine at the time; wiki a few minutes later (off-herd). |
 | `--tz <IANA>` | Timezone for `--time` (default: host system tz, **always echoed** in the confirm). |
 | `--status` | **Read-only**: list this repo's overnight routines (enabled?, next fire local+UTC, last run). No gate. |
@@ -188,7 +201,7 @@ There is no new Python/stdlib test required by this change (no new matcher or lo
 - **Duplicate routines that can't be deleted** → mitigated by the mandatory list-then-update idempotency check (lesson 1); the worst case is one extra disabled routine, never an unkillable pile.
 - **Mis-scheduled fire (wrong tz → 4am-somewhere-else)** → mitigated by always echoing the resolved tz + UTC cron in the gated confirm (lesson 8 + decision 3); a human sees the real fire time before anything is created.
 - **Wrong-account attribution / a bot opening PRs** → mitigated by the connector preflight warning (lesson 3) and commit-identity config (lesson 2); the skill cannot fix the connector, but it cannot silently ship a mis-attributed setup either — it warns loudly.
-- **PR spam** → mitigated by the rolling-single-PR discipline + quiet-night-no-PR rule (lesson 4).
+- **PR spam / runaway overnight development** → mitigated by the rolling-issue + rolling-per-finding/per-page-PR discipline, the `--max-fixes` cap (default 5), the **non-SEV1-only** auto-dev restriction, the **draft + never-merged** posture (each fix PR runs the local gate), and the quiet-night-nothing rule (lesson 4). Worst case is a handful of reviewable draft PRs — never an auto-merged bad fix, and never an unattended SEV1/security fix.
 
 **Count-string coupling (high care, CI hard-fail).** The six count files + the Codex regeneration are the most error-prone part of the change — miss one string and CI is red. The Files-to-edit and Generated-artifacts sections enumerate every one with its exact asserted string and line; the implementer must hit all of them in the same commit.
 
@@ -204,6 +217,7 @@ There is no new Python/stdlib test required by this change (no new matcher or lo
 - **A true delete.** The RemoteTrigger API has no delete; `--disable` (`enabled:false`) is the only teardown. Not a gap this plan can close.
 - **Changing the local-daemon scheduler in `docs/scheduling.md`.** That path stays as-is; this skill is the complementary *cloud* path. Only a cross-reference is added.
 - **Editing the Codex artifacts by hand.** They are generated; the plan regenerates them via `tools/build.py`.
+- **Auto-developing SEV1, or merging any PR.** SEV1 findings are never auto-developed (left for a human); every auto-generated fix PR is a DRAFT the routine never merges. A bound by design, not a gap.
 
 ## Acceptance criteria
 
@@ -213,10 +227,10 @@ There is no new Python/stdlib test required by this change (no new matcher or lo
 4. **Idempotency (lesson 1):** before creating, the skill lists existing routines and, on a name match for this repo+job, **updates in place** instead of creating a duplicate — verified in the skill text and surfaced as `action: CREATE|UPDATE` in the confirm panel.
 5. **Commit identity (lesson 2):** the installed routine prompt configures `git config user.name`/`user.email` (incl. the GitHub-noreply email) from the user's identity read during preflight.
 6. **Connector preflight (lesson 3):** the skill detects/warns on a bot-vs-owner connector mismatch and documents the fix click-path, while making clear it cannot switch the connector itself.
-7. **Rolling dossier (lesson 4):** each installed routine prompt encodes the "find open dossier PR → update in place, else create; quiet night → no PR" rule.
-8. **Revision stamp (lesson 5):** the bug routine stamps `Last updated … @ <sha>` + a dated revision log; the wiki routine stamps `Last synced: <date>`.
+7. **Rolling dossier ISSUE + bounded auto-dev (lesson 4):** each prompt encodes "find open dossier ISSUE → roll forward in place, else create; quiet night → nothing." The **bug** prompt opens/updates the issue with ALL findings AND auto-develops the top `--max-fixes` (default 5) **non-SEV1** findings (SEV2→SEV4 by severity) into **DRAFT, never-merged** fix PRs that each run the local gate and link to the dossier issue; **SEV1 is never auto-developed**. The **wiki** prompt maintains one rolling PR per page, linked to the issue.
+8. **Revision stamp + SEV1/2-first (lesson 5):** the bug dossier issue carries `Last updated … @ <sha>`, a prominent `🚨 SEV1 & SEV2 — review first` section at the very top, and a dated revision log; the wiki dossier issue + page PRs carry `Last synced: <date>`.
 9. **No AI attribution + footer-strip (lesson 6):** the installed prompts produce **no** AI-attributed commit/PR and strip any auto-appended "Generated by Claude Code" footer.
-10. **HYBRID methodology (lesson 7):** the routine prompts run `/bug-catcher --global` and `/wiki-generator --update` **when available**, and otherwise fall back to a generic stack-adapted adversarial sweep — i.e. they do **not** assume the target repo contains the toolbelt's own `skills/*` files.
+10. **HYBRID methodology (lesson 7):** the routine prompts run `/bug-catcher --global` (bug) and `/wiki-generator` (a **full-coverage** build, not `--update`) **when available**, and otherwise fall back to a generic stack-adapted equivalent — i.e. they do **not** assume the target repo contains the toolbelt's own `skills/*` files.
 11. **Human-gated (lesson 8):** creating/updating routines and `--run-now` are each gated behind an explicit, fresh "yes" that follows a panel showing repo · cron (local **and** UTC) · model · create-vs-update · prompt summary; `--status` is read-only with no gate.
 12. **Scheduling correctness:** the local `--time`/`--tz` (default 04:00, host tz) is converted to a valid **5-field UTC** cron honoring the **1h-minimum** interval, and the two routines for one repo are staggered off the `:00`/`:30` herd.
 13. **Teardown:** `--disable` sets `enabled:false` (the API has no delete) and `--status` lists this repo's routines read-only.
