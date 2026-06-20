@@ -139,6 +139,14 @@ add("D", [
     ("cat <<EOF\n" + PUSH + " " + FORCE + "\nEOF", "deny"),
     # escaped-quote case the parser cannot confidently resolve, with real danger
     ("git commit " + NO_VERIFY + ' -m "he said \\"hi\\""', "deny"),
+    # line-continuation: `\`+newline is ONE shell command, so a continued
+    # force-push must still deny (the splitter joins continuations before split)
+    (PUSH + " origin \\\n" + FORCE, "deny"),
+    (PUSH + " \\\n" + FORCE, "deny"),
+    # command substitution inside DOUBLE quotes is a real invocation (dq does NOT
+    # suppress $( ... ) / backticks) -> neutralizer fails closed -> deny
+    ('X="$(' + ADD_A + ')"', "deny"),
+    ('X="`' + ADD_A + '`"', "deny"),
 ])
 
 # === E. Ask-tier preserved (and quote-neutralization applies to it too) ======
@@ -174,6 +182,9 @@ add("F", [
     # a lease push in one segment must not mask a bare force-push in another,
     # even when a substitution makes the boundaries untrustworthy (fail-closed)
     ("x=$(date) ; " + PUSH + " " + LEASE + " a ; " + PUSH + " " + FORCE + " b", "deny"),
+    # legit multi-line (bare newline, no continuation): a push on one line and an
+    # unrelated rm -f on another are different commands -> not a force-push -> allow
+    (PUSH + " origin main\nrm " + FLAG_F + " /tmp/x", "allow"),
 ])
 
 # === G. Fail-OPEN contract intact (guard never wedges the workflow) ==========

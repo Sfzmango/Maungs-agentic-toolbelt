@@ -129,6 +129,16 @@ neutralize_quotes() {
         i=$((i+2))
         continue
       fi
+      # Double quotes do NOT suppress command substitution: "$( ... )" and the
+      # backtick form run a real command, so a danger token inside is a real
+      # invocation, not quoted text. Fail CLOSED (scan := raw $cmd) exactly like
+      # the outside-quote branch, instead of neutralizing the span and hiding it.
+      if [ "$ch" = '`' ]; then
+        scan="$cmd"; return 0
+      fi
+      if [ "$ch" = '$' ] && [ "${s:$((i+1)):1}" = "(" ]; then
+        scan="$cmd"; return 0
+      fi
       if [ "$ch" = '"' ]; then
         out="$out\""
         in_dquote=0
@@ -247,7 +257,14 @@ force_push_denies() {
     printf '%s' "$seg" | grep -qE -- '(--force([[:space:]=]|$)|[[:space:]]-f([[:space:]]|$))' || continue
     printf '%s' "$seg" | grep -qE -- '--force-with-lease([[:space:]=]|$)' && continue
     return 0   # this segment is a real force-push without lease
-  done < <(printf '%s\n' "$scan" | sed -E 's/(\&\&|\|\||;|\|)/\n/g')
+  # Collapse shell line-continuations (a trailing backslash + newline is ONE
+  # command, not two) BEFORE splitting, so a continued push ... --force stays a
+  # single segment and still denies. A bare newline stays a real command
+  # separator, so a legit multi-line script (a push on one line, an unrelated
+  # rm -f on another) stays precise and is not over-denied.
+  done < <(printf '%s\n' "$scan" \
+    | awk '{ if (h!=""){ $0=h $0; h="" } if ($0 ~ /\\$/){ h=substr($0,1,length($0)-1) " "; next } print } END{ if(h!="") print h }' \
+    | sed -E 's/(\&\&|\|\||;|\|)/\n/g')
 
   return 1
 }
