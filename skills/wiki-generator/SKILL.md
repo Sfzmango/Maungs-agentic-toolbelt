@@ -1,6 +1,6 @@
 ---
 name: wiki-generator
-description: Conductor that generates and maintains a near-100%-technical-coverage WIKI for ANY codebase, written in Markdown and living at docs/wiki/ inside the target repo. Auto-detects the codebase shape (languages, frameworks, module/service boundaries, schema/migrations, routes/API, entrypoints, tests, build/deploy, monorepo packages), derives a PAGE PLAN, and FANS OUT to the @wiki-writer agent (one page per topic), then assembles a Home index with a no-gaps-hidden COVERAGE REPORT. NEVER writes application code; read-only on code, writes only under docs/wiki/. `--update` runs the incremental drift-sync mode via @wiki-auditor (the mode the scheduler invokes). The wiki is dual-audience: durable context for future agents AND a reference for new hires. Invoke as `/wiki-generator` (full build) or `/wiki-generator --update` (incremental).
+description: Conductor that generates and maintains a near-100%-technical-coverage WIKI for ANY codebase, written in Markdown and living at docs/wiki/ inside the target repo. Auto-detects the codebase shape (languages, frameworks, module/service boundaries, schema/migrations, routes/API, entrypoints, tests, build/deploy, monorepo packages), derives a PAGE PLAN, and FANS OUT to the @wiki-writer agent (one page per topic), then assembles a Home index with a no-gaps-hidden COVERAGE REPORT. NEVER writes application code; read-only on code, writes only under docs/wiki/. `--update` runs the incremental drift-sync mode via @wiki-auditor (the mode the scheduler invokes). `--publish` ships the already-generated docs/wiki/ pages UNCHANGED to an external wiki platform through a pluggable, target-agnostic adapter seam (GitHub repository wiki shipped; Confluence + Azure DevOps wiki are documented future targets), always behind a mandatory dry-run preview and an explicit human approval gate. The wiki is dual-audience: durable context for future agents AND a reference for new hires. Invoke as `/wiki-generator` (full build), `/wiki-generator --update` (incremental), or `/wiki-generator --publish [--target github] [--dry-run]` (publish).
 disable-model-invocation: false
 ---
 
@@ -15,6 +15,10 @@ The wiki is **dual-audience**, and every decision serves both:
 The argument is in `$ARGUMENTS`. Modes:
 - **(A) Full build** — `/wiki-generator` (no flag): build or rebuild the whole wiki from scratch.
 - **(B) Incremental** — `/wiki-generator --update`: diff the codebase against the last-synced commit SHA recorded in the wiki, audit existing pages for drift, and re-sync only what changed. **This is the mode the scheduler invokes** — see `docs/scheduling.md` in this plugin repo for the scheduled variant and its human gate.
+- **(C) Publish** — `/wiki-generator --publish`: ship the already-generated `docs/wiki/` pages, UNCHANGED, to an external wiki platform through a pluggable target adapter. Two sub-flags refine it:
+  - **`--target <name>`** — which platform adapter to publish through (default `github`). See the PUBLISH-TARGETS table for the shipped + future targets. An unknown value is echoed and stopped, pointing at that table.
+  - **`--dry-run`** — render the publish preview and STOP without pushing. (The preview is *always* rendered even without this flag — `--dry-run` just suppresses the approval gate and the push.)
+  Publish never authors or restructures page content; it only ships what full-build / `--update` already produced, and only behind an explicit human approval gate. See the **PUBLISH MODE** section below.
 
 If `$ARGUMENTS` contains an unrecognized flag, echo it and stop — do not guess intent.
 
@@ -36,6 +40,7 @@ These hold for every invocation in every project. The target project's `CLAUDE.m
 6. **Every page satisfies the PAGE CONTRACT** (below). A page that cannot meet the contract for a real reason (e.g. no schema applies) states why inline rather than omitting the section silently.
 7. **Honor target-project conventions** from `CLAUDE.md` / `CLAUDE.local.md` / equivalent — terminology, module naming, domain glossary, "do not document X" rules. Project rules are non-negotiable for the agents.
 8. **No AI-assistant attribution** in any wiki page, commit, PR body, or output.
+9. **Publish ships `docs/wiki/` UNCHANGED outward — it never authors, edits, or restructures page content.** This *clarifies and complements* rule 1: rule 1 restricts what may be **written to disk** (only `docs/wiki/`); rule 9 governs the new outward `--publish` action — the bytes that leave for the external platform are exactly the bytes full-build / `--update` produced under `docs/wiki/`. Publish may compute a platform page **mapping** (e.g. `Home.md → Home`, a generated `_Sidebar`) and a dry-run preview, but it does NOT rewrite, reflow, summarize, or reorganize the page bodies. If a page is wrong, fix it in generation/`--update` — never "touch it up" on the way out. The push is the one outward action publish may take, and ONLY behind the human gate in OUTWARD-ACTION GATES.
 
 ## Auto-detection on every invocation (detect, don't assume)
 
@@ -113,6 +118,74 @@ This is the scheduler-invoked mode. It must be cheap, drift-accurate, and never 
 7. **Update `Home.md`** — new `Last synced: <sha>`, refreshed COVERAGE REPORT (including newly-orphaned/removed pages).
 8. **OUTWARD ACTION (scheduled only)** — if this run is a scheduled wiki-sync (see `docs/scheduling.md`), opening a wiki-sync PR is the one outward action allowed, and ONLY behind the human gate in OUTWARD-ACTION GATES. An interactive `--update` writes the working tree and stops; the human commits.
 
+## Mode C — publish (`/wiki-generator --publish [--target <name>] [--dry-run]`)
+
+Publish ships the wiki you already generated to a hosted/external wiki platform. It is **strictly additive** — full-build and `--update` are untouched, and publish authors NO content (cardinal rule 9): it ships `docs/wiki/` exactly as produced, behind a mandatory dry-run preview and an explicit human approval gate. The capability is built as a **pluggable, target-agnostic seam** that mirrors `/agentic-onboard`'s EMIT-TO-TARGETS renderer table: a small **publish core** that knows nothing about any specific platform, plus a per-platform **adapter contract** selected by `--target`. Adding a platform is **adding an adapter contract + a PUBLISH-TARGETS row — never a core rewrite.**
+
+### The publish core (target-agnostic)
+
+The core is the same five-step pipeline for every target — `probe → map → preview → gate → push` — and never names a platform. Its steps:
+
+1. **Read the page set.** Confirm `docs/wiki/` exists and is non-empty. If it is missing or empty, **HALT** with "nothing to publish — run a full build first" (do NOT auto-build). The page set is whatever full-build / `--update` produced; the core reads it, it never writes it.
+2. **Resolve the target adapter** from `--target` (default `github`). The value is validated against the literal allowlist `{github, confluence, azure-devops}` **BEFORE** it is ever used to construct a URL, a remote, or a command argv: an unknown value is echoed-and-stopped (point at the PUBLISH-TARGETS table's shipped + future rows) — i.e. it is rejected **pre-use**, never interpolated into anything. Do not guess. (The GitHub adapter further derives the wiki remote from the repo's **own** origin — `<origin>` → its `*.wiki.git` — never from an attacker-influenceable input; see its contract below.)
+3. **Mapping handoff (adapter `probe` + `map`).** Hand the page set to the adapter so it can **probe** the target's initialized/reachable state and **map** each page to that platform's page model (home page, navigation/sidebar). The core holds no platform knowledge — every platform specific lives in the adapter.
+4. **Render the mandatory dry-run preview (adapter `preview`).** ALWAYS render a preview first — target, resolved destination, the page set with their mapped target names, and the initialized-vs-uninitialized status. The preview is rendered whether or not `--dry-run` was passed; it is the artifact the human approves against.
+5. **`--dry-run` only?** If yes: print the preview and **STOP — no gate, no push.** If no: proceed to the gate.
+6. **Human approval gate.** Display the OUTWARD-ACTION gate and wait for explicit approval. The core never self-approves. On reject: abort — nothing left the working tree. On approve: dispatch the adapter's `push`.
+7. **Push (adapter `push`) + report (adapter `report`).** On approval the adapter pushes; the core surfaces the adapter's `report` — success (pages live under the target) or one of the named failure classes, each with an actionable next step (see CIRCUIT-BREAKER).
+
+The core's call sites are **identical across every adapter** — that is what makes "add a row, not a core rewrite" literally true even for a platform with a completely different shape (REST-API instead of git, no `Home`/`_Sidebar` convention). The whole adapter surface is the five answers (`probe`/`map`/`preview`/`push`/`report`) in its PUBLISH-TARGETS row plus, for the shipped target, its named adapter-contract section below.
+
+### PUBLISH-TARGETS — shipped vs. future adapters
+
+Selected via `--target` (default `github`). The GitHub row's five cells are **built now**; the Confluence and Azure DevOps wiki rows are **sketched future contracts** a follow-up issue fills in — they prove the seam accommodates a non-git, no-`_Sidebar` platform without touching the core.
+
+| Adapter (`--target`) | probe | map | preview | push | report | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **`github`** (GitHub wiki) | FIRST query `gh api repos/<owner>/<repo> --jq .has_wiki` (owner/repo derived from the repo's **own** origin) to learn if the Wiki feature is enabled, THEN `ls-remote` the `*.wiki.git` remote: `has_wiki=false` ⇒ disabled-Wiki-tab (regardless of the ls-remote error); `has_wiki=true` + a "repository not found" signature ⇒ uninitialized wiki; `has_wiki=true` + reachable ⇒ proceed | `Home.md → Home`; `_Sidebar` generated from the page set | page set → mapped wiki page names + init status (`UNINITIALIZED` vs `DISABLED`) | **single-ref atomic update**: one push of one branch to the wiki's default ref, all-or-nothing | names the five failure classes (auth / uninitialized / disabled-Wiki-tab / network / remote-ahead), each with a next step | **shipped** |
+| **`confluence`** (Confluence) | REST `GET` the target **space** (+ parent page) via API token; 401/404 ⇒ unreachable / space missing | space + **parent-page hierarchy** (no `Home`/`_Sidebar`; Confluence uses a page tree, not a sidebar file) | page set → space key · parent · target page titles | REST `PUT`/`POST` per page under the parent (no git ref); idempotent upsert by title | auth-token / missing-space / permission / network classes, each with a next step | future |
+| **`azure-devops`** (Azure DevOps wiki) | REST `GET` the wiki (project + wiki id) via PAT; 404 ⇒ wiki not provisioned | project wiki **path hierarchy** (`/Parent/Child` pages; order via `.order`, no `_Sidebar`) | page set → project · wiki · target page paths | REST `PUT` per page path (no git ref) | PAT / missing-wiki / permission / network classes, each with a next step | future |
+
+Only the `github` row is built now. The `confluence` and `azure-devops` rows are the sketched contracts a follow-up issue fills in; the core's `probe → map → preview → gate → push` call sites are identical across all three, which is what makes the seam real. Future targets that need credentials document the **names** of the env vars they would read (a Confluence API token, an Azure DevOps PAT) — **never values**, and nothing is committed.
+
+### GitHub-wiki adapter contract (the one shipped adapter)
+
+All GitHub specifics live **here**, never in the core: the separate `*.wiki.git` repo model, the create-the-first-page-once requirement, the `Home.md → Home` mapping, the generated `_Sidebar` navigation convention, and credential reuse via the human's existing local `git` / `gh`.
+
+- **probe** — a **two-step** probe, because "uninitialized wiki" and "disabled Wiki tab" route to **different** instructions ("create the first page" vs. "enable the Wiki tab") yet both surface as the *same* `"repository not found"` over `git ls-remote` — so `ls-remote` alone cannot tell them apart. Both steps key off the repo's **own** identity, never an attacker-influenceable input: the owner/repo and the `*.wiki.git` remote are **derived from the repo's own `origin`** (`<origin>` → its `*.wiki.git`).
+  1. **Is the Wiki feature enabled?** FIRST query the GitHub API read-only — `gh api repos/<owner>/<repo> --jq .has_wiki` (a least-privilege, read-only query; `<owner>/<repo>` derived from the repo's own origin, never from `--target` or any other input). This disambiguates the two error classes that `ls-remote` conflates.
+  2. **Interpret, in this order:**
+     - **`has_wiki=false` → disabled Wiki tab**, *regardless of the `ls-remote` result*: surface "enable the Wiki tab in repo settings, then re-run" and reflect it as `DISABLED` in the preview's init status. (Do not bother interpreting `ls-remote` further — a disabled feature explains the "repository not found" by itself.)
+     - **`has_wiki=true` + a "repository not found"** signature on `ls-remote` of the `*.wiki.git` remote → **uninitialized wiki**: surface the human instruction "create the first Wiki page once in the Wiki tab, then re-run" (NOT a raw git error), and reflect it as `UNINITIALIZED` in the preview's init status.
+     - **`has_wiki=true` + reachable/initialized** → proceed to `map`.
+
+  (This repo's own Wiki feature is enabled but the wiki is not yet initialized, so the `has_wiki=true` + uninitialized path is the one reachable on day one.)
+- **map** — map the page set to GitHub's wiki page model: `Home.md → Home` (the wiki index / landing page); every other `docs/wiki/<page>.md → <Page>` as a wiki page; and a `_Sidebar` for navigation. The mapping is computed, not authored — page bodies are shipped unchanged (cardinal rule 9). **`_Sidebar` precedence (rule 9 wins over synthesis):** the publish-generated `_Sidebar` **never overwrites a generation-authored page of the same name.** If the generated page set already provides an authored `_Sidebar` (i.e. `docs/wiki/_Sidebar.md` exists), publish ships THAT one **unchanged** (rule 9 — it is part of `docs/wiki/`, same as any other page) and does **not** synthesize over it. Publish only **generates** a `_Sidebar` when the page set does **not** already contain one; the synthesized sidebar is a fallback for the navigation slot, never a replacement for an authored one.
+- **preview** — render the preview lines: `target: github`, the resolved destination (`<owner>/<repo>.wiki.git`, repo Wiki tab), the wiki init status as resolved by the probe (`INITIALIZED` / `UNINITIALIZED` / `DISABLED`), and the page set as `docs/wiki/<page>.md → <Wiki-Page-Name>` rows including the generated `_Sidebar`, ending with "Nothing has been pushed."
+- **push** — **single-ref atomic update**: stage the mapped pages onto one branch and push that one branch to the wiki repo's default ref in **one push**, which git applies **all-or-nothing at the ref level**. Either every mapped page lands together or the ref is unchanged — there is no half-published intermediate. **Command-level invariant:** the push is a plain `git push` of that one branch to the wiki's default ref with **NO force variant** — no `--force`, no `--force-with-lease`, no `+ref` (force) refspec. A non-fast-forward MUST fall into the remote-ahead / non-fast-forward failure class (below) and is **NEVER** resolved by force-pushing, nor by clone-and-overwrite / re-clone-then-replace — there is no code path that rewrites the wiki's history. Credentials are **reused** from the human's existing local `git` / `gh` (the same auth any local `git push` uses); the adapter introduces **no new secret** and writes none to any committed file. That reused `git`/`gh` credential is repo-wide, but this action writes **ONLY** the repo's `*.wiki.git` ref — no other ref or repository is touched — so the outward write is bounded to the wiki.
+- **report** — name each outcome actionably. The **five failure classes** (mirrored into the CIRCUIT-BREAKER table below):
+  1. **Auth** — `gh`/`git` credential rejected → name the cause + next step (re-auth `gh`/`git`).
+  2. **Uninitialized wiki** — `has_wiki=true` (the Wiki feature IS enabled) but `ls-remote` returns "repository not found" on the `*.wiki.git` remote → create the first Wiki page once in the Wiki tab, then re-run (never a raw git error). The `has_wiki` check is what distinguishes this from the disabled-tab class below, which `ls-remote` alone reports identically.
+  3. **Disabled Wiki tab** — `has_wiki=false` (the Wiki feature is off for the repo), determined by the probe's `gh api … --jq .has_wiki` query → enable the Wiki tab in repo settings, then re-run. This class is decided by the API result, not the `ls-remote` error, so a disabled tab is never misreported as "uninitialized."
+  4. **Network / push** — a transport/push error mid-operation → because the push is a single-ref atomic update, **no partial push is left in an unknown state**; retry.
+  5. **Remote-ahead / non-fast-forward** — the wiki was edited in the Wiki tab between probe and push, so the local push no longer fast-forwards → report "the wiki changed since preview; re-run to re-probe and re-preview." **Never force-push or silently clobber** the human's out-of-band edit. This also closes the approval→push TOCTOU window: if the wiki ref has advanced between the probe/preview and the approved push (the remote is no longer the ref the preview was computed against), the push MUST abort into this class with that same message — and is **NEVER auto-retried**, so no retry loop can silently re-publish over an unseen out-of-band edit; re-running re-probes and re-previews against the new ref before the human re-approves.
+
+### Preview shape (what the human approves against)
+
+```text
+PUBLISH PREVIEW — target: github
+  Destination : <owner>/<repo>.wiki.git  (repo Wiki tab)
+  Wiki state  : INITIALIZED            (or: UNINITIALIZED / DISABLED — see instruction)
+  Pages (N)   :
+    docs/wiki/Home.md                  ->  Home          (wiki index/home page)
+    docs/wiki/architecture-overview.md ->  Architecture-Overview
+    docs/wiki/module-billing.md        ->  Module-Billing
+    (generated _Sidebar from the page set)  ->  _Sidebar
+  Nothing has been pushed. Approve to publish, or re-run with --dry-run to preview only.
+```
+
+The `Wiki state` line is the probe's resolved state (§probe): if it is `UNINITIALIZED` (`has_wiki=true`, no first page yet) the preview carries "create the first Wiki page once in the Wiki tab, then re-run"; if it is `DISABLED` (`has_wiki=false`) it carries "enable the Wiki tab in repo settings, then re-run." In either case the preview explains the state and offers no approval gate — the non-publishable state is explained, not failed opaquely.
+
 ## Project-convention auto-detection (carried into every agent)
 
 Pass the detected conventions into every `@wiki-writer` / `@wiki-auditor` invocation so pages are consistent with the project:
@@ -128,6 +201,7 @@ Any action that leaves the working tree requires an explicit human gate. The con
 - **Full build / interactive update**: NEVER commits, pushes, or opens a PR. It writes files under `docs/wiki/` and stops; the human reviews the diff and commits.
 - **Scheduled wiki-sync PR** (the one permitted outward action): governed by `docs/scheduling.md`. The scheduled run prepares the branch + page diffs and presents a gate — **the human approves before any push or PR open.** No auto-merge, ever. If the scheduler runs unattended, it must stop at "branch + diff prepared, awaiting human approval" and notify; it must not open the PR until a human approves per the scheduling doc's gate.
 - **Deleting an ORPHANED page**: removal under `docs/wiki/` is allowed (it is within the writable scope), but a removal that drops a whole topic is surfaced in the summary so the human can object.
+- **Publishing to an external wiki (`--publish`)**: the push to the target platform is an outward action and is gated unconditionally. The core ALWAYS renders the dry-run preview first (target, resolved destination, page set → mapped names, init status), then holds an **explicit human approval gate**; only on approval does the adapter push. `--dry-run` previews and stops with no gate and no push. There is **no autonomous or scheduled external publish** — any future automation rides this same gate. On reject, nothing leaves the working tree.
 
 ## CIRCUIT-BREAKER table (failure modes)
 
@@ -143,6 +217,13 @@ Any action that leaves the working tree requires an explicit human gate. The con
 | **Tempted to write/fix code while reading** | Refuse (CARDINAL RULE 1). Record the issue as an "Open questions / SME review" note and point at `/bug-catcher`. |
 | **`@wiki-writer` / `@wiki-auditor` returns off-contract output** | Surface the mismatch; do not paper over it by editing the page yourself into "code" territory — request a regeneration. |
 | **Token budget exceeded** (see below) | Checkpoint at 60%, escalate at 80%; stop fanning out new pages, finish in-flight ones, write the COVERAGE REPORT marking the rest UNCOVERED-BUDGET, and hand the remaining plan to the human for a follow-up run. |
+| **`--publish` with no/empty `docs/wiki/`** | HALT with "nothing to publish — run a full build first." Do NOT auto-build (it would blow the budget unannounced). |
+| **`--publish --target <unknown>`** | Echo the unknown target and point at the PUBLISH-TARGETS table's shipped + future rows; stop. Do not guess a platform. |
+| **Publish — auth failure** (`gh`/`git` credential rejected) | Report the cause + next step (re-auth `gh`/`git`). Do not retry blindly with the same rejected credential. |
+| **Publish — uninitialized wiki** (`has_wiki=true` but "repository not found" on the `*.wiki.git` remote) | The probe's `gh api … --jq .has_wiki` confirms the Wiki feature IS enabled, so the "repository not found" means the wiki has no first page yet. Surface "create the first Wiki page once in the Wiki tab, then re-run" — never a raw git error. Reflect `UNINITIALIZED` in the preview's init status. |
+| **Publish — disabled Wiki tab** (`has_wiki=false`) | The probe's `gh api … --jq .has_wiki` returns false, so the Wiki feature is off — decided by the API result, *not* the `ls-remote` error (which alone is indistinguishable from the uninitialized case). Report "enable the Wiki tab in repo settings, then re-run." Reflect `DISABLED` in the preview's init status. |
+| **Publish — network / push failure** mid-operation | The push is a single-ref atomic update, so **no partial push is left in an unknown state**; report the transport error + retry. |
+| **Publish — remote-ahead / non-fast-forward** (the wiki was edited in the Wiki tab between probe and push, or the ref advanced between preview and the approved push) | Report "the wiki changed since preview; re-run to re-probe and re-preview." **Never force-push or clobber** the human's out-of-band edit, and **never auto-retry** the push (no retry loop may silently re-publish over an unseen edit) — re-running re-probes and re-previews first. |
 
 ## TOKEN BUDGET (self-imposed)
 
@@ -177,3 +258,12 @@ Detect ExampleApp's shape → derive the PAGE PLAN → confirm with the human �
 
 > `/wiki-generator --update`
 Read `Last synced` SHA → diff against HEAD → `@wiki-auditor` classifies pages CURRENT/STALE/INCORRECT/ORPHANED → regenerate only STALE/INCORRECT + add pages for new modules → refresh `Home.md` → (scheduled only) prepare the wiki-sync PR and stop at the human gate.
+
+> `/wiki-generator --publish --dry-run`
+Read the `docs/wiki/` page set → resolve the `github` adapter (default) → probe (`gh api … --jq .has_wiki`, then `ls-remote` the `*.wiki.git` remote) → map pages (`Home.md → Home`, generated `_Sidebar`) → render the PUBLISH PREVIEW (target · destination · init status · page set → mapped names) → STOP. No gate, no push. (Against this repo's own wiki — Wiki feature enabled, not yet initialized — the preview reports `UNINITIALIZED` with the create-first-page instruction rather than a raw error.)
+
+> `/wiki-generator --publish --target github`
+Same probe → map → preview → then hold the **human approval gate** → on approval the adapter does the single-ref atomic push of the mapped pages to the wiki's default ref (reusing local `git`/`gh` creds) → report pages live under the Wiki tab, or one of the five failure classes (auth / uninitialized / disabled-Wiki-tab / network / remote-ahead) with its next step. On reject, nothing leaves the working tree.
+
+> `/wiki-generator --publish --target confluence`
+Resolve the adapter from the PUBLISH-TARGETS table → it is a documented **future** target, so echo that `confluence` is not yet built, point at the PUBLISH-TARGETS table's sketched row, and stop — no push.
