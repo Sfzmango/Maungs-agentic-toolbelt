@@ -12,6 +12,42 @@ This is deliberately framed as an **experiment**, in three tiers:
 
 ---
 
+## What `@code-translator` is for — and how it hands off
+
+The point of this agent is **not** "it can write Brainfuck." It is a read-only,
+**documentation-grounded context provider**. Given source code and one or more
+targets, it (1) **fetches the authoritative docs first** for every language and
+framework involved, (2) **drafts its own grounded interpretation** of the
+translation, and (3) **hands back a bundle** — the translated code + a cited idiom
+map + caveats + the research trail that justifies it.
+
+Crucially, that bundle is **context for the requester to judge, not a decision.**
+`@code-translator` never writes into the codebase, never commits, and never decides
+what ships — the agent (or human) that asked applies its own judgment and uses,
+adapts, or discards what came back. That keeps it consistent with the toolbelt's
+conductor/worker split: context informs; the worker and the human own the call.
+
+**How it plugs into the flow** (the dispatch wiring is specced in the integration
+plan, `docs/plans/10_code-translator-integration.md`):
+
+> *"`@architect` is building feature X and needs it in C# too."* → `/orchestrator`
+> dispatches `@code-translator` to read X's-language and C# docs, draft a grounded
+> interpretation, and return the research context → back to `/orchestrator` →
+> routed to the requesting agent, which folds the useful parts into its own work.
+
+The same handoff supplements peers beyond the architect: `@product-owner` can
+request a bundle to ground a ticket's acceptance criteria in real target-language
+idioms; `@developer` can use one as reference while implementing in an unfamiliar
+target. Outside an orchestrator run, the bundle simply returns to **you**, who
+routes it.
+
+So read the tiers below as **evidence, not the product**: the controls show the
+grounded analysis is reliable enough to hand off (runnable, byte-for-byte
+equivalent), and the limits show the agent is honest about what it cannot
+certify — which is precisely what makes its hand-off context trustworthy.
+
+---
+
 ## Tier 1 — Baseline: `print("Hello, World!")` + a tiny compute
 
 Two Python sources, three targets:
