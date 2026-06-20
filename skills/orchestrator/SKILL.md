@@ -8,7 +8,7 @@ disable-model-invocation: false
 
 You are the conductor. You do NOT do engineering work yourself — you delegate each phase to the named agent that owns it. Mirrors the project-specific orchestrator skill but adapts to any project via auto-detection.
 
-The argument is in `$ARGUMENTS` — typically a numeric GitHub issue ID, or a free-text topic for non-issue work (audits, refactors, etc.). If no argument, ask + stop. If the arguments contain `--experiment`, run the local-only dry-run variant (see the "`--experiment` flag" section).
+The argument is in `$ARGUMENTS` — typically a numeric GitHub issue ID, or a free-text topic for non-issue work (audits, refactors, etc.). If no argument, ask + stop. If the arguments contain `--experiment`, run the local-only dry-run variant (see the "`--experiment` flag" section). If the arguments contain `--greenfield`, force the architect into its Phase 0 — Discovery foundation interview (see the "`--greenfield` flag" section); the orchestrator also infers greenfield automatically from an empty tree.
 
 ## Cardinal rules (universal)
 
@@ -45,7 +45,10 @@ Before running any phase, detect:
 6. **CI** — `.github/workflows/`.
 7. **Deployment** — `Procfile` / `Dockerfile` / `fly.toml` / `vercel.json`.
 
-If the project lacks agent-context discipline (no CLAUDE.md, no plan files, no roadmap), surface this to the user before starting + offer to either: (a) bootstrap minimal context first, or (b) proceed with defaults.
+If the project lacks agent-context discipline (no CLAUDE.md, no plan files, no roadmap), distinguish two cases before starting:
+
+- **Sparse-but-real repo** (code exists, just no context files) — surface this to the user and offer to either: (a) bootstrap minimal context first (e.g. `/agentic-onboard`), or (b) proceed with defaults.
+- **Empty / near-empty tree (greenfield)** — when ALL THREE hold: no recognized package manifest, no `CLAUDE.md`/`AGENTS.md`, and fewer than a small threshold (~5) of tracked source files (`git ls-files | wc -l` is near-zero) — this is a from-scratch build. Route it into discovery: pass **`--greenfield`** to the architect (`@architect plan topic "<text>" --greenfield`) so its **Phase 0 — Discovery** runs the structured foundation interview, rather than falling through to the generic defaults branch. All three signals are required so a real-but-sparse repo doesn't false-fire; the architect's approval gate is the backstop. The user may also force this explicitly with `/orchestrator --greenfield <topic>` (see the "`--greenfield` flag" section).
 
 ## Step 0 — Environment preflight & bootstrap (run this BEFORE Step 1)
 
@@ -108,6 +111,8 @@ Optionally invoke `@product-owner refine issue <num>` if the issue body is spars
 ```
 @architect plan issue <num>    # or @architect plan topic "<text>"
 ```
+
+If the tree is empty/near-empty or `--greenfield` was passed, append `--greenfield` to the invocation so the architect's Phase 0 — Discovery foundation interview runs (`@architect plan topic "<text>" --greenfield`).
 
 Wait for return. Capture: plan file path, PR number (architect opens the PR with commit #1).
 
@@ -190,6 +195,15 @@ The workflow ends here.
 - **Steps 12-13**: skipped (no PR).
 - **Exit paths**: promote (re-enter the normal flow at the commit-#1 step with the usual per-commit confirmation gates; the promoted PR gets a fresh reviewer pass), iterate, or discard (destructive — confirm first).
 - Cardinal rules 1-2 are satisfied vacuously (nothing commits/pushes); rule 3 is deferred to promotion; the rest apply unchanged.
+
+## `--greenfield` flag — force the from-scratch discovery interview
+
+`/orchestrator --greenfield <topic>` (or `--greenfield <issue-id>`) tells the architect to run its **Phase 0 — Discovery** foundation interview regardless of what the tree looks like. Use it when you know this is a from-scratch build but the heuristic might not fire (e.g. the directory already has a stray `README` or a license file).
+
+- The orchestrator passes `--greenfield` straight through to the architect: `@architect plan topic "<text>" --greenfield`.
+- The orchestrator ALSO infers greenfield automatically from the empty-tree heuristic (no manifest + no `CLAUDE.md`/`AGENTS.md` + <~5 tracked source files) — the flag is the explicit override for the cases the heuristic is intentionally conservative about.
+- Everything else in the 13-step flow is unchanged: the architect writes a plan (now with a `## Foundation` section), the usual commit/push/PR gates apply, and the discovery answers become the plan's foundation. Recommend the user run `/agentic-onboard` after commit #1 lands so the next run is back in the cheap "context flows in" mode.
+- `--greenfield` composes with `--experiment` (a from-scratch build can be dry-run end-to-end before anything lands).
 
 ## Handoff format between agents
 

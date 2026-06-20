@@ -4,7 +4,7 @@ Guidance for any coding agent working in this repo. Verified against commit `cf4
 
 ## Overview
 
-This repo is a project-agnostic, human-gated multi-agent workflow for Claude Code, and is itself a Claude Code **plugin** rather than an application. It ships **16 agents + 9 skills (25 components)**: agents are `@name` subagents (specialized workers) and skills are `/name` conductors (orchestrators). Each component auto-detects the host project's stack and conventions at runtime — nothing is hardcoded to one language. It is distributed as a plugin via the `maung-tools` marketplace and via a copy/symlink `install.sh` into `~/.claude`.
+This repo is a project-agnostic, human-gated multi-agent workflow for Claude Code, and is itself a Claude Code **plugin** rather than an application. It ships **16 agents + 10 skills (26 components)**: agents are `@name` subagents (specialized workers) and skills are `/name` conductors (orchestrators). Each component auto-detects the host project's stack and conventions at runtime — nothing is hardcoded to one language. It is distributed as a plugin via the `maung-tools` marketplace and via a copy/symlink `install.sh` into `~/.claude`.
 
 ## Setup / commands
 
@@ -53,8 +53,8 @@ Every command is cited to its source. There is no install/build/lint/format tool
 ## Gotchas
 
 - **Leak-grep (CI hard-fail):** CI greps `*.md`/`*.json`/`*.sh` and fails on absolute home paths like `/Users/...` or private reference strings. Use `~/...` or repo-relative paths. *(`.github/workflows/validate.yml:30`)*
-- **Component counts are load-bearing (CI hard-fail):** adding/removing an agent or skill requires updating the count strings in `README.md`, `docs/components.md`, `docs/architecture.md`, `docs/design-philosophy.md`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` (plus the GitHub "About", which CI only warns on). Today: **16 agents + 9 skills = 25 components**. *(`.github/workflows/validate.yml:44-72`)*
+- **Component counts are load-bearing (CI hard-fail):** adding/removing an agent or skill requires updating the count strings in `README.md`, `docs/components.md`, `docs/architecture.md`, `docs/design-philosophy.md`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` (plus the GitHub "About", which CI only warns on). Today: **16 agents + 10 skills = 26 components**. *(`.github/workflows/validate.yml:44-72`)*
 - **No AI-assistant attribution** in commits, PR bodies, or files (the shipped guard denies AI-attributed commits). *(`CONTRIBUTING.md:28`)*
 - **Frontmatter is mandatory:** every `agents/*.md` and `skills/*/SKILL.md` must start with `---` and a `name:` field. *(`.github/workflows/validate.yml:13-24`)*
 - **Do not** use `git add -A`/`.`, `git push --force` (use `--force-with-lease`), or `--no-verify` — the shipped guard denies all three.
-- The "product" is prompt markdown; tests validate routing and the translator eval, not application logic. `plugin.json` uses strict semver (currently `0.3.0`).
+- The "product" is prompt markdown; tests validate routing and the translator eval, not application logic. `plugin.json` uses strict semver (currently `0.4.0`).

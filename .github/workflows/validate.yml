@@ -163,7 +163,79 @@ jobs:
           fi
           exit $fail
 
-      - name: 6 · Guard precision — quoted-argument & cross-segment force-flag false-positives
+      - name: 6 · Interview catalogs — each catalog's buckets appear in its consumer(s)
+        if: always()
+        run: |
+          # Drift guard for the interview-catalog pattern (docs/design-philosophy.md §8).
+          # Each consuming component EMBEDS its catalog's buckets so it is self-contained at
+          # runtime; that embedded copy can drift from the canonical catalog file. For every
+          # catalog we derive its bucket headers FROM the catalog file (so adding a bucket
+          # auto-extends coverage), then assert each one appears verbatim in every declared
+          # consumer. A consumer missing a bucket — or a declared-but-absent consumer (orphan
+          # catalog) — fails the build, same family as the count-string drift guard above.
+          echo "::group::Interview-catalog drift (catalog buckets ⊆ each consumer)"
+          fail=0; total=0; okc=0; checked=""
+          # Each entry: "<catalog file> <consumer file> [<consumer file> ...]".
+          # Add a row here (and the catalog under docs/interview-catalogs/) for a new catalog.
+          check_catalog() {
+            catalog="$1"; shift; checked="$checked $catalog"
+            if [ ! -f "$catalog" ]; then
+              echo "  ✗ FAIL $catalog — catalog file not found"
+              echo "::error file=$catalog::declared catalog file is missing"; fail=1; return
+            fi
+            # Bucket headers are markdown lines like "### Bucket 1 — Product framing"; the
+            # consumer embeds the same "Bucket N — <name>" text at a different heading depth,
+            # so we match the heading TEXT (leading #'s + spaces stripped) as a fixed substring.
+            # Write them to a temp file so the while-loop below reads via a redirect (not a
+            # pipe) and its counters survive — no subshell, no heredoc to de-indent the YAML.
+            bfile="$(mktemp)"
+            grep -E '^#+ Bucket [0-9]+ [—–-] ' "$catalog" | sed -E 's/^#+ //' > "$bfile"
+            if [ ! -s "$bfile" ]; then
+              echo "  ✗ FAIL $catalog — no 'Bucket N — <name>' headers found"
+              echo "::error file=$catalog::catalog defines no buckets"; fail=1; rm -f "$bfile"; return
+            fi
+            for consumer in "$@"; do
+              if [ ! -f "$consumer" ]; then
+                echo "  ✗ FAIL $catalog — declared consumer $consumer not found (orphan catalog)"
+                echo "::error file=$catalog::declared consumer $consumer is missing"; fail=1; continue
+              fi
+              while IFS= read -r bucket; do
+                [ -z "$bucket" ] && continue
+                total=$((total+1))
+                if grep -qF -- "$bucket" "$consumer"; then
+                  echo "  ✓ PASS $consumer ⊇ \"$bucket\" (from $catalog)"; okc=$((okc+1))
+                else
+                  echo "  ✗ FAIL $consumer — missing \"$bucket\" (from $catalog)"
+                  echo "::error file=$consumer::interview-catalog drift — embed \"$bucket\" from $catalog"
+                  fail=1
+                fi
+              done < "$bfile"
+            done
+            rm -f "$bfile"
+          }
+          check_catalog docs/interview-catalogs/greenfield.md agents/architect.md
+          check_catalog docs/interview-catalogs/migration.md  skills/migration-planner/SKILL.md
+          # Orphan-catalog guard: every catalog file MUST be covered by a check_catalog
+          # row above, so a new docs/interview-catalogs/*.md cannot ship unguarded.
+          for cat in docs/interview-catalogs/*.md; do
+            [ "$(basename "$cat")" = "README.md" ] && continue
+            case " $checked " in
+              *" $cat "*) ;;
+              *) echo "  ✗ FAIL $cat — catalog has no drift-check row (orphan)"
+                 echo "::error file=$cat::add a check_catalog row for this catalog"; fail=1 ;;
+            esac
+          done
+          echo "::endgroup::"
+          if [ "$fail" -eq 0 ]; then
+            echo "Interview catalogs: ✅ PASS — ${okc}/${total} bucket→consumer checks match"
+            echo "| 6 | Interview catalogs | ✅ PASS | ${okc}/${total} bucket→consumer checks |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Interview catalogs: ❌ FAIL — $((total-okc))/${total} bucket→consumer checks drifted"
+            echo "| 6 | Interview catalogs | ❌ FAIL | $((total-okc))/${total} drifted |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $fail
+
+      - name: 7 · Guard precision — quoted-argument & cross-segment force-flag false-positives
         if: always()
         run: |
           echo "::group::PreToolUse-guard regression (verbose — every case)"
@@ -175,9 +247,9 @@ jobs:
                     | sed -E 's/.*TOTAL COMMANDS: ([0-9]+).*PASS: ([0-9]+).*FAIL: ([0-9]+).*/\2\/\1 decided, \3 wrong/')"
           if [ "$rc" -eq 0 ]; then
             echo "Guard precision: ✅ PASS — ${detail:-ok}"
-            echo "| 6 | Guard precision | ✅ PASS | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| 7 | Guard precision | ✅ PASS | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Guard precision: ❌ FAIL — ${detail:-see log}"
-            echo "| 6 | Guard precision | ❌ FAIL | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| 7 | Guard precision | ❌ FAIL | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $rc
