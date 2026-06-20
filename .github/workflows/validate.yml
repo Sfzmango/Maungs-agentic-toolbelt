@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # Seed the job summary table. Every check below appends one row, so the
-      # summary shows ALL five results (pass and fail) at a glance — not just the
+      # summary shows ALL results (pass and fail) at a glance — not just the
       # first failure. `if: always()` on every check keeps them all running and
       # reporting even after one fails; the job still goes red if any step exits non-zero.
       - name: Init summary
@@ -162,3 +162,22 @@ jobs:
             echo "| 5 | Component counts | ❌ FAIL | $((n-okc))/${n} stale |" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $fail
+
+      - name: 6 · Guard precision — quoted-argument & cross-segment force-flag false-positives
+        if: always()
+        run: |
+          echo "::group::PreToolUse-guard regression (verbose — every case)"
+          rc=0
+          out="$(python3 tests/test_pretooluse_guard.py -v 2>&1)" || rc=$?
+          printf '%s\n' "$out"
+          echo "::endgroup::"
+          detail="$(printf '%s\n' "$out" | grep -m1 -E '^TOTAL COMMANDS' \
+                    | sed -E 's/.*TOTAL COMMANDS: ([0-9]+).*PASS: ([0-9]+).*FAIL: ([0-9]+).*/\2\/\1 decided, \3 wrong/')"
+          if [ "$rc" -eq 0 ]; then
+            echo "Guard precision: ✅ PASS — ${detail:-ok}"
+            echo "| 6 | Guard precision | ✅ PASS | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Guard precision: ❌ FAIL — ${detail:-see log}"
+            echo "| 6 | Guard precision | ❌ FAIL | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc
