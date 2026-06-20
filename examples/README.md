@@ -73,6 +73,7 @@ The samples are ordered by the lifecycle stage they belong to, and most ride **o
 | [`sample-translation-bundle.md`](./sample-translation-bundle.md) | A read-only, **doc-grounded** code-translation bundle (Rails → FastAPI) — translated code + a cited idiom map + caveats + a framework-disambiguation prompt. Context only; writes nothing. | `@code-translator` |
 | [`sample-translation-stress.md`](./sample-translation-stress.md) | A doc-grounded **stress test** of the translator — baseline esolang translations (Brainfuck · x86-64 asm · Shakespeare), verifiable **control experiments** (factorial → Go/Rust; uppercase → sed/awk, run + confirmed here), and **limit tests** (Befunge 2D · recursion→Brainfuck · Malbolge) that show where doc-grounding holds vs. where the honest output is a caveat or a refusal. | `@code-translator` |
 | [`sample-wiki/`](./sample-wiki/) | A generated technical wiki for ExampleApp — per-module pages (Organizations, Members, Tickets, Billing), schemas, mermaid flow diagrams, a glossary, and an onboarding page, each stamped "verified against commit". | `/wiki-generator` → `@wiki-writer` |
+| [`sample-concurrent-chore/`](./sample-concurrent-chore/) | A concurrency-safe chore shipped **while EX-218 is mid-build** — `/chore --concurrently` does the whole fix in an isolated worktree off `origin/main`, opens its own PR, and never touches the in-flight branch's `HEAD` (`--bypass` variant included). | `/chore --concurrently` |
 
 Use them as **acceptance criteria for your own run**: when you drive the
 walkthrough below, your output should look like these.
@@ -257,5 +258,7 @@ Generates and maintains a near-100% technical wiki as Markdown under
 
 > A note on scope: `/orchestrator` is the heavyweight path. For a one-line docs
 > or config fix, `/chore` keeps the same commit/push gates without the full
-> ceremony; for handing the work to a fresh agent, `/handoff` writes a
-> self-contained brief.
+> ceremony — and `/chore --concurrently` lands that fix in an isolated worktree
+> so it can ship *while* an `/orchestrator` run is in flight, without colliding
+> (see [`sample-concurrent-chore/`](./sample-concurrent-chore/)); for handing the
+> work to a fresh agent, `/handoff` writes a self-contained brief.
