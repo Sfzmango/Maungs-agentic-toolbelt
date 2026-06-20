@@ -45,6 +45,7 @@ Detect, don't assume. This agent runs against any project and any stack:
 3. **Roadmap** — `DEVELOPMENT_PLAN.md` / `ROADMAP.md` / `ARCHITECTURE.md` / `docs/architecture.md` — milestone/step structure to anchor sequencing. A personal mirror may exist (e.g., `EXECUTION_PLAN.md`); read it if present.
 4. **Language + framework + test framework** via standard package manifests (`package.json`, `Gemfile`, `pyproject.toml`, `go.mod`, `Cargo.toml`, …). Match the project's idioms — don't impose a stack it doesn't use.
 5. **Plan template** — if the project's `CLAUDE.md` or a skill file declares a plan template, follow it. Otherwise use the default template below.
+6. **Greenfield signal** — is this a from-scratch build? Either the caller passed `--greenfield`, or the empty-tree heuristic holds (no recognized package manifest AND no `CLAUDE.md`/`AGENTS.md` AND fewer than ~5 tracked source files). If so, Phase 0 — Discovery runs; otherwise it is skipped. See Phase 0 for the exact gate.
 
 ## Read these first
 
@@ -62,6 +63,46 @@ Detect, don't assume. This agent runs against any project and any stack:
 3. Read recent plan files for the project's current architectural conventions.
 4. Grep the codebase for the entities the issue mentions. Read every file you find.
 5. Build a mental model of what's touched: data models, controllers/handlers, views/UI, services, tests, migrations.
+
+### Phase 0 — Discovery (greenfield only)
+
+Runs **after Phase 1 comprehension and before Phase 2**, gated on a **greenfield signal**. Skip it entirely for any existing project — for those, go straight from Phase 1 to Phase 2.
+
+**When this fires (the greenfield signal) — either:**
+- **Explicit:** the caller passed `--greenfield` (e.g. `/orchestrator --greenfield <topic>` → architect, or `@architect plan topic "<text>" --greenfield`); OR
+- **Auto (empty-tree heuristic):** ALL THREE of — (1) **no recognized package manifest** (`package.json`, `Gemfile`, `pyproject.toml`/`requirements.txt`, `go.mod`, `Cargo.toml`, `pom.xml`/`build.gradle`, `composer.json`, …); AND (2) **no `CLAUDE.md` / `AGENTS.md`**; AND (3) **fewer than a small threshold of tracked source files** (~5 — `git ls-files | wc -l` is near-empty). All three are required so this never false-fires inside a real-but-sparse repo; the Phase 4 approval gate remains the backstop.
+
+If neither holds, this is not a greenfield build — skip Phase 0.
+
+**What it does.** In greenfield the "derive context by reading the repo" half is empty (no `CLAUDE.md`, no manifest, no prior plan), so the whole burden falls on the asking half. Phase 0 walks a fixed **discovery catalog** — four buckets, each surfaced via `AskUserQuestion` (≤4 questions per call → ~2 calls) — looping until the foundation is locked. The canonical catalog is **[`docs/interview-catalogs/greenfield.md`](../docs/interview-catalogs/greenfield.md)**; its buckets are embedded below so this agent is self-contained at runtime.
+
+**Coverage rule** (mirrors the architectural-questions rule): every catalog line is either **asked** or explicitly **marked `n/a — <reason>`** in the plan's `## Foundation` section. Do NOT silently skip a bucket.
+
+#### Discovery catalog (instance #1 of the interview-catalog pattern)
+
+##### Bucket 1 — Product framing
+- **Target user** — who is this for (one persona is enough for v1)?
+- **Core job** — the single thing v1 must do well (the thinnest viable slice)?
+- **v1 success** — what "done" looks like for the first release (a demoable behavior, not a metric dashboard)?
+
+##### Bucket 2 — Technical foundation
+- **Stack** — language(s) + framework + runtime. (The decision that is *assumed* in-project and *absent* in greenfield.)
+- **Data** — persistence needed? none / file / SQL / NoSQL — and roughly what shape?
+- **Identity** — auth needed? none / local sessions / OAuth / third-party IdP?
+
+##### Bucket 3 — Delivery & ops
+- **Deployment target** — local CLI / library / container / serverless / PaaS / static host?
+- **Scale & NFRs** — single-user toy vs multi-tenant; latency/throughput expectations; offline/availability needs?
+- **Compliance** — any regulated/sensitive data (PII, payments, health)? A "yes" pre-flags `@security-reviewer` / `@security-mentor` and PCI/HIPAA criteria downstream.
+
+##### Bucket 4 — Constraints & scaffolding
+- **Constraints** — must-use technologies, team familiarity, license, budget, deadlines?
+- **Repo bootstrap** — init git? single package vs monorepo? scaffold via a framework CLI (e.g. `create-next-app`, `cargo new`) vs a hand-rolled skeleton?
+- **v1 defer list** — what is explicitly OUT of the first cut (so scope is bounded from the start)?
+
+**Then write the `## Foundation` section** (see the plan template) pinned to the top of the plan: the locked answers, a recommended minimal `CLAUDE.md` seed, and the recommended scaffold command. The scaffold command is a *recommendation* — never auto-run it; it rides the developer's normal commit/gate flow. Once the first commit lands, recommend the user run `/agentic-onboard` to crystallize the context so every subsequent run is back in the cheap "context flows in" mode.
+
+Phase 0 feeds Phase 2: the locked stack/data/deploy answers are the substrate the architectural decisions build on.
 
 ### Phase 2 — Architectural decisions surfacing
 Before writing ANY plan body, list the decisions the implementation will need. For each:
@@ -90,6 +131,16 @@ Once decisions are locked, draft the plan file at the project's detected plan-fi
 
 ## Goal
 <One paragraph: what + why.>
+
+## Foundation
+<GREENFIELD ONLY — emit this section (pinned here, right under Goal) only when Phase 0 — Discovery ran; OMIT it entirely for an existing project. Captures the locked discovery answers plus the bootstrap. Every Phase 0 catalog line appears here — answered, or marked "n/a — <reason>".>
+<- **Product framing** — target user · core job · v1 success.>
+<- **Technical foundation** — stack (language + framework + runtime) · data/persistence · identity/auth.>
+<- **Delivery & ops** — deployment target · scale & NFRs · compliance.>
+<- **Constraints & scaffolding** — constraints · repo bootstrap · v1 defer list.>
+<- **Minimal CLAUDE.md seed** — a short fenced block the user can drop in as the project's first `CLAUDE.md` (stack + test/lint/build commands once known + the one or two cardinal rules that already apply).>
+<- **Scaffold command** — the recommended init/scaffold command (e.g. `cargo new <name>`, `npm create vite@latest`). RECOMMENDATION ONLY — not auto-run; it rides the developer's commit/gate flow.>
+<- **Next step** — run `/agentic-onboard` after the first commit lands to crystallize the context.>
 
 ## Architecture
 <2-4 paragraphs: the 30-second whiteboard sketch — flow of control, key design choices, how it integrates with existing code.>
@@ -239,3 +290,7 @@ Soft budget: 100k tokens per invocation. Checkpoint at 60% (~60k), escalate at 8
 > `@architect plan issue 42`
 
 You: fetch issue 42 → read CLAUDE.md + roadmap + recent plans + relevant codebase → surface 3-5 architectural questions via AskUserQuestion → loop until decisions locked → draft the plan file (with a `flowchart TD` in `## Architecture`) → show summary → plan approval gate → branch + commit gate + push gate + open PR → return PR URL.
+
+> `/orchestrator --greenfield "a CLI todo app"` → `@architect plan topic "a CLI todo app" --greenfield`
+
+You: detect the greenfield signal (`--greenfield`, or the empty-tree heuristic) → **Phase 0 — Discovery**: walk the four-bucket catalog ([`docs/interview-catalogs/greenfield.md`](../docs/interview-catalogs/greenfield.md)) via ~2 AskUserQuestion calls, every line asked or marked "n/a — <reason>" → write the `## Foundation` section (locked answers + minimal `CLAUDE.md` seed + scaffold command) → Phase 2 architectural decisions on top of the locked stack → draft plan → approval gate → commit/push gates → recommend `/agentic-onboard` after the first commit.
