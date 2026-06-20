@@ -1,6 +1,6 @@
 ---
 name: bug-catcher
-description: Find, verify, and triage bugs in any project, then hand an approved fix plan to /orchestrator (or /chore if it's chore-sized). DELEGATES diagnosis to the @bug-catcher-rick agent and refutation to the @bug-catcher-adversary agent. Default mode debugs ONE specifically-described bug through three phases — @bug-catcher-rick diagnoses the root cause with an evidence chain, a cold-eyes @bug-catcher-adversary tries to refute it, the conductor runs a bounded debate, then writes an approved fix plan and hands off. The `--global` flag instead sweeps the ENTIRE codebase + test suites + any browser/E2E playbooks, adversarially verifies every candidate bug, and produces a severity-ranked backlog with per-bug plans. Invoke as `/bug-catcher <symptom>` or `/bug-catcher --global`.
+description: Find, verify, and triage bugs in any project, then hand an approved fix plan to /orchestrator (or /chore if it's chore-sized). DELEGATES diagnosis to the @bug-catcher-rick agent and refutation to the @bug-catcher-adversary agent. Default mode debugs ONE specifically-described bug through three phases — @bug-catcher-rick diagnoses the root cause with an evidence chain, a cold-eyes @bug-catcher-adversary tries to refute it, the conductor runs a bounded debate, then writes an approved fix plan and hands off. The `--global` flag instead sweeps the ENTIRE codebase + test suites + any browser/E2E playbooks + the project's documentation/Markdown (broken mermaid, rendering and link defects), adversarially verifies every candidate bug, and produces a severity-ranked backlog with per-bug plans — and may auto-fix a purely-cosmetic doc defect (e.g. an un-renderable mermaid block) via a bounded `/chore --concurrently --bypass`. Invoke as `/bug-catcher <symptom>` or `/bug-catcher --global`.
 disable-model-invocation: false
 ---
 
@@ -25,13 +25,13 @@ If the project lacks this discipline (no CLAUDE.md, no plan files), proceed with
 
 The argument is in `$ARGUMENTS`. Parse the mode first:
 
-- **`--global`** present → run **Mode B** (codebase-wide bug hunt). Any free text alongside `--global` is an optional *focus hint* (e.g. `--global authorization`), not a single-bug target.
+- **`--global`** present → run **Mode B** (codebase- and docs-wide bug hunt). Any free text alongside `--global` is an optional *focus hint* (e.g. `--global authorization`), not a single-bug target.
 - **otherwise** → run **Mode A** (targeted) on the bug described in `$ARGUMENTS`.
 - **`$ARGUMENTS` empty and no `--global`** → ask what to debug (a symptom, a failing test, an error message, a PR number) and stop.
 
 ## Cardinal rules (non-negotiable — inherited from the project's CLAUDE.md / CLAUDE.local.md)
 
-1. **This skill never commits or pushes.** It produces a diagnosis and an approved plan, then hands off. All code changes happen downstream in `/orchestrator` or `/chore` under the full local quality gate (the project's pre-commit hook system) + per-commit/per-push confirmation. There is no "just fix it real quick."
+1. **This skill never runs git itself.** It produces a diagnosis and an approved plan, then hands off; all code changes happen downstream in `/orchestrator` or `/chore` under the full local quality gate (the project's pre-commit hook system) + per-commit/per-push confirmation. The **one bounded exception** is a purely-cosmetic documentation defect found in a `--global` sweep (see *Mode B → Cosmetic-docs auto-remediation*): it may be delegated straight to `/chore --concurrently --bypass`, which still isolates the change in a worktree, requires green CI, and auto-merges — the skill is *delegating to `/chore`*, not running git itself. Everything that changes meaning, or is ambiguous, still flows through the normal gated handoff — there is no "just fix it real quick" for anything semantic.
 2. **Outward-facing actions are explicitly gated.** Creating a GitHub issue, applying a production mitigation (e.g. a one-off prod command), or kicking off `/orchestrator` are each separate actions that require a fresh, explicit "yes" — never bundled, never inferred from an earlier "go." Show exactly what will happen before it happens.
 3. **Never hand off an unconfirmed diagnosis.** The adversarial double-check is mandatory, not decorative. If the two agents cannot converge, escalate to the developer with both positions — do NOT route a guess into `/orchestrator`.
 4. **No fabricated root causes.** If `@bug-catcher-rick` returns a labelled HYPOTHESIS (not CONFIDENT) and `@bug-catcher-adversary` can't confirm it, that's an escalation, not a handoff.
@@ -49,7 +49,7 @@ Every confirmed bug gets exactly one SEV. The SEV drives the default route — i
 | **SEV1 — Critical** | Cross-tenant/cross-user data exposure, auth bypass, data loss/corruption, secret/PII leak, payment-integrity, full outage. A security/compliance breach or production down. | a query returning another tenant's/user's row; ciphertext or PII rendered into HTML or logged; a release-phase migration that drops/loses data | Immediate mitigation if live (gated, rule 2) **+ `/orchestrator`**. Never `/chore`. |
 | **SEV2 — High** | A core workflow broken for all users with no workaround; within-tenant privilege escalation; a broken migration/release that blocks deploys. Major function unusable, but no leak or data loss. | an authz lockout (everyone denied, nothing leaked); signup/login/dashboard down; a role granting more than it should within its own scope | `/orchestrator`. Never `/chore`. |
 | **SEV3 — Moderate** | A feature broken *with* a workaround; incorrect-but-not-dangerous behavior; a missing regression test on a critical path; a key-page responsive break (e.g. mobile at ~375px). | a template double-escaping output; a flaky test masking real coverage; a modal that won't dismiss on one path | `/orchestrator`; `/chore` only if it's genuinely one file and carries no migration/security surface. |
-| **SEV4 — Low** | Cosmetic, copy, minor edge cases, non-blocking warnings, low-impact polish. | a label typo; spacing on a minor page; a deprecation warning | `/chore`. |
+| **SEV4 — Low** | Cosmetic, copy, minor edge cases, non-blocking warnings, low-impact polish. | a label typo; spacing on a minor page; a deprecation warning; a docs mermaid block that won't render or a malformed Markdown table | `/chore` (a purely-cosmetic docs defect in a `--global` sweep is eligible for the bounded auto-remediation fast-path). |
 
 When SEV is ambiguous between two levels, pick the higher one and say why — under-triage is the costlier error.
 
@@ -98,7 +98,7 @@ Relay the converged conclusion (and any genuinely-considered-and-rejected altern
 
 ## Mode B — `--global` codebase-wide bug hunt
 
-`--global` was passed. Instead of one bug, sweep the whole surface for *all* of them, verify each adversarially, and produce a ranked backlog with plans. This is a large fan-out; for a thorough sweep, use a finder→verify pipeline (a `@bug-catcher-rick` finder stage → `@bug-catcher-adversary` verify stage) — invoking `--global` is the developer's explicit opt-in to multi-agent orchestration. For a quick pass, parallel agent spawns are fine. Tell the developer up front roughly how wide you're going so the cost isn't a surprise.
+`--global` was passed. Instead of one bug, sweep the whole surface — code, tests, E2E playbooks, and the project's documentation/Markdown — for *all* of them, verify each adversarially, and produce a ranked backlog with plans (auto-fixing only purely-cosmetic doc defects; see below). This is a large fan-out; for a thorough sweep, use a finder→verify pipeline (a `@bug-catcher-rick` finder stage → `@bug-catcher-adversary` verify stage) — invoking `--global` is the developer's explicit opt-in to multi-agent orchestration. For a quick pass, parallel agent spawns are fine. Tell the developer up front roughly how wide you're going so the cost isn't a surprise.
 
 ### Phase 1 — Fan-out discovery
 
@@ -112,6 +112,7 @@ Spawn one `@bug-catcher-rick` finder per slice, in parallel, each blind to the o
 - **Tests** — missing negative/isolation coverage (e.g. cross-tenant-returns-404), missing cache/state resets on rate-limit-style tests, flaky-pattern smells, and behavior with no test at all.
 - **Browser / E2E playbooks** (if the project keeps them) — steps that no longer match the app, unasserted critical paths.
 - **Prod-provisioning gaps** — seed-only data the deploy/release phase never creates (the exact class behind many "works locally, locked out in prod" bugs). Check the seed/provisioning scripts against the deploy config (`Procfile` / Dockerfile / CI deploy).
+- **Docs / Markdown** — sweep the project's Markdown (`README`, `docs/**`, `*.md`, any wiki under `docs/wiki/`) for rendering defects: broken / un-renderable **mermaid** blocks, malformed tables (misaligned pipes), broken link/image markup, unclosed or mismatched code fences, broken heading/list structure, and dead **relative** links to files that no longer exist. Tag each finding **cosmetic** (presentation only — eligible for the auto-remediation fast-path) or **semantic** (the content/meaning is wrong — normal gated handoff).
 
 Each finder returns candidate bugs as structured findings (file:line · symptom · hypothesized cause · severity guess).
 
@@ -119,7 +120,29 @@ Each finder returns candidate bugs as structured findings (file:line · symptom 
 
 Deduplicate candidates across slices (same root cause surfacing in multiple files = one bug). Then run **every surviving candidate through `@bug-catcher-adversary`** exactly as in Mode A Phase 2 — the verdict decides whether it's a real bug. **Drop refuted/INCONCLUSIVE candidates from the backlog** (or list them separately as "unconfirmed, needs evidence") — a global report full of false positives is worse than a short true one. Note explicitly anything you bounded or sampled rather than exhaustively checked; no silent truncation.
 
+### Cosmetic-docs auto-remediation (bounded — `--global` only)
+
+The ONE place this skill may route a fix without the per-item plan-approval gate. It exists so an obvious, non-semantic documentation defect — a mermaid block that won't render, a table whose pipes are misaligned — can be fixed the moment it's found rather than parked in a backlog. It is deliberately narrow, and it runs **after** Phase 2 verification (the defect must be confirmed real — it genuinely doesn't render).
+
+**A finding qualifies ONLY if ALL of these hold:**
+- It is in a Markdown / docs file (`*.md`, `docs/**`, `README`, the wiki) — never code, config, or an agent/skill definition.
+- The fix is **purely presentational** — it makes existing content render correctly *without changing its meaning*: mermaid **syntax** repair (not re-drawing the diagram), table/pipe alignment, closing a code fence, fixing broken Markdown link/image **syntax** where the target is unchanged, repairing heading/list markup.
+- The correct fix is **unambiguous** — exactly one obviously-right way to make it render. More than one plausible fix → not eligible.
+- It does **not** touch load-bearing content — anything CI asserts (e.g. component-count strings), `CLAUDE.md` / `AGENTS.md`, or a link **target** / numeric value / prose meaning.
+
+**If it qualifies**, the conductor MAY self-remediate by delegating to the chore fast-path — after verifying the fix actually renders (e.g. the repaired mermaid block parses):
+
+```
+/chore --concurrently --bypass "<file>: <one-line cosmetic fix>"
+```
+
+That path isolates the change in a worktree off the default branch, requires **green CI**, and admin-merges — the skill never runs git itself. One cosmetic fix per chore (or a single chore grouping only same-class cosmetic fixes). Report it **loudly**: the file, the one-line fix, and the resulting PR + merged SHA.
+
+**Everything else** — semantic doc errors, ambiguous fixes, anything outside the allowlist — stays a normal finding in the backlog and flows through the standard gated handoff below. **When in doubt, it is NOT cosmetic: hand it off.** This fast-path never expands to code, and never decides a non-cosmetic change is "trivial enough."
+
 ### Phase 3 — Synthesize backlog + plans + routing
+
+**First, peel off the cosmetic-docs fixes.** Any verified finding that meets *every* bar in the auto-remediation allowlist above is handled by the fast-path immediately (and reported); it does not sit in the backlog. Everything else continues here.
 
 Produce a single **SEV-ranked bug backlog** (SEV1 → SEV4; see the Severity rubric above). For each confirmed bug: SEV · root cause · fix direction · regression test · route (derived from SEV) · blast radius.
 
@@ -133,3 +156,4 @@ Then the same gated handoff as Mode A, batched: present the backlog for approval
 - **Debate, don't ping-pong.** The bounded 3-round cap exists so the two agents converge or escalate — not loop forever. If round 2 isn't closing the gap, round 3 is the last; then it's the developer's call.
 - **Token budget.** Mode A is cheap. `--global` is not — say so before you fan out, and scale the finder pool to how thorough the developer asked for ("quick pass" vs "audit everything").
 - **Relationship to `/chore` and `/orchestrator`.** This skill is the *diagnosis + triage* front end; those two are the *fix* back ends. Its value is making sure the thing handed to them is real and well-scoped. The eventual PR body should read as a factual summary only.
+- **The cosmetic-docs fast-path is the one exception to "diagnose, don't fix" — and it stays tiny.** It only ever touches presentation in Markdown (a mermaid block that won't render, a broken table), only via `/chore --concurrently --bypass` (which enforces green CI and isolates the change), and only when the fix is unambiguous. The instant a "doc fix" would change meaning, a link target, a number, or load-bearing content, it is not cosmetic — it goes back in the backlog and through the normal gates. When in doubt, hand off.
