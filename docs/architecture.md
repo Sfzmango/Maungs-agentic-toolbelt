@@ -280,3 +280,40 @@ stale pages) — and is schedulable for self-maintenance.
 - **Both security reviewers run side-by-side** — `@security-reviewer` as the cold
   gate, `@security-mentor` as the teaching pass — so the same diff yields both a
   verdict and the knowledge transfer.
+
+## Model-agnostic distribution: the generator + per-target-emitter seam
+
+The **16 agents + 11 skills = 27 components** are defined **once** — `agents/*.md`
++ `skills/*/SKILL.md` + `hooks/` are the single canonical source. To run the same
+components beyond Claude Code, a generator under `tools/` renders that canonical
+source into per-target artifacts. Codex is the first new target.
+
+- **`tools/build.py`** — the entrypoint: `python3 tools/build.py [--target codex|claude|all] [--check]`.
+  Default emits to disk; `--check` regenerates in memory and exits non-zero on any
+  diff (the mode CI runs).
+- **`tools/emit/common.py`** — the target-agnostic core: the frontmatter parser
+  (normalizes BOTH the YAML block-list and the inline comma-separated `tools:`
+  forms into one token list), the `Component` dataclass, deterministic file IO
+  (newline normalization + a single trailing newline).
+- **`tools/emit/target_claude.py`** — **validate-only**, writes nothing. "No Claude
+  regression" is a structural guarantee: the generator physically cannot rewrite
+  Claude source.
+- **`tools/emit/target_codex.py` + `tools/transforms.py`** — the Codex emitter
+  (agents `.md` → `codex-agents/*.toml`, skills → transformed `SKILL.md`, hooks →
+  `codex-hooks/*.sh` + `hooks.json`) and the table-driven body-adaptation rules.
+- **`tools/validate_codex.py`** — validates the Codex manifest + marketplace
+  wrappers (allowed-keys, strict-semver, referenced paths exist, the pinned
+  cross-wrapper `source`).
+
+**Two-track Codex distribution** (the Codex plugin manifest cannot carry agents +
+hooks): skills ship via the marketplace/plugin manifest
+(`.agents/plugins/marketplace.json` → `plugins/maungs-agentic-toolbelt/`); agents +
+hooks ship via `install-codex.sh`. A **CI drift guard** re-runs the generator and
+fails on any diff between freshly-generated and committed Codex artifacts, so the
+derived files can never silently diverge from canonical.
+
+**Adding a target is "add an emitter + a target-table row,"** not a
+rearchitecture — the target-agnostic core (`build.py`, `common.py`,
+`transforms.py`) is deliberately separate from the per-target emitters. cursor /
+aider / others are accommodated by this seam but not built. Full walkthrough:
+[`docs/codex.md`](codex.md).

@@ -1,0 +1,48 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"__TOOLBELT_HOOK_DIR__\"/toolbelt-router.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"__TOOLBELT_HOOK_DIR__\"/pretooluse-guard.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Task|Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"__TOOLBELT_HOOK_DIR__\"/usage-tracker.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"__TOOLBELT_HOOK_DIR__\"/sessionstart-loader.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

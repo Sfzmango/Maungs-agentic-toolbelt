@@ -1,0 +1,34 @@
+{
+  "name": "maungs-agentic-toolbelt",
+  "description": "A project-agnostic, human-gated multi-agent software-development pipeline, ported to the OpenAI Codex CLI: skills shipped here via the marketplace; agents + hooks installed via install-codex.sh. Plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, and a self-maintaining codebase wiki. Codex artifacts are generated from the canonical agents/*.md + skills/*/SKILL.md by tools/build.py.",
+  "version": "0.3.0",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": {
+    "name": "Maung Htike",
+    "email": "101447695+Sfzmango@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/Sfzmango/Maungs-agentic-toolbelt",
+  "keywords": [
+    "codex",
+    "openai-codex",
+    "agents",
+    "skills",
+    "code-review",
+    "security",
+    "documentation",
+    "workflow"
+  ],
+  "skills": [
+    "skills/agentic-onboard/SKILL.md",
+    "skills/bug-catcher/SKILL.md",
+    "skills/chore/SKILL.md",
+    "skills/handoff/SKILL.md",
+    "skills/migration-planner/SKILL.md",
+    "skills/orchestrator/SKILL.md",
+    "skills/overnight/SKILL.md",
+    "skills/release-notes/SKILL.md",
+    "skills/todo/SKILL.md",
+    "skills/toolbelt/SKILL.md",
+    "skills/wiki-generator/SKILL.md"
+  ]
+}
