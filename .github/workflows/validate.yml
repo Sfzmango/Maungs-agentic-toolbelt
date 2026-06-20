@@ -10,49 +10,132 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Every agent & skill declares frontmatter with a name
+      # Seed the job summary table. Every check below appends one row, so the
+      # summary shows ALL five results (pass and fail) at a glance — not just the
+      # first failure. `if: always()` on every check keeps them all running and
+      # reporting even after one fails; the job still goes red if any step exits non-zero.
+      - name: Init summary
+        if: always()
         run: |
-          fail=0
+          {
+            echo "## validate — check results"
+            echo ""
+            echo "| # | Check | Result | Detail |"
+            echo "|---|-------|--------|--------|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 1 · Frontmatter — every agent & skill declares a name
+        if: always()
+        run: |
+          echo "::group::Frontmatter (agents/*.md + skills/*/SKILL.md)"
+          fail=0; n=0; okc=0
           for f in agents/*.md skills/*/SKILL.md; do
+            n=$((n+1))
             if [ "$(head -1 "$f")" != "---" ]; then
+              echo "  ✗ FAIL $f — missing YAML frontmatter (must start with ---)"
               echo "::error file=$f::missing YAML frontmatter (must start with ---)"; fail=1; continue
             fi
             if ! sed -n '2,/^---$/p' "$f" | grep -q '^name:'; then
-              echo "::error file=$f::frontmatter is missing a 'name:' field"; fail=1
+              echo "  ✗ FAIL $f — frontmatter missing a 'name:' field"
+              echo "::error file=$f::frontmatter is missing a 'name:' field"; fail=1; continue
             fi
+            echo "  ✓ PASS $f"; okc=$((okc+1))
           done
+          echo "::endgroup::"
+          if [ "$fail" -eq 0 ]; then
+            echo "Frontmatter: ✅ PASS — all $n files declare a name"
+            echo "| 1 | Frontmatter | ✅ PASS | $okc/$n files declare a name |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Frontmatter: ❌ FAIL — $((n-okc))/$n files bad"
+            echo "| 1 | Frontmatter | ❌ FAIL | $okc/$n ok, $((n-okc)) bad |" >> "$GITHUB_STEP_SUMMARY"
+          fi
           exit $fail
 
-      - name: No private or employer references leak in
+      - name: 2 · No private or employer references leak in
+        if: always()
         run: |
           # A safety gate: the public repo must never contain private project
           # names, employer identities, or absolute home paths.
-          if grep -rniE 'botdo|accrualify|/Users/[a-z]' \
+          echo "::group::Leak-grep (*.md *.json *.sh, excluding .git/.github)"
+          rc=0
+          matches="$(grep -rniE 'botdo|accrualify|/Users/[a-z]' \
                --include='*.md' --include='*.json' --include='*.sh' \
-               --exclude-dir=.git --exclude-dir=.github .; then
+               --exclude-dir=.git --exclude-dir=.github .)" || rc=$?
+          if [ -n "$matches" ]; then
+            printf '%s\n' "$matches"
             echo "::error::found a private reference above — scrub it before merging"
+            echo "::endgroup::"
+            cnt="$(printf '%s\n' "$matches" | grep -c . )"
+            echo "Leak-grep: ❌ FAIL — $cnt match(es)"
+            echo "| 2 | Leak-grep | ❌ FAIL | $cnt private-reference match(es) |" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-          echo "clean — no private references found"
+          echo "  ✓ clean — no private references found"
+          echo "::endgroup::"
+          echo "Leak-grep: ✅ PASS — 0 matches"
+          echo "| 2 | Leak-grep | ✅ PASS | 0 matches |" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Prompt router routes prompts to the intended components
-        run: python3 tests/test_router.py
+      - name: 3 · Prompt router routes prompts to the intended components
+        if: always()
+        run: |
+          echo "::group::Prompt-router regression (verbose — every case)"
+          rc=0
+          out="$(python3 tests/test_router.py -v 2>&1)" || rc=$?
+          printf '%s\n' "$out"
+          echo "::endgroup::"
+          detail="$(printf '%s\n' "$out" | grep -m1 -E '^TOTAL PROMPTS' \
+                    | sed -E 's/.*TOTAL PROMPTS: ([0-9]+).*PASS: ([0-9]+).*FAIL: ([0-9]+).*/\2\/\1 routed, \3 mis-routed/')"
+          if [ "$rc" -eq 0 ]; then
+            echo "Prompt router: ✅ PASS — ${detail:-ok}"
+            echo "| 3 | Prompt router | ✅ PASS | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Prompt router: ❌ FAIL — ${detail:-see log}"
+            echo "| 3 | Prompt router | ❌ FAIL | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc
 
-      - name: Translator eval — reference solutions pass their vectors (multi-language)
-        run: python3 tests/translator_eval/eval.py
+      - name: 4 · Translator eval — reference solutions pass their vectors (multi-language)
+        if: always()
+        run: |
+          echo "::group::Translator eval --check (verbose — per-language / per-problem)"
+          rc=0
+          out="$(python3 tests/translator_eval/eval.py -v 2>&1)" || rc=$?
+          printf '%s\n' "$out"
+          echo "::endgroup::"
+          detail="$(printf '%s\n' "$out" | grep -m1 -E '^\[--check\]' \
+                    | sed -E 's/^\[--check\] ([0-9]+\/[0-9]+) reference case-runs pass \| ([0-9]+) problems.*/\1 case-runs, \2 problems/')"
+          if [ "$rc" -eq 0 ]; then
+            echo "Translator eval: ✅ PASS — ${detail:-ok}"
+            echo "| 4 | Translator eval | ✅ PASS | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Translator eval: ❌ FAIL — ${detail:-see log}"
+            echo "| 4 | Translator eval | ❌ FAIL | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc
 
-      - name: Component descriptions stay in sync with the real counts
+      - name: 5 · Component descriptions stay in sync with the real counts
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Derive the real counts from the filesystem and assert every description
           # matches. Adding/removing an agent or skill forces a description update here.
+          echo "::group::Component-count consistency"
           A=$(ls agents/*.md | wc -l | tr -d ' ')
           S=$(ls skills/*/SKILL.md | wc -l | tr -d ' ')
           C=$((A + S))
-          echo "Derived: ${A} agents + ${S} skills = ${C} components"
-          fail=0
-          chk() { grep -qF "$2" "$1" || { echo "::error file=$1::stale count — expected \"$2\" (did you add/remove a component?)"; fail=1; }; }
+          echo "Derived from filesystem: ${A} agents + ${S} skills = ${C} components"
+          echo ""
+          fail=0; n=0; okc=0
+          chk() {
+            n=$((n+1))
+            if grep -qF "$2" "$1"; then
+              echo "  ✓ PASS $1 — \"$2\""; okc=$((okc+1))
+            else
+              echo "  ✗ FAIL $1 — expected \"$2\""
+              echo "::error file=$1::stale count — expected \"$2\" (did you add/remove a component?)"; fail=1
+            fi
+          }
           chk README.md                        "${A} agents + ${S} skills"
           chk README.md                        "all ${C} components"
           chk docs/components.md               "**${C} components**"
@@ -61,6 +144,7 @@ jobs:
           chk docs/design-philosophy.md        "${A} agents + ${S} skills (${C} components)"
           chk .claude-plugin/plugin.json       "${A} subagents + ${S} skills"
           chk .claude-plugin/marketplace.json  "${A} agents + ${S} skills"
+          echo "::endgroup::"
           # The GitHub repo "About" is out-of-band metadata (not a file in the repo and not
           # writable by the default GITHUB_TOKEN), so we WARN with the exact fix rather than
           # fail — keeping it in sync is a documented release step (see CONTRIBUTING.md).
@@ -68,5 +152,13 @@ jobs:
           desc="$(gh repo view "$GITHUB_REPOSITORY" --json description --jq .description 2>/dev/null || true)"
           if [ -n "$desc" ] && ! printf '%s' "$desc" | grep -qF "$want"; then
             echo "::warning::GitHub 'About' is stale (want \"$want\"). Fix: gh repo edit $GITHUB_REPOSITORY --description \"...\""
+            echo "GitHub 'About': ⚠️ stale (want \"$want\")"
+          fi
+          if [ "$fail" -eq 0 ]; then
+            echo "Component counts: ✅ PASS — ${okc}/${n} count strings match (${A} agents + ${S} skills = ${C})"
+            echo "| 5 | Component counts | ✅ PASS | ${okc}/${n} strings match (${A}+${S}=${C}) |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Component counts: ❌ FAIL — $((n-okc))/${n} count strings stale"
+            echo "| 5 | Component counts | ❌ FAIL | $((n-okc))/${n} stale |" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $fail
