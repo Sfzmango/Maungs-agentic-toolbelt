@@ -34,6 +34,14 @@ fi
 plan="$(ls -t docs/plans/*.md 2>/dev/null | head -1)"; [ -n "$plan" ] && add "- Latest plan file: ${plan}"
 hand="$(ls -t HANDOFF*.md docs/handoffs/*.md 2>/dev/null | head -1)"; [ -n "$hand" ] && add "- Pending handoff: ${hand}"
 
+# private per-project to-do backlog (the /todo skill) — local only, never in the repo.
+# Slug must match the /todo skill's canonical computation: repo root, non-alnum -> '-'.
+tfile="${HOME}/.claude/maungs-toolbelt/todos/$(printf '%s' "$root" | sed 's#[^A-Za-z0-9]#-#g').md"
+if [ -f "$tfile" ]; then
+  topen="$(grep -c '^- \[ \] ' "$tfile" 2>/dev/null | tr -d ' ')"
+  case "$topen" in ''|0) ;; *) add "- Open todos: ${topen} (private backlog — /todo to view)";; esac
+fi
+
 if command -v gh >/dev/null 2>&1; then
   prs="$(gh pr list --limit 3 --json number,title -q '.[] | "    #\(.number) \(.title)"' 2>/dev/null)"
   [ -n "$prs" ] && add "- Open PRs:

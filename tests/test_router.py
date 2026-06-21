@@ -34,6 +34,7 @@ LEADS = {
     "Looks like a question about the toolbelt itself": "meta",
     "Looks like building or extending a feature": "build",
     "Looks like translating / porting code between languages": "translate",
+    "Looks like tabling work for a later session": "todo",
 }
 
 def fired(out):
@@ -131,6 +132,14 @@ add("translate", ["translate this ruby file to python", "port the rails service 
                   "translate from rails to django", "convert my express app to fastapi",
                   "translate this go code into rust", "port this java class to kotlin"])
 
+# todo / tabled work (the /todo private-backlog intent) — placed HIGH so a tabling
+# phrasing beats the action blocks (bug/build/review) it might otherwise overlap.
+add("todo", ["add a new readme section to my todo list", "remind me to refactor the auth module later",
+             "table this for later", "put this on my backlog", "add 'write integration tests' to my todo list",
+             "what's on my todo list", "show my todos", "save this idea for later", "note this down for later",
+             "add the export feature to my backlog", "remind me later to bump the dependencies",
+             "make a todo to revisit the caching strategy"])
+
 # ---------------- regression / mis-route fixes (the bugs we just fixed) -------
 # greenfield must beat onboard
 add("greenfield", ["set up a new project from scratch","set up a new rails project","start a new codebase for a chat app"])
@@ -152,6 +161,10 @@ cases.append(("build a new SaaS from scratch", "greenfield"))
 cases.append(("fix the bug and also write tests", "bug"))          # bug(3) beats tests(3b)
 cases.append(("review the architecture of this proposal", "review")) # review(2) beats plan(7)
 cases.append(("the migration keeps failing in CI", {"migration","bug"}))  # migration(0b) wins; bug acceptable
+cases.append(("remind me to fix the login bug later", "todo"))     # todo(0c) beats bug(3): tabling, not debugging now
+cases.append(("add 'review PR 5' to my todo list", "todo"))        # todo(0c) beats review(2): tabling a review
+cases.append(("build a todo list app", {"build"}))                 # NOT todo — building a feature; guard routes to build
+cases.append(("create a task management app", {"build"}))          # NOT todo — feature build, not a tabled task
 
 # ---------------- known out-of-scope gaps (documented, expected SILENT) -------
 for p in ["refactor the auth module","refactor this messy function","audit the codebase for performance",

@@ -9,7 +9,7 @@
     {
       "name": "maungs-agentic-toolbelt",
       "source": "./",
-      "description": "A project-agnostic, human-gated multi-agent software-development pipeline for Claude Code: 16 agents + 10 skills spanning plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, overnight cloud routines, and a self-maintaining codebase wiki.",
+      "description": "A project-agnostic, human-gated multi-agent software-development pipeline for Claude Code: 16 agents + 11 skills spanning plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, overnight cloud routines, a private per-project to-do backlog, and a self-maintaining codebase wiki.",
       "author": {
         "name": "Maung Htike"
       },

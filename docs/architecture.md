@@ -6,7 +6,7 @@ feed into or run alongside that main line.
 
 ## Component inventory
 
-The pipeline is **16 agents + 10 skills = 26 components**. The split is deliberate:
+The pipeline is **16 agents + 11 skills = 27 components**. The split is deliberate:
 
 - **Skills (`/name`) are conductors.** They orchestrate a multi-phase process and
   delegate every unit of real work to an agent. They route, gate, and sequence; they
@@ -36,6 +36,7 @@ The pipeline is **16 agents + 10 skills = 26 components**. The split is delibera
 | Bug | `@bug-catcher-adversary` | agent | Fresh-eyes refuter → CONFIRMED / DISPUTED / WRONG-ROOT-CAUSE / INCONCLUSIVE |
 | Utility | `/chore` | skill | Escape hatch for small single-concern PRs; same commit/push gates; re-routes to `/orchestrator` if it grows |
 | Utility | `/handoff` | skill | Drafts a drift-aware brief so a zero-context agent can resume cold; never written proactively |
+| Utility | `/todo` | skill | Private, per-project backlog for tabled work; local-only (never committed); no-arg lists, `/todo <text>` adds, `done`/`drop` mutate; read by the loader + router to resurface it, never acts on an item |
 | Utility | `/toolbelt` | skill | Self-describing inventory + recommend-a-component + status (router/MCP/CLAUDE.md checks); read-only |
 | Utility | `/release-notes` | skill | Grouped release notes (features/fixes/breaking/migrations) + SemVer rec from a commit range/PRs; read-only; `--format deploy-comment` enriches a deploy comment |
 | Utility | `/overnight` | skill | Conductor that stands up overnight CLOUD routines (bug · security · wiki) for a repo via `RemoteTrigger`; each its own routine feeding one rolling `[overnight] Dossier` issue (per-job race-safe comments); bug auto-devs top non-SEV1 findings into DRAFT never-merged fix PRs, wiki opens one rolling propose-only PR; gates the one outward create/update/run |
