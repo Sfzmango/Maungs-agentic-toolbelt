@@ -95,6 +95,17 @@ Looks like preparing a repo for agentic development. Consider:
 - /agentic-onboard — scans the repo and generates the agent-context files the rest of the toolbelt depends on (CLAUDE.md + AGENTS.md + a concise architecture map). Handles cold repos and refreshes stale/outdated context. Add --deep for a full docs/wiki."
 fi
 
+# 0c) Personal to-do / tabled work — a private, per-project backlog. Placed HIGH on
+#     purpose: "remind me later / table this / add to my backlog" means the user is
+#     DEFERRING work, so it must beat the action blocks (bug/build/review) below. The
+#     negative guard keeps "build a todo app" out — that's a feature, not a tabled task.
+if m '\bbacklog\b|(to-?do|task)s?[ -]?list|table (this|that|it|these|them)|remind me (to|later)|(save|note|jot|stash|park).{0,20}for later|put (this|that|it|them) on (the|my|a) (list|backlog)|add .*to (my|the) (to-?do|todo|backlog|task ?list)|(show|view|see|check|clear|finish|complete) (me )?(my|the) (to-?do|todo)s?|what.?s on (my|the) (to-?do|todo|list)|(keep|make|create|add|jot|new|start) (a |an |my )?(to-?do|todo)\b' \
+   && ! m '(build|implement|develop|scaffold|create|make|design|code|program|generate) .{0,25}(to-?do|todo|task).{0,18}(app|application|feature|component|page|api|crud|module|service|widget|website|site|clone|tool|program|software|system|board|tracker|manager|ui|frontend|backend)'; then
+  emit "todo" "todo" "$PREFIX
+Looks like tabling work for a later session. Consider:
+- /todo <text> — saves it to your private, per-project backlog (stored locally at ~/.claude/maungs-toolbelt/todos/, never committed to the repo). /todo alone lists what you've tabled; /todo done <id> / /todo drop <id> manage it. It only records — turning a todo into work is a separate step you take later."
+fi
+
 # 0b) Schema / data migration
 #     Guard: the loose "add/drop/rename column" triggers also match UI grid/table
 #     columns; exclude clear frontend phrasings so a UI task isn't routed here.

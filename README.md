@@ -1,6 +1,6 @@
 # Maungs-agentic-toolbelt
 
-A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **16 agents + 10 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
+A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **16 agents + 11 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
 
 Agents are invoked with `@name`, skills with `/name`.
 
@@ -32,6 +32,7 @@ Installed as a plugin, the toolbelt registers three lightweight hooks. The first
 | "how does this module work / document the codebase" | `/wiki-generator` |
 | "bump a dependency / fix a typo" | `/chore` |
 | "write a handoff / resume later" | `/handoff` |
+| "table this / remind me later / add to my backlog" | `/todo` |
 | "migrate / change the schema" | `/migration-planner` |
 | "write tests / add missing tests" | `@test-author` |
 | "what can this toolbelt do" | `/toolbelt` |
@@ -85,6 +86,8 @@ The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that 
 > **Spotlight — concurrency-safe chores.** `/chore --concurrently` is what lets the toolbelt run *in parallel with itself*: while `/orchestrator` is mid-build on one branch, you can land a docs or config fix on another — no `HEAD` collision, no stash dance, no waiting. The chore does its work in a throwaway worktree based on `origin/<default-branch>`, opens its own PR, then tears the worktree down (keeping the branch); with `--bypass` it even admin-merges once CI is green, loudly and auditably. Walkthrough: [`examples/sample-concurrent-chore/`](examples/sample-concurrent-chore/).
 
 **`/handoff`** — *`/handoff <issue-id-or-topic>`*. Drafts one self-contained brief so a zero-context agent (or future self) can resume a specific piece of work cold. It auto-gathers git/PR/issue/deploy state and gates on an approved outline before writing — and is never produced proactively, because a stale handoff followed confidently is worse than none.
+
+**`/todo`** — *`/todo`* (list), *`/todo <text>`* (add), *`/todo done <id>`* / *`/todo drop <id>`* (mutate). A private, per-project backlog for work you've tabled for later. It's stored **locally** at `~/.claude/maungs-toolbelt/todos/<project-slug>.md` — outside the repo, so a tabled task never becomes an issue, a PR, or a committed file. The session loader resurfaces the open count at the next session start and the prompt-router offers it when you talk about deferring work; nothing ever acts on an item — recording is the whole job.
 
 **`/wiki-generator`** — *`/wiki-generator`* (full build), *`/wiki-generator --update`* (incremental, schedulable), or *`/wiki-generator --publish`* (publish to an external platform). Generates and maintains a near-100%-coverage technical wiki in Markdown at `docs/wiki/` — per-module business analysis, schemas, flow diagrams, related files per page, a glossary, and an onboarding guide. The `--update` mode re-syncs only the pages that drifted, so a scheduled run keeps the wiki current with no manual upkeep. The `--publish` mode ships the generated wiki — unchanged — to an external wiki platform through a pluggable, target-agnostic adapter seam (the GitHub repository wiki is shipped; Confluence and Azure DevOps wiki are documented future targets), always behind a dry-run preview and an explicit human approval gate. See [`docs/scheduling.md`](docs/scheduling.md) and [`docs/wiki-generator.md`](docs/wiki-generator.md).
 
@@ -156,7 +159,7 @@ The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that 
 
 - [`docs/architecture.md`](docs/architecture.md) — how the agents hand off, with a full pipeline diagram
 - [`docs/design-philosophy.md`](docs/design-philosophy.md) — the recurring design principles and the failure modes they prevent
-- [`docs/components.md`](docs/components.md) — one-table index of all 26 components
+- [`docs/components.md`](docs/components.md) — one-table index of all 27 components
 - [`docs/faq.md`](docs/faq.md) — how the toolbelt behaves in practice (e.g. how workers handle their adversary's feedback)
 - [`examples/`](examples/) — a sample issue, plan (with wireframes), bug dossier, and generated wiki
 
