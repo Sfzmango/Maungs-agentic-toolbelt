@@ -119,14 +119,14 @@ fact-check, not a fixed pipeline node.
 
 ```mermaid
 flowchart TD
-    subgraph ModeA[Mode A — mandatory after an adversarial claim]
-      FA[Finder / reviewer claim] --> ADV[Adversary refute / verdict]
-      ADV --> V1[Verifier fact-check<br/>reproduce: Playwright / run code<br/>or reason + worth-fixing]
-      V1 -->|REAL & worthFixing| ACT[Conductor acts]
-      V1 -->|NOT_AN_ISSUE / not worth fixing| DROP[Drop + log reason]
+    subgraph ModeA["Mode A — mandatory after an adversarial claim"]
+      FA["Finder / reviewer claim"] --> ADV["Adversary refute / verdict"]
+      ADV --> V1["Verifier fact-check<br/>reproduce (Playwright / run code) or reason<br/>+ worth-fixing"]
+      V1 -->|"REAL & worthFixing"| ACT["Conductor acts"]
+      V1 -->|"NOT_AN_ISSUE / not worth fixing"| DROP["Drop + log reason"]
     end
-    subgraph ModeB[Mode B — on-demand anywhere in /orchestrator]
-      ORCH[Any orchestrator phase] -->|@finding-verifier claim| V2[Verifier fact-check<br/>reproduce if possible]
+    subgraph ModeB["Mode B — on-demand anywhere in /orchestrator"]
+      ORCH["Any orchestrator phase"] -->|"@finding-verifier claim"| V2["Verifier fact-check<br/>reproduce if possible"]
       V2 --> ORCH
     end
 ```
