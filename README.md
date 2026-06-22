@@ -21,7 +21,7 @@ The toolbelt is **model-agnostic** — the same components run on the **OpenAI C
 ```bash
 # Track 1 — skills via the Codex marketplace/plugin:
 codex plugin marketplace add Sfzmango/Maungs-agentic-toolbelt
-codex plugin install maungs-agentic-toolbelt
+codex plugin add maungs-agentic-toolbelt@maung-tools
 
 # Track 2 — agents + hooks via the installer:
 ./install-codex.sh --dry-run     # preview, changes nothing
@@ -35,7 +35,7 @@ Verify: `ls ~/.codex/agents` shows the agents, `@mention` one in a Codex thread,
 | Target | Status | Components | Install |
 |--------|--------|-----------|---------|
 | **Claude Code** | shipped | agents + skills (+ hooks via plugin) | `./install.sh` or the `maung-tools` plugin |
-| **OpenAI Codex CLI** | shipped | skills (marketplace) + agents & hooks (installer) | `./install-codex.sh` + `codex plugin install` |
+| **OpenAI Codex CLI** | shipped | skills (marketplace) + agents & hooks (installer) | `./install-codex.sh` + `codex plugin add` |
 | cursor / aider / … | future | — | accommodated by the generator seam (add an emitter + a row); not built yet |
 
 Codex artifacts are **generated** from the canonical `agents/*.md` + `skills/*/SKILL.md` + `hooks/` by `tools/build.py` — never hand-authored. See **[`docs/codex.md`](docs/codex.md)** and **[`docs/architecture.md`](docs/architecture.md)**.
