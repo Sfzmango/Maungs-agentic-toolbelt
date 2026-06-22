@@ -1,7 +1,7 @@
 {
   "name": "maungs-agentic-toolbelt",
   "description": "A project-agnostic, human-gated multi-agent software-development pipeline, ported to the OpenAI Codex CLI: skills shipped here via the marketplace; agents + hooks installed via install-codex.sh. Plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, and a self-maintaining codebase wiki. Codex artifacts are generated from the canonical agents/*.md + skills/*/SKILL.md by tools/build.py.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": {
     "name": "Maung Htike",
