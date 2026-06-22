@@ -39,8 +39,9 @@ A neutral, independent **verifier / fact-checker** the toolbelt can invoke in tw
   the verifier at **any phase** to settle a disputed point, validate an assumption before an outward
   action, or sanity-check a hand-off — not limited to sweep findings.
 
-In both modes the verdict includes **worth-fixing**, so the conductor only ever acts on claims that are
-both *true* and *worth acting on*.
+In both modes the verifier **reproduces the claim whenever it is reproducible** (run code/tests, or drive
+the UI via the **Playwright MCP**) and the verdict includes **worth-fixing**, so the conductor only ever
+acts on claims that are *demonstrated true* and *worth acting on*.
 
 ## Design
 
@@ -48,7 +49,10 @@ both *true* and *worth acting on*.
 
 A stance-neutral verifier, distinct from finder (find) and adversary (refute):
 
-- **reproduce / confirm reachability** against the real code (in a throwaway copy for behavioral claims),
+- **reproduce the claim whenever it is reproducible** — actually run the failing code/test in a throwaway
+  copy, drive the UI via the **Playwright MCP** for front-end claims, or use whatever tool the claim's
+  domain needs; fall back to reasoned-from-source confirmation ONLY when a claim is latent / by-inspection
+  (the verdict records which, via `reproduced`),
 - assign a **final confirmed severity**, and — critically —
 - judge **worth-fixing** (is acting on it net-positive, or does the fix regress something / guard a
   non-existent case?).
@@ -63,7 +67,8 @@ refutation, a verdict, or a free-form assumption to fact-check.
 **Verdict schema** (proven during the PR #7 run):
 
 ```
-{ status: REAL | NOT_AN_ISSUE | NUANCED, worthFixing: bool, confirmedSeverity, verified, fix }
+{ status: REAL | NOT_AN_ISSUE | NUANCED, worthFixing: bool, confirmedSeverity,
+  reproduced: bool, reproSteps, verified, fix }
 ```
 
 **Implementation choice — prefer generalizing `@bug-catcher-adversary`** (rename/extend its remit to
@@ -74,6 +79,20 @@ component count (currently 16 agents + 11 skills = 27), which is CI-load-bearing
 `plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json` skills list, and requires regenerating the
 Codex artifacts (`python3 tools/build.py --target codex`). Generalizing the existing agent avoids that
 ripple — and is natural, since the adversary is already the closest existing role.
+
+**Reproduction & tool grants — reproduce, don't just reason.** When a claim is reproducible, the verifier
+MUST reproduce it before ruling (it is the strongest evidence and the whole point of an independent
+check): runtime/logic claims → run the failing code or test in a **throwaway copy** (never the real
+tree); front-end/UI claims → drive the app with the **Playwright MCP** (navigate, interact, snapshot) and
+observe the real behavior; anything else → whatever the claim's domain needs (HTTP client, DB query, CLI,
+WebFetch). If a claim genuinely can't be reproduced (latent / inspection-only), it confirms from source
+and records `reproduced: false` with the reason — it never *pretends* to have reproduced. **Tool grants**
+(least-privilege, but enough to reproduce): Read, Grep, **Bash** (run code/tests in a throwaway copy), the
+**Playwright MCP** browser tools, WebFetch/WebSearch, and the GitHub **read** tools — staying
+**read-only on the real repo** (no Edit/Write, no commit/push, never posts to GitHub). This deliberately
+widens the read-only-reviewer norm just enough to *execute/observe*, confined to throwaway copies.
+*Codex note:* reproduction may need a `workspace-write`/temp-write sandbox to run in a throwaway dir, and
+the Playwright grant is whole-server there (per the existing MCP-granularity divergence in `docs/codex.md`).
 
 ### 2. Mode A — mandatory after any adversarial claim
 
@@ -102,12 +121,12 @@ fact-check, not a fixed pipeline node.
 flowchart TD
     subgraph ModeA[Mode A — mandatory after an adversarial claim]
       FA[Finder / reviewer claim] --> ADV[Adversary refute / verdict]
-      ADV --> V1[Verifier fact-check<br/>reproduce-or-reject + worth-fixing]
+      ADV --> V1[Verifier fact-check<br/>reproduce: Playwright / run code<br/>or reason + worth-fixing]
       V1 -->|REAL & worthFixing| ACT[Conductor acts]
       V1 -->|NOT_AN_ISSUE / not worth fixing| DROP[Drop + log reason]
     end
     subgraph ModeB[Mode B — on-demand anywhere in /orchestrator]
-      ORCH[Any orchestrator phase] -->|@finding-verifier claim| V2[Verifier fact-check]
+      ORCH[Any orchestrator phase] -->|@finding-verifier claim| V2[Verifier fact-check<br/>reproduce if possible]
       V2 --> ORCH
     end
 ```
@@ -128,6 +147,9 @@ flowchart TD
   documented in the skill body.
 - The **worth-fixing** call is exercised by a test fixture mirroring the "real but don't fix" case
   (e.g. an attribution-rule collision whose fix would regress a deny).
+- **Reproducible claims are actually reproduced:** the verdict carries `reproduced: true` + `reproSteps`
+  for reproducible claims (UI claims via the Playwright MCP; runtime claims via a throwaway-copy run), or
+  `reproduced: false` + a stated reason when a claim genuinely can't be reproduced.
 - The full verify gate stays green; component counts + Codex artifacts remain consistent if a new
   component is added (regenerate + drift-guard green).
 
