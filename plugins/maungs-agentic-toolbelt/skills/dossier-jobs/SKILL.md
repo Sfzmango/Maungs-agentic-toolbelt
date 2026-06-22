@@ -1,6 +1,6 @@
 ---
-name: dossier-jobs
-description: Prepare the bug, security, and wiki scheduled-dossier workflows for Codex Automations. Uses automation-management tools when available; in Codex CLI it generates complete copy/paste Codex app automation configurations without claiming they were created. Invoke with `$dossier-jobs [repo] [flags]`.
+name: "dossier-jobs"
+description: "Prepare the bug, security, and wiki scheduled-dossier workflows for Codex Automations. Uses automation-management tools when available; in Codex CLI it generates complete copy/paste Codex app automation configurations without claiming they were created. Invoke with `$dossier-jobs [repo] [flags]`."
 ---
 
 # Codex adapter

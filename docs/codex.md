@@ -111,6 +111,8 @@ python3 tools/build.py --target claude --check
 python3 tools/validate_codex.py
 ```
 
+- `validate_codex.py` checks the clean-install surface: wrappers, component
+  frontmatter, `agents/openai.yaml`, JSON, TOML, shell syntax, and hook references.
 - **Agents** → `codex-agents/<name>.toml`.
 - **Skills** → `plugins/maungs-agentic-toolbelt/skills/<name>/SKILL.md` plus
   current `agents/openai.yaml` interface/policy metadata.

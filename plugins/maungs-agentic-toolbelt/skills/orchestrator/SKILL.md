@@ -1,6 +1,6 @@
 ---
-name: orchestrator
-description: Generic agent-orchestrated dev cycle for any project. Conductor that delegates each phase to named agents (product-owner subagent, architect subagent, developer subagent, pr-reviewer subagent, resolution subagent). Auto-detects project conventions from AGENTS.md (and CLAUDE.md when present) + plan files + language signals, and preflights the environment (gh auth + required MCP servers), bootstrapping or guiding setup before delegating. Invoke as `$orchestrator <issue-id>` or `$orchestrator <topic>`.
+name: "orchestrator"
+description: "Generic agent-orchestrated dev cycle for any project. Conductor that delegates each phase to named agents (product-owner subagent, architect subagent, developer subagent, pr-reviewer subagent, resolution subagent). Auto-detects project conventions from AGENTS.md (and CLAUDE.md when present) + plan files + language signals, and preflights the environment (gh auth + required MCP servers), bootstrapping or guiding setup before delegating. Invoke as `$orchestrator <issue-id>` or `$orchestrator <topic>`."
 ---
 
 # $orchestrator (global) — agent-orchestrated dev cycle for any project

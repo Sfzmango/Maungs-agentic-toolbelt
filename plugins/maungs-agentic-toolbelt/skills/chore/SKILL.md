@@ -1,6 +1,6 @@
 ---
-name: chore
-description: Lightweight workflow for small, one-off chore PRs (docs, config, tooling, comment/typo fixes, agent/skill edits, trivial dependency bumps) that don't warrant the full $orchestrator pipeline. No plan file, no architect/developer/reviewer agents — you do the change inline, honor the commit/push gates, open a summary-only PR, and merge after green CI. `--concurrently` runs the whole chore in an isolated git worktree off the default branch so it's safe to ship alongside another session/agent working in the same checkout; `--bypass` (with `--concurrently`) admin-merges automatically once CI is green — an explicit "ship it now" hatch that skips the human-review gate, never the test gate. Invoke as `$chore <short description>`, `$chore --concurrently <description>`, or `$chore --concurrently --bypass <description>`.
+name: "chore"
+description: "Lightweight workflow for small, one-off chore PRs (docs, config, tooling, comment/typo fixes, agent/skill edits, trivial dependency bumps) that don't warrant the full $orchestrator pipeline. No plan file, no architect/developer/reviewer agents — you do the change inline, honor the commit/push gates, open a summary-only PR, and merge after green CI. `--concurrently` runs the whole chore in an isolated git worktree off the default branch so it's safe to ship alongside another session/agent working in the same checkout; `--bypass` (with `--concurrently`) admin-merges automatically once CI is green — an explicit \"ship it now\" hatch that skips the human-review gate, never the test gate. Invoke as `$chore <short description>`, `$chore --concurrently <description>`, or `$chore --concurrently --bypass <description>`."
 ---
 
 # $chore — lightweight one-off chore PRs

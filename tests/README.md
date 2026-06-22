@@ -102,7 +102,8 @@ python3 tests/test_codex_build.py        # prints per-check ok/FAIL lines + a TO
   a derived file whose canonical source was removed (the orphan/stray contract).
 - **Generation completeness.** `load_agents`/`load_skills` enumerate the full inventory,
   every canonical `hooks/*.sh` body lands in the plugin's generated `hooks/`, every
-  skill gets current `agents/openai.yaml` metadata, and every generated
+  skill gets current, parseable `agents/openai.yaml` metadata, every canonical and
+  generated component has safe YAML frontmatter, and every generated
   `codex-agents/*.toml` parses (control-char escaping is valid TOML).
 - **Gate semantics survive the body transform.** The developer commit/push wait-gates,
   the `AskUserQuestion → "ask the user in chat and wait"` rewrite (capitalization at
@@ -111,8 +112,9 @@ python3 tests/test_codex_build.py        # prints per-check ok/FAIL lines + a TO
 - **No bare `/skill`, Claude `@agent`, `$ARGUMENTS`, or Claude project-memory paths**
   remain in the generated tree; explicit Codex skill invocations use `$skill`.
 - **Validator contract.** `validate_codex.py` rejects duplicate skills entries, non-object
-  manifests, and a manifest version that diverges from `.claude-plugin/plugin.json`;
-  the plugin hook path and standalone installer modes are also exercised.
+  manifests, invalid YAML/frontmatter, malformed JSON/TOML/shell, broken hook references,
+  and a manifest version that diverges from `.claude-plugin/plugin.json`; the plugin hook
+  path and standalone installer modes are also exercised.
 
 When you change the generator, a canonical body, or a transform, run this test (and
 re-run `python3 tools/build.py --target codex` so the committed artifacts match) — a green

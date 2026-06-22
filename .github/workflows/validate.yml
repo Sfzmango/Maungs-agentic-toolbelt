@@ -312,20 +312,20 @@ jobs:
           fi
           exit $rc
 
-      - name: 10 · Codex manifest + marketplace are well-formed
+      - name: 10 · Codex clean-install artifacts are well-formed
         if: always()
         run: |
-          echo "::group::validate_codex (manifest + marketplace)"
+          echo "::group::validate_codex (wrappers + YAML/JSON/TOML/shell + hooks)"
           rc=0
           out="$(python3 tools/validate_codex.py 2>&1)" || rc=$?
           printf '%s\n' "$out"
           echo "::endgroup::"
           if [ "$rc" -eq 0 ]; then
-            echo "Codex wrappers: ✅ PASS — manifest + marketplace well-formed"
-            echo "| 10 | Codex wrappers | ✅ PASS | manifest + marketplace well-formed |" >> "$GITHUB_STEP_SUMMARY"
+            echo "Codex install artifacts: ✅ PASS — wrappers and packaged files well-formed"
+            echo "| 10 | Codex install artifacts | ✅ PASS | wrappers + YAML/JSON/TOML/shell + hooks |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "Codex wrappers: ❌ FAIL — see log"
-            echo "| 10 | Codex wrappers | ❌ FAIL | see log |" >> "$GITHUB_STEP_SUMMARY"
+            echo "Codex install artifacts: ❌ FAIL — see log"
+            echo "| 10 | Codex install artifacts | ❌ FAIL | see log |" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $rc
 

@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""tools/validate_codex.py — validate the Codex manifest + marketplace wrappers.
+"""tools/validate_codex.py — validate clean-install Codex artifacts.
 
-Stdlib-only validator mirroring Codex ``plugin.json`` rules so CI can assert the
-hand-maintained wrappers are well-formed:
+Stdlib-only validator for the complete install surface:
 
-  * allowed-keys (no unknown top-level keys),
-  * strict-semver ``version``,
-  * required fields present,
-  * referenced paths EXIST — each file's references resolved against its OWN base
-    dir (the manifest and marketplace live at different depths, so the validator
-    derives each base dir from that file's path; the two never collide).
+  * manifest + marketplace schemas and referenced paths;
+  * canonical and generated component frontmatter;
+  * generated ``agents/openai.yaml`` files;
+  * every JSON and TOML document;
+  * every shell script via ``bash -n``;
+  * hook registrations and their referenced scripts.
 
 The cross-wrapper reference is pinned to Codex's current structured local-source
 schema: ``source.source`` must be ``local`` and ``source.path`` must equal
@@ -28,10 +27,20 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
+
+try:
+    import tomllib
+except ImportError:  # pragma: no cover - Python <3.11 compatibility
+    tomllib = None
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(_THIS_DIR)
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from tools.emit import common  # noqa: E402
 
 MANIFEST_REL = "plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json"
 MARKETPLACE_REL = ".agents/plugins/marketplace.json"
@@ -74,6 +83,10 @@ MARKETPLACE_POLICY_ALLOWED = {"installation", "authentication", "products"}
 MARKETPLACE_POLICY_REQUIRED = {"installation", "authentication"}
 INSTALLATION_POLICIES = {"NOT_AVAILABLE", "AVAILABLE", "INSTALLED_BY_DEFAULT"}
 AUTHENTICATION_POLICIES = {"ON_INSTALL", "ON_USE"}
+HOOK_EVENTS = {"UserPromptSubmit", "PreToolUse", "SessionStart", "SubagentStart"}
+_HOOK_COMMAND_RX = re.compile(
+    r'^bash "\$\{PLUGIN_ROOT\}/hooks/([A-Za-z0-9._-]+\.sh)"$'
+)
 
 
 def _load_json(path: str, problems: list):
@@ -303,16 +316,237 @@ def validate_marketplace(problems: list) -> None:
         problems.append("validator: manifest and marketplace base dirs collide")
 
 
+def _repo_files(suffix: str):
+    """Yield repo-relative files with ``suffix``, excluding Git internals."""
+    for dirpath, dirnames, filenames in os.walk(REPO_ROOT):
+        dirnames[:] = sorted(d for d in dirnames if d != ".git")
+        for filename in sorted(filenames):
+            if filename.endswith(suffix):
+                path = os.path.join(dirpath, filename)
+                yield os.path.relpath(path, REPO_ROOT), path
+
+
+def validate_component_frontmatter(problems: list) -> None:
+    """Validate the repo's deterministic YAML-frontmatter subset."""
+    component_paths = [
+        os.path.join(REPO_ROOT, "agents", name)
+        for name in sorted(os.listdir(os.path.join(REPO_ROOT, "agents")))
+        if name.endswith(".md")
+    ]
+    skills_root = os.path.join(REPO_ROOT, "skills")
+    component_paths.extend(
+        os.path.join(skills_root, name, "SKILL.md")
+        for name in sorted(os.listdir(skills_root))
+        if os.path.isfile(os.path.join(skills_root, name, "SKILL.md"))
+    )
+    generated_root = os.path.join(
+        REPO_ROOT, "plugins", "maungs-agentic-toolbelt", "skills"
+    )
+    component_paths.extend(
+        os.path.join(generated_root, name, "SKILL.md")
+        for name in sorted(os.listdir(generated_root))
+        if os.path.isfile(os.path.join(generated_root, name, "SKILL.md"))
+    )
+
+    for path in component_paths:
+        rel = os.path.relpath(path, REPO_ROOT)
+        try:
+            block, _body = common.split_frontmatter(common.read_text(path))
+            scalars, _tools = common.parse_frontmatter(block)
+        except (OSError, ValueError) as exc:
+            problems.append("%s: invalid YAML frontmatter (%s)" % (rel, exc))
+            continue
+        if not scalars.get("name"):
+            problems.append("%s: frontmatter missing non-empty name" % rel)
+        if not scalars.get("description"):
+            problems.append("%s: frontmatter missing non-empty description" % rel)
+
+        if rel.startswith("plugins/maungs-agentic-toolbelt/skills/"):
+            lines = block.splitlines()
+            name_line = next((line for line in lines if line.startswith("name:")), "")
+            desc_line = next(
+                (line for line in lines if line.startswith("description:")), ""
+            )
+            if not name_line.startswith('name: "') or not desc_line.startswith(
+                'description: "'
+            ):
+                problems.append(
+                    "%s: generated name/description must use quoted YAML scalars" % rel
+                )
+
+
+def validate_skill_metadata(problems: list) -> None:
+    """Validate the exact supported schema of every generated openai.yaml."""
+    metadata = [
+        item
+        for item in _repo_files(".yaml")
+        if os.path.basename(item[1]) == "openai.yaml"
+    ]
+    skills_dir = os.path.join(
+        REPO_ROOT, "plugins", "maungs-agentic-toolbelt", "skills"
+    )
+    skill_count = sum(
+        os.path.isfile(os.path.join(skills_dir, name, "SKILL.md"))
+        for name in os.listdir(skills_dir)
+    )
+    if len(metadata) != skill_count:
+        problems.append(
+            "plugin skill metadata count mismatch: %d openai.yaml for %d skills"
+            % (len(metadata), skill_count)
+        )
+    expected_keys = ("display_name", "short_description", "default_prompt")
+    for rel, path in metadata:
+        lines = common.read_text(path).splitlines()
+        if lines and lines[0].startswith("#"):
+            lines = lines[1:]
+        expected_count = 6
+        if len(lines) != expected_count:
+            problems.append(
+                "%s: expected %d metadata lines, got %d"
+                % (rel, expected_count, len(lines))
+            )
+            continue
+        if lines[0] != "interface:" or lines[4] != "policy:":
+            problems.append("%s: invalid interface/policy YAML structure" % rel)
+            continue
+        for index, key in enumerate(expected_keys, start=1):
+            prefix = "  %s: " % key
+            if not lines[index].startswith(prefix):
+                problems.append("%s: missing metadata key '%s'" % (rel, key))
+                continue
+            raw = lines[index][len(prefix):]
+            try:
+                value = json.loads(raw)
+            except ValueError as exc:
+                problems.append(
+                    "%s: '%s' is not a valid quoted YAML scalar (%s)"
+                    % (rel, key, exc)
+                )
+                continue
+            if not isinstance(value, str) or not value:
+                problems.append("%s: '%s' must be a non-empty string" % (rel, key))
+            if key == "short_description" and len(value) > 120:
+                problems.append("%s: short_description exceeds 120 characters" % rel)
+            if key == "default_prompt" and len(value) > 128:
+                problems.append("%s: default_prompt exceeds 128 characters" % rel)
+        if lines[5] != "  allow_implicit_invocation: true":
+            problems.append("%s: invalid allow_implicit_invocation policy" % rel)
+
+
+def validate_serialized_files(problems: list) -> None:
+    """Parse every JSON/TOML file and syntax-check every shell script."""
+    for rel, path in _repo_files(".json"):
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                json.load(fh)
+        except (OSError, ValueError) as exc:
+            problems.append("%s: invalid JSON (%s)" % (rel, exc))
+
+    if tomllib is not None:
+        for rel, path in _repo_files(".toml"):
+            try:
+                with open(path, "rb") as fh:
+                    tomllib.load(fh)
+            except (OSError, ValueError) as exc:
+                problems.append("%s: invalid TOML (%s)" % (rel, exc))
+
+    for rel, path in _repo_files(".sh"):
+        proc = subprocess.run(
+            ["bash", "-n", path],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode:
+            detail = (proc.stderr or proc.stdout).strip().splitlines()
+            problems.append(
+                "%s: invalid shell syntax (%s)"
+                % (rel, detail[0] if detail else "bash -n failed")
+            )
+
+
+def validate_hooks(problems: list) -> None:
+    """Validate hook event names, command schema, and script references."""
+    rel = "plugins/maungs-agentic-toolbelt/hooks/hooks.json"
+    path = os.path.join(REPO_ROOT, rel)
+    obj = _load_json(path, problems)
+    if obj is _LOAD_FAILED:
+        return
+    hooks = obj.get("hooks") if isinstance(obj, dict) else None
+    if not isinstance(hooks, dict) or not hooks:
+        problems.append("%s: 'hooks' must be a non-empty JSON object" % rel)
+        return
+    unknown = sorted(set(hooks) - HOOK_EVENTS)
+    if unknown:
+        problems.append("%s: unsupported hook events: %s" % (rel, ", ".join(unknown)))
+
+    referenced = set()
+    for event, groups in hooks.items():
+        if not isinstance(groups, list) or not groups:
+            problems.append("%s: event '%s' must contain hook groups" % (rel, event))
+            continue
+        for group in groups:
+            entries = group.get("hooks") if isinstance(group, dict) else None
+            if not isinstance(entries, list) or not entries:
+                problems.append("%s: event '%s' has an invalid hook group" % (rel, event))
+                continue
+            for entry in entries:
+                if not isinstance(entry, dict) or entry.get("type") != "command":
+                    problems.append("%s: event '%s' hook must be a command" % (rel, event))
+                    continue
+                match = _HOOK_COMMAND_RX.fullmatch(str(entry.get("command", "")))
+                if not match:
+                    problems.append(
+                        "%s: event '%s' has an invalid plugin-relative command"
+                        % (rel, event)
+                    )
+                    continue
+                script = match.group(1)
+                referenced.add(script)
+                script_path = os.path.join(os.path.dirname(path), script)
+                if not os.path.isfile(script_path):
+                    problems.append("%s: referenced hook script missing: %s" % (rel, script))
+                timeout = entry.get("timeout")
+                if not isinstance(timeout, int) or timeout <= 0:
+                    problems.append(
+                        "%s: event '%s' timeout must be a positive integer"
+                        % (rel, event)
+                    )
+
+    hook_dir = os.path.dirname(path)
+    executable_hooks = {
+        name
+        for name in os.listdir(hook_dir)
+        if name.endswith(".sh") and name != "lib-telemetry.sh"
+    }
+    if referenced != executable_hooks:
+        problems.append(
+            "%s: registered hook scripts differ from packaged hooks "
+            "(missing=%s, unregistered=%s)"
+            % (
+                rel,
+                sorted(referenced - executable_hooks),
+                sorted(executable_hooks - referenced),
+            )
+        )
+
+
 def main(argv=None) -> int:
     problems: list = []
     validate_manifest(problems)
     validate_marketplace(problems)
+    validate_component_frontmatter(problems)
+    validate_skill_metadata(problems)
+    validate_serialized_files(problems)
+    validate_hooks(problems)
     if problems:
         print("validate_codex: FAIL", file=sys.stderr)
         for p in problems:
             print("  " + p, file=sys.stderr)
         return 1
-    print("validate_codex: OK — manifest + marketplace are well-formed.")
+    print(
+        "validate_codex: OK — wrappers, YAML/frontmatter, JSON, TOML, shell, "
+        "and hook references are well-formed."
+    )
     return 0
 
 

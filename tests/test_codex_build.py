@@ -408,6 +408,7 @@ def test_manifest_discovers_every_generated_skill():
 
 def test_skill_metadata_schema():
     print("\n[skills: every agents/openai.yaml uses the current Codex schema]")
+    import json
     artifacts = target_codex.build_artifacts(REPO_ROOT)
     metadata = {
         rel: content
@@ -430,7 +431,143 @@ def test_skill_metadata_schema():
             bad.append(rel)
         if re.search(r"^(name|summary):", content, re.MULTILINE):
             bad.append(rel + " (legacy keys)")
+        lines = content.splitlines()
+        for key in ("display_name", "short_description", "default_prompt"):
+            prefix = "  %s: " % key
+            line = next((candidate for candidate in lines if candidate.startswith(prefix)), "")
+            try:
+                value = json.loads(line[len(prefix):])
+            except (ValueError, TypeError):
+                value = ""
+            if not isinstance(value, str) or not value:
+                bad.append(rel + " (invalid quoted %s)" % key)
+            if key == "short_description" and len(value) > 120:
+                bad.append(rel + " (short_description too long)")
+            if key == "default_prompt" and len(value) > 128:
+                bad.append(rel + " (default_prompt too long)")
     check("all skill metadata uses interface + policy keys", not bad, str(bad[:5]))
+
+
+def test_frontmatter_yaml_safety():
+    print("\n[frontmatter: canonical + generated YAML scalars are parseable and lossless]")
+    components = common.load_agents(REPO_ROOT) + common.load_skills(REPO_ROOT)
+    check(
+        "all canonical component frontmatter parses",
+        len(components) == 27 and all(c.name and c.frontmatter.get("description") for c in components),
+    )
+    check(
+        "quoted canonical descriptions decode without wrapper quotes",
+        all(not c.frontmatter["description"].startswith('"') for c in components),
+    )
+
+    quoted, _tools = common.parse_frontmatter(
+        'name: demo\ndescription: "mapping: value and # literal"'
+    )
+    check(
+        "JSON-compatible quoted YAML scalar round-trips",
+        quoted["description"] == "mapping: value and # literal",
+        repr(quoted.get("description")),
+    )
+
+    rejected = []
+    for bad in (
+        "name: demo\ndescription: invalid: mapping",
+        "name: demo\ndescription: truncated # comment",
+        "name: demo\ndescription: [flow collection",
+    ):
+        try:
+            common.parse_frontmatter(bad)
+        except ValueError:
+            rejected.append(bad)
+    check("YAML-unsafe plain scalars are rejected", len(rejected) == 3, str(rejected))
+
+    artifacts = target_codex.build_artifacts(REPO_ROOT)
+    generated_skills = {
+        rel: content
+        for rel, content in artifacts.items()
+        if rel.endswith("/SKILL.md")
+    }
+    unquoted = []
+    reparsed = []
+    for rel, content in generated_skills.items():
+        block, _body = common.split_frontmatter(content)
+        lines = block.splitlines()
+        if not any(line.startswith('name: "') for line in lines):
+            unquoted.append(rel + " (name)")
+        if not any(line.startswith('description: "') for line in lines):
+            unquoted.append(rel + " (description)")
+        try:
+            scalars, _tools = common.parse_frontmatter(block)
+            if scalars.get("name") and scalars.get("description"):
+                reparsed.append(rel)
+        except ValueError:
+            pass
+    check("all generated skill scalars are quoted", not unquoted, str(unquoted[:5]))
+    check(
+        "all generated skill frontmatter reparses",
+        len(reparsed) == len(generated_skills),
+        "parsed=%d generated=%d" % (len(reparsed), len(generated_skills)),
+    )
+
+
+def test_validate_invalid_yaml_rejected():
+    print("\n[validate_codex: invalid installed skill + metadata YAML are rejected]")
+    tmp = tempfile.mkdtemp()
+    try:
+        copy_repo_subset(tmp)
+        skill = os.path.join(
+            tmp,
+            "plugins",
+            "maungs-agentic-toolbelt",
+            "skills",
+            "release-notes",
+            "SKILL.md",
+        )
+        with open(skill, "r", encoding="utf-8") as fh:
+            text = fh.read()
+        text = re.sub(
+            r'^description:.*$',
+            "description: invalid: mapping",
+            text,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        with open(skill, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        metadata = os.path.join(
+            tmp,
+            "plugins",
+            "maungs-agentic-toolbelt",
+            "skills",
+            "release-notes",
+            "agents",
+            "openai.yaml",
+        )
+        with open(metadata, "r", encoding="utf-8") as fh:
+            metadata_text = fh.read()
+        metadata_text = re.sub(
+            r'^  short_description:.*$',
+            '  short_description: "unterminated',
+            metadata_text,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        with open(metadata, "w", encoding="utf-8") as fh:
+            fh.write(metadata_text)
+        rc, out = _run_validate(tmp)
+        check("invalid installed frontmatter exits non-zero", rc != 0, out.strip()[:240])
+        check(
+            "invalid YAML frontmatter is reported",
+            "invalid YAML frontmatter" in out,
+            out.strip()[:240],
+        )
+        check(
+            "invalid openai.yaml scalar is reported",
+            "not a valid quoted YAML scalar" in out,
+            out.strip()[:240],
+        )
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_generated_codex_runtime_portability():
@@ -1222,6 +1359,8 @@ def main():
         test_validate_non_dict_toplevel_rejected,
         test_manifest_discovers_every_generated_skill,
         test_skill_metadata_schema,
+        test_frontmatter_yaml_safety,
+        test_validate_invalid_yaml_rejected,
         test_generated_codex_runtime_portability,
         test_install_codex_modes,
         test_codex_install_command_is_current,

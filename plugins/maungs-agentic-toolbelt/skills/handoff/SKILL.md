@@ -1,6 +1,6 @@
 ---
-name: handoff
-description: Write a coding-agent handoff document for the current project — a self-contained brief that lets a fresh agent pick up specific work cold. Invoke as `$handoff <issue-id-or-topic>` or when the user explicitly asks you to write a handoff (NEVER proactively — see cardinal rule below).
+name: "handoff"
+description: "Write a coding-agent handoff document for the current project — a self-contained brief that lets a fresh agent pick up specific work cold. Invoke as `$handoff <issue-id-or-topic>` or when the user explicitly asks you to write a handoff (NEVER proactively — see cardinal rule below)."
 ---
 
 # $handoff — write a project handoff document

@@ -1,6 +1,6 @@
 ---
-name: todo
-description: A private, per-project to-do backlog you keep for yourself — work you've tabled for later, stored LOCALLY and never committed to the repo. With no argument it prints the list; with an argument it mutates it — `$todo <text>` (or `$todo add <text>`) adds an item, `$todo done <id>` completes one, `$todo drop <id>` removes one, `$todo all` shows completed items too. The backlog lives at `~/.codex/maungs-toolbelt/todos/<project-slug>.md` (per repo, like the toolbelt's usage log) — outside the repo, so it never enters the project's context, issues, or PRs. Other toolbelt components may READ it to guide you, but only you direct what goes on it. Invoke as `$todo`, `$todo <text>`, `$todo add <text>`, `$todo done <id>`, `$todo drop <id>`, or `$todo all`.
+name: "todo"
+description: "A private, per-project to-do backlog you keep for yourself — work you've tabled for later, stored LOCALLY and never committed to the repo. With no argument it prints the list; with an argument it mutates it — `$todo <text>` (or `$todo add <text>`) adds an item, `$todo done <id>` completes one, `$todo drop <id>` removes one, `$todo all` shows completed items too. The backlog lives at `~/.codex/maungs-toolbelt/todos/<project-slug>.md` (per repo, like the toolbelt's usage log) — outside the repo, so it never enters the project's context, issues, or PRs. Other toolbelt components may READ it to guide you, but only you direct what goes on it. Invoke as `$todo`, `$todo <text>`, `$todo add <text>`, `$todo done <id>`, `$todo drop <id>`, or `$todo all`."
 ---
 
 # $todo — your private, per-project backlog

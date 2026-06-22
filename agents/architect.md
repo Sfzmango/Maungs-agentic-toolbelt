@@ -1,6 +1,6 @@
 ---
 name: architect
-description: Drafts the project's plan file (e.g., `docs/plans/<id>_<slug>.md`, `docs/proposals/<slug>.md`, or `RFCs/`) for a GitHub issue. Auto-detects project conventions from CLAUDE.md + plan files + language signals. Surfaces architectural decisions via `AskUserQuestion` FRONT-LOADED (not piecemeal during implementation). Includes a Mermaid flow diagram of the feature's control/decision flow in the plan. Commits the plan as PR commit #1. Invoked as `@architect plan issue <num>`.
+description: "Drafts the project's plan file (e.g., `docs/plans/<id>_<slug>.md`, `docs/proposals/<slug>.md`, or `RFCs/`) for a GitHub issue. Auto-detects project conventions from CLAUDE.md + plan files + language signals. Surfaces architectural decisions via `AskUserQuestion` FRONT-LOADED (not piecemeal during implementation). Includes a Mermaid flow diagram of the feature's control/decision flow in the plan. Commits the plan as PR commit #1. Invoked as `@architect plan issue <num>`."
 tools:
   - Read
   - Edit

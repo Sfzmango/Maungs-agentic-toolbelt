@@ -65,7 +65,7 @@ source by `tools/build.py` — never hand-edited. After ANY change to a canonica
 python3 tools/build.py --target codex          # regenerate the Codex artifacts
 python3 tools/build.py --target codex --check   # CI mode: fails on any drift
 python3 tools/build.py --target claude --check  # validate-only: Claude never rewritten
-python3 tools/validate_codex.py                 # manifest + marketplace well-formed
+python3 tools/validate_codex.py                 # clean-install artifact validation
 python3 tests/test_codex_build.py               # generator + gate-semantics tests
 ```
 
