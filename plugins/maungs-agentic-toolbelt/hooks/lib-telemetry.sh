@@ -9,18 +9,18 @@
 #
 # Records two kinds of events to an append-only JSONL log:
 #   - "suggested" — the prompt-router OFFERED a component (UserPromptSubmit)
-#   - "invoked"   — an agent/skill actually RAN (PreToolUse on Task / Skill)
+#   - "invoked"   — an agent/skill actually RAN (SubagentStart / explicit skill prompt)
 # so you can see how often the toolbelt fires and whether suggestions get used.
 #
 # OPT-IN, off by default. Nothing is written unless the debug flag is set:
 #   export MAUNGS_TOOLBELT_DEBUG=on        # record to the JSONL log
 #   export MAUNGS_TOOLBELT_DEBUG=verbose   # ALSO echo each event to stderr
-#                                          # (visible under `claude --debug`)
+#                                          # (visible in the hook diagnostics)
 # Any other value (or unset) ⇒ completely silent, zero files, zero overhead.
 #
 # Log location (override with MAUNGS_TOOLBELT_LOG):
 #   ~/.codex/maungs-toolbelt/usage.jsonl    — always on your local machine,
-#   never inside a project repo. View it with `@toolbelt metrics`.
+#   never inside a project repo. View it with `$toolbelt metrics`.
 #
 # Fail-safe: every function returns 0 on any error so telemetry can never wedge
 # a hook. Requires jq for safe JSON encoding; without jq it silently no-ops.

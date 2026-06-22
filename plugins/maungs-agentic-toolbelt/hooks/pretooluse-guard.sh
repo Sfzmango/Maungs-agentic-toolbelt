@@ -65,6 +65,18 @@ tool="$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)"
 cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$cmd" ] && exit 0
 
+# Codex has no PreToolUse "ask" decision. After the hook blocks an
+# ask-tier command and the user explicitly confirms it, retry exactly
+# once with this environment prefix. The prefix is stripped only for
+# guard analysis; the shell still receives the original command.
+TB_CONFIRMED=0
+case "$cmd" in
+  MAUNGS_TOOLBELT_CONFIRMED=1[[:space:]]*)
+    TB_CONFIRMED=1
+    cmd="${cmd#MAUNGS_TOOLBELT_CONFIRMED=1}"
+    cmd="${cmd# }" ;;
+esac
+
 # ----------------------------------------------------------------------------
 # Quote-neutralization preprocessing (pure Bash, fail-CLOSED on ambiguity).
 #
@@ -206,11 +218,7 @@ neutralize_quotes() {
 neutralize_quotes
 
 deny() {
-  # Codex PreToolUse: emit the structured decision (both the canonical
-  # envelope and a flat {decision,reason}). Reached ONLY with jq present;
-  # a jq-less host already exited 0 (ALLOW) at the top-of-file jq guard,
-  # matching the canonical Claude guard. Install jq for full coverage.
-  jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r},decision:"deny",reason:$r}'
+  jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
 has() { printf '%s' "$scan" | grep -qE -- "$1"; }
@@ -229,10 +237,11 @@ hasraw() { printf '%s' "$cmd" | grep -qE -- "$1"; }
 # the model-agnostic rule below needs both (see rule 5).
 hasrawi() { printf '%s' "$cmd" | grep -qiE -- "$1"; }
 ask() {
-  # Codex PreToolUse "ask" — emit structured + flat. Reached ONLY with jq
-  # present; a jq-less host already exited 0 (ALLOW) at the top-of-file jq
-  # guard, matching the canonical Claude guard. Install jq for coverage.
-  jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r},decision:"ask",reason:$r}'
+  [ "$TB_CONFIRMED" = "1" ] && exit 0
+  r="$1 Ask the user in chat and wait for explicit confirmation. After
+confirmation, retry the exact command once with the prefix
+MAUNGS_TOOLBELT_CONFIRMED=1."
+  jq -n --arg r "$r" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
 

@@ -1,13 +1,14 @@
 {
   "name": "maungs-agentic-toolbelt",
-  "description": "A project-agnostic, human-gated multi-agent software-development pipeline, ported to the OpenAI Codex CLI: skills shipped here via the marketplace; agents + hooks installed via install-codex.sh. Plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, and a self-maintaining codebase wiki. Codex artifacts are generated from the canonical agents/*.md + skills/*/SKILL.md by tools/build.py.",
-  "version": "0.7.0",
+  "description": "A project-agnostic, human-gated multi-agent software-development pipeline for OpenAI Codex. The plugin bundles skills, lifecycle hooks, routing, guardrails, telemetry, and helper scripts; install-codex.sh adds the custom subagents. Plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, scheduled-dossier setup, and a self-maintaining codebase wiki.",
+  "version": "0.8.0",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": {
     "name": "Maung Htike",
     "email": "101447695+Sfzmango@users.noreply.github.com"
   },
   "homepage": "https://github.com/Sfzmango/Maungs-agentic-toolbelt",
+  "repository": "https://github.com/Sfzmango/Maungs-agentic-toolbelt",
   "keywords": [
     "codex",
     "openai-codex",
@@ -18,5 +19,24 @@
     "documentation",
     "workflow"
   ],
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Maung's Agentic Toolbelt",
+    "shortDescription": "Human-gated planning, implementation, review, and documentation workflows",
+    "longDescription": "A project-agnostic multi-agent development workflow for Codex with reusable skills, custom subagents, prompt routing, safety guardrails, and documentation tooling.",
+    "developerName": "Maung Htike",
+    "category": "Engineering",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/Sfzmango/Maungs-agentic-toolbelt",
+    "defaultPrompt": [
+      "Use $toolbelt to show what this plugin can do",
+      "Use $orchestrator to plan and implement this change",
+      "Use $bug-catcher to diagnose this failure"
+    ]
+  }
 }

@@ -9,7 +9,7 @@ Answers are grouped by topic and **collapsed by default** — click a question t
 <details>
 <summary><strong>Is this an application, or a plugin — and what does it actually ship?</strong></summary>
 
-It is a Claude Code **plugin**, not a standalone application (`CLAUDE.md`, Project overview). It ships **16 agents + 10 skills (26 components)** — agents are `@name` subagents (specialized workers) and skills are `/name` conductors (orchestrators) — that take work from a raw idea to a security-reviewed, merge-ready PR and keep a codebase's docs current (`CLAUDE.md`, Project overview). The deliverable itself is **Markdown prompt definitions** (`agents/*.md` and `skills/<name>/SKILL.md` with YAML frontmatter), backed by supporting Bash hooks/scripts, stdlib Python 3 tests, and JSON config; there is no package manager or build system in the repo (`CLAUDE.md`, Stack). It is distributed two ways: as a plugin via the `maung-tools` marketplace (`.claude-plugin/marketplace.json`) and via a copy/symlink `install.sh` into `~/.claude` (`CLAUDE.md`, Project overview), with `plugin.json` pinned at version `0.4.0` under the PolyForm-Noncommercial-1.0.0 license (`.claude-plugin/plugin.json`).
+It is a Claude Code **plugin**, not a standalone application (`CLAUDE.md`, Project overview). It ships **16 agents + 11 skills (27 components)** — agents are `@name` subagents (specialized workers) and skills are `/name` conductors (orchestrators) — that take work from a raw idea to a security-reviewed, merge-ready PR and keep a codebase's docs current (`CLAUDE.md`, Project overview). The deliverable itself is **Markdown prompt definitions** (`agents/*.md` and `skills/<name>/SKILL.md` with YAML frontmatter), backed by supporting Bash hooks/scripts, stdlib Python 3 tests, and JSON config; there is no package manager or build system in the repo (`CLAUDE.md`, Stack). It is distributed for Claude through the `maung-tools` marketplace or `install.sh`, and for Codex through the marketplace plugin plus `install-codex.sh` for custom subagents.
 
 </details>
 
@@ -21,7 +21,7 @@ Agents and skills are the two component types in the pipeline (`docs/architectur
 - **Agents (`@name`) are workers.** Each owns exactly one phase, runs in its own context with a least-privilege scoped toolset, and is invoked as `@name` (`docs/architecture.md:14`, `docs/design-philosophy.md:3`). The capability boundary is enforced by the toolset itself, not just by prose — for example a read-only reviewer has no `Edit`/`Write` tool and so cannot modify the code it reviews (`docs/design-philosophy.md:30`).
 - **Skills (`/name`) are conductors.** They orchestrate a multi-phase process and delegate every unit of real work to an agent — they route, gate, and sequence rather than doing the engineering themselves (`docs/architecture.md:11-12`, `docs/design-philosophy.md:3`).
 
-The current inventory is 16 agents + 10 skills = 26 components (`docs/architecture.md:9`).
+The current inventory is 16 agents + 11 skills = 27 components (`docs/architecture.md:9`).
 
 </details>
 
@@ -65,7 +65,7 @@ Yes. A repo with no `CLAUDE.md` and no equivalent agent context is classified **
 <details>
 <summary><strong>What external tools or MCP servers does it need?</strong></summary>
 
-The toolbelt itself runs on Claude Code (or the OpenAI Codex CLI) and requires no third-party libraries, but its issue/PR workflow depends on a **GitHub MCP** server, which provides the `mcp__github__*` tools the issue and PR phases need — required for issue-ID inputs, optional for free-text topics (`skills/orchestrator/SKILL.md`, Step 0; `README.md`). A **Playwright MCP** server is optional, supplying `mcp__playwright__*` for `@developer`'s live UI verification; if declined, that browser verification is skipped (`skills/orchestrator/SKILL.md`, Step 0; `README.md`). The `gh` CLI (installed and authenticated via `gh auth login`) is also expected for GitHub access (`skills/orchestrator/SKILL.md`, Step 0). These do not need manual wiring: running `/orchestrator` performs an environment **preflight** that detects what is missing, offers to add the MCP servers behind a confirmation gate, and guides the user through manual steps like `gh auth login` and restarting Claude Code (`README.md`; `skills/orchestrator/SKILL.md`, Step 0).
+The toolbelt itself runs on Claude Code (or the OpenAI Codex CLI) and requires no third-party libraries, but its issue/PR workflow depends on a **GitHub MCP** server, which provides the issue and PR tools the phases need — required for issue-ID inputs, optional for free-text topics. A **Playwright MCP** server is optional for the developer subagent's live UI verification, and Context7 supports the code-translator subagent. The `gh` CLI is also expected for GitHub access. The orchestrator preflight detects missing pieces, gates MCP installation commands, and guides manual steps. On Codex, newly added MCP servers may require starting a new thread.
 
 </details>
 

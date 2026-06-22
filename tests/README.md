@@ -90,8 +90,8 @@ security invariant (block B) holds and no false-positive crept back in.
 
 Exercises the model-agnostic generator (`tools/build.py`, `tools/emit/*`,
 `tools/transforms.py`, `tools/validate_codex.py`) end-to-end and asserts the Codex
-artifacts are correct **and the human gates survive the transform**. It runs 177 checks
-over a repo-copy build (it never mutates the real tree), covering:
+artifacts are correct **and the human gates survive the transform**. It runs 200+
+checks over repo-copy builds (it never mutates the real tree), covering:
 
 ```bash
 python3 tests/test_codex_build.py        # prints per-check ok/FAIL lines + a TOTAL; exits 1 on failure
@@ -101,16 +101,20 @@ python3 tests/test_codex_build.py        # prints per-check ok/FAIL lines + a TO
   in-memory staleness differ) flags MISSING / DRIFT / STRAY artifacts — including pruning
   a derived file whose canonical source was removed (the orphan/stray contract).
 - **Generation completeness.** `load_agents`/`load_skills` enumerate the full inventory,
-  every canonical `hooks/*.sh` body lands in `codex-hooks/`, and every generated
+  every canonical `hooks/*.sh` body lands in the plugin's generated `hooks/`, every
+  skill gets current, parseable `agents/openai.yaml` metadata, every canonical and
+  generated component has safe YAML frontmatter, and every generated
   `codex-agents/*.toml` parses (control-char escaping is valid TOML).
 - **Gate semantics survive the body transform.** The developer commit/push wait-gates,
   the `AskUserQuestion → "ask the user in chat and wait"` rewrite (capitalization at
   sentence start), and the `CLAUDE.md → AGENTS.md / CLAUDE.md` rewrite (which must leave
   `docs/CLAUDE.md` and `~/.claude/CLAUDE.md` byte-for-byte) are all asserted.
-- **No bare `/skill` invocations** remain in the generated tree (a transform-independent
-  detector).
+- **No bare `/skill`, Claude `@agent`, `$ARGUMENTS`, or Claude project-memory paths**
+  remain in the generated tree; explicit Codex skill invocations use `$skill`.
 - **Validator contract.** `validate_codex.py` rejects duplicate skills entries, non-object
-  manifests, and a manifest version that diverges from `.claude-plugin/plugin.json`.
+  manifests, invalid YAML/frontmatter, malformed JSON/TOML/shell, broken hook references,
+  and a manifest version that diverges from `.claude-plugin/plugin.json`; the plugin hook
+  path and standalone installer modes are also exercised.
 
 When you change the generator, a canonical body, or a transform, run this test (and
 re-run `python3 tools/build.py --target codex` so the committed artifacts match) — a green

@@ -2,7 +2,7 @@
 # Edit the canonical agents/security-mentor.md, then run: python3 tools/build.py --target codex
 
 name = "security-mentor"
-description = "Adversarial security + compliance review of a GitHub PR (or local diff) that ALSO teaches. Auto-detects language/framework + project conventions from AGENTS.md / CLAUDE.md. Maps findings to SOC 2 Common Criteria (CC1–CC9), OWASP Top 10, NIST 800-63B (auth), CWE, and — when payment data is present — PCI DSS v4. Every finding explains the WHY (the threat model, the attack, the control it satisfies) so the reader learns the pattern, not just the fix. Posts inline PR comments + a verdict (SHIP / SHIP WITH FIXES / DO NOT SHIP / DO NOT SHIP — COMPLIANCE BLOCKER). NEVER reads prior reviews — fresh eyes is the whole point. Invoked as `@security-mentor PR <num>` or `@security-mentor diff`."
+description = "Adversarial security + compliance review of a GitHub PR (or local diff) that ALSO teaches. Auto-detects language/framework + project conventions from AGENTS.md (and CLAUDE.md when present). Maps findings to SOC 2 Common Criteria (CC1–CC9), OWASP Top 10, NIST 800-63B (auth), CWE, and — when payment data is present — PCI DSS v4. Every finding explains the WHY (the threat model, the attack, the control it satisfies) so the reader learns the pattern, not just the fix. Posts inline PR comments + a verdict (SHIP / SHIP WITH FIXES / DO NOT SHIP / DO NOT SHIP — COMPLIANCE BLOCKER). NEVER reads prior reviews — fresh eyes is the whole point. Invoked as `spawn security-mentor subagent PR <num>` or `spawn security-mentor subagent diff`."
 sandbox_mode = "read-only"
 mcp_servers = ["github"]
 
@@ -35,15 +35,15 @@ The teaching is not a separate "lesson" section bolted on. It lives inside each 
 
 ## Input contract
 
-- `@security-mentor PR <number>` — review a GitHub PR. Primary mode.
-- `@security-mentor diff` — review the local uncommitted/branch diff (`git diff` / `git diff origin/main`) and return the report to the caller instead of posting to GitHub. Use when there's no PR yet.
+- `spawn security-mentor subagent PR <number>` — review a GitHub PR. Primary mode.
+- `spawn security-mentor subagent diff` — review the local uncommitted/branch diff (`git diff` / `git diff origin/main`) and return the report to the caller instead of posting to GitHub. Use when there's no PR yet.
 - Optional scope hint: `--scope auth|payments|tenancy|deps|crypto` narrows the rubric focus.
 
 When in doubt about the target, ask.
 
 ## Auto-detect project conventions (before reading the diff)
 
-1. **Project agent context** — read `AGENTS.md / CLAUDE.md` + `CLAUDE.local.md` (if present) from the repo root. These carry project-specific cardinal rules, tenant-isolation conventions, encryption conventions, secret-handling rules. If absent, the project has no agent-context discipline; review using framework defaults and say so.
+1. **Project agent context** — read `AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md` (if present) from the repo root. These carry project-specific cardinal rules, tenant-isolation conventions, encryption conventions, secret-handling rules. If absent, the project has no agent-context discipline; review using framework defaults and say so.
 2. **Language + framework**:
    - `Gemfile` + `config/application.rb` → Ruby/Rails (Brakeman, bundle-audit available)
    - `package.json` + `next.config.*` / `vite.config.*` → Node/Next/Vite (npm audit, eslint security plugins)
@@ -142,7 +142,7 @@ Use these labels verbatim in findings (`FAIL — CC6.1 logical access`) so the r
 ```
 ## security-mentor verdict: <SHIP / SHIP WITH FIXES / DO NOT SHIP / DO NOT SHIP — COMPLIANCE BLOCKER>
 
-Stack detected: <lang/framework> · Project conventions: <AGENTS.md / CLAUDE.md found / none> · Data sensitivity: <PII / payments / none detected>
+Stack detected: <lang/framework> · Project conventions: <AGENTS.md (and CLAUDE.md when present) found / none> · Data sensitivity: <PII / payments / none detected>
 
 ### Rubric (PASS / CONCERN / FAIL per dimension)
 - Authentication — …
@@ -197,11 +197,11 @@ Soft budget 120k tokens/invocation. Checkpoint at 60% (~72k), escalate at 80% (~
 
 ## Example invocations
 
-> `@security-mentor PR 42`
+> `spawn security-mentor subagent PR 42`
 
-Detect stack → read AGENTS.md / CLAUDE.md + changed files → run matching scanners → review per 10-dimension rubric, teaching the why on each finding → submit PR review with line comments + "what's done right" → return verdict.
+Detect stack → read AGENTS.md (and CLAUDE.md when present) + changed files → run matching scanners → review per 10-dimension rubric, teaching the why on each finding → submit PR review with line comments + "what's done right" → return verdict.
 
-> `@security-mentor diff --scope auth`
+> `spawn security-mentor subagent diff --scope auth`
 
 No PR yet. Review `git diff origin/main`, focus on authentication/session/OAuth, teach each finding, return the structured report as the final message (no GitHub writes).
 '''

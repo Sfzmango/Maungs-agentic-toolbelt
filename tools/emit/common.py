@@ -20,6 +20,7 @@ Determinism rules enforced here (see the plan's "Determinism" section):
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -139,6 +140,54 @@ def _normalize_tools_value(value: str) -> List[str]:
     return [tok.strip() for tok in value.split(",") if tok.strip()]
 
 
+def _parse_scalar_value(value: str) -> str:
+    """Parse the scalar subset supported by component frontmatter.
+
+    Double-quoted scalars use JSON-compatible escaping, which is also valid
+    YAML. Plain scalars remain supported for existing concise values, but
+    reject the two patterns that silently change or invalidate YAML:
+
+      * ``: `` starts a mapping value inside a plain scalar;
+      * `` #`` starts a YAML comment and truncates the intended value.
+
+    The project deliberately uses a small, deterministic YAML subset instead
+    of depending on a third-party parser at install/build time.
+    """
+    if value.startswith('"'):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid double-quoted YAML scalar: %s" % exc)
+        if not isinstance(parsed, str):
+            raise ValueError("quoted frontmatter scalar must decode to a string")
+        return parsed
+    if not value:
+        return value
+    if value[0] in "-?:,[]{}#&*!|>'%@`":
+        raise ValueError(
+            "plain frontmatter scalar starts with a YAML indicator; "
+            "wrap the full value in double quotes"
+        )
+    if "\t" in value:
+        raise ValueError(
+            "plain frontmatter scalar contains a tab; wrap the full value in double quotes"
+        )
+    if ": " in value or ":\t" in value:
+        raise ValueError(
+            "plain frontmatter scalar contains ': '; wrap the full value in double quotes"
+        )
+    if " #" in value or "\t#" in value:
+        raise ValueError(
+            "plain frontmatter scalar contains a YAML comment marker; "
+            "wrap the full value in double quotes"
+        )
+    if value.endswith(":"):
+        raise ValueError(
+            "plain frontmatter scalar ends with ':'; wrap the full value in double quotes"
+        )
+    return value
+
+
 def parse_frontmatter(fm_block: str) -> "tuple[Dict[str, str], List[str]]":
     """Parse a frontmatter block into (scalars, tools).
 
@@ -190,7 +239,7 @@ def parse_frontmatter(fm_block: str) -> "tuple[Dict[str, str], List[str]]":
                         else:
                             break
             else:
-                scalars[key] = value
+                scalars[key] = _parse_scalar_value(value)
                 i += 1
         else:
             # An indented or non key:value line outside a tools block — skip it.

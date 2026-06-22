@@ -272,7 +272,7 @@ jobs:
           echo "::group::Codex drift guard (python3 tools/build.py --target codex)"
           rc=0
           python3 tools/build.py --target codex || rc=$?
-          diff_out="$(git status --porcelain -- codex-agents codex-hooks plugins/maungs-agentic-toolbelt/skills)"
+          diff_out="$(git status --porcelain -- codex-agents codex-hooks plugins/maungs-agentic-toolbelt/skills plugins/maungs-agentic-toolbelt/hooks plugins/maungs-agentic-toolbelt/bin)"
           echo "::endgroup::"
           if [ "$rc" -ne 0 ]; then
             echo "Codex drift guard: ❌ FAIL — emitter aborted (rc=$rc)"
@@ -282,7 +282,7 @@ jobs:
           if [ -n "$diff_out" ]; then
             echo "Codex artifacts drifted from canonical — regenerate with 'python3 tools/build.py --target codex' and commit:"
             printf '%s\n' "$diff_out"
-            git --no-pager diff -- codex-agents codex-hooks plugins/maungs-agentic-toolbelt/skills | head -200
+            git --no-pager diff -- codex-agents codex-hooks plugins/maungs-agentic-toolbelt/skills plugins/maungs-agentic-toolbelt/hooks plugins/maungs-agentic-toolbelt/bin | head -200
             echo "::error::Codex artifacts drifted — run 'python3 tools/build.py --target codex' and commit the result"
             echo "Codex drift guard: ❌ FAIL — regenerate the Codex artifacts"
             echo "| 8 | Codex drift guard | ❌ FAIL | regenerate (canonical moved) |" >> "$GITHUB_STEP_SUMMARY"
@@ -312,20 +312,20 @@ jobs:
           fi
           exit $rc
 
-      - name: 10 · Codex manifest + marketplace are well-formed
+      - name: 10 · Codex clean-install artifacts are well-formed
         if: always()
         run: |
-          echo "::group::validate_codex (manifest + marketplace)"
+          echo "::group::validate_codex (wrappers + YAML/JSON/TOML/shell + hooks)"
           rc=0
           out="$(python3 tools/validate_codex.py 2>&1)" || rc=$?
           printf '%s\n' "$out"
           echo "::endgroup::"
           if [ "$rc" -eq 0 ]; then
-            echo "Codex wrappers: ✅ PASS — manifest + marketplace well-formed"
-            echo "| 10 | Codex wrappers | ✅ PASS | manifest + marketplace well-formed |" >> "$GITHUB_STEP_SUMMARY"
+            echo "Codex install artifacts: ✅ PASS — wrappers and packaged files well-formed"
+            echo "| 10 | Codex install artifacts | ✅ PASS | wrappers + YAML/JSON/TOML/shell + hooks |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "Codex wrappers: ❌ FAIL — see log"
-            echo "| 10 | Codex wrappers | ❌ FAIL | see log |" >> "$GITHUB_STEP_SUMMARY"
+            echo "Codex install artifacts: ❌ FAIL — see log"
+            echo "| 10 | Codex install artifacts | ❌ FAIL | see log |" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $rc
 
@@ -340,8 +340,10 @@ jobs:
           S=$(ls skills/*/SKILL.md | wc -l | tr -d ' ')
           CA=$(ls codex-agents/*.toml | wc -l | tr -d ' ')
           CS=$(ls -d plugins/maungs-agentic-toolbelt/skills/*/ | wc -l | tr -d ' ')
+          H=$(ls hooks/*.sh | wc -l | tr -d ' ')
+          CH=$(ls plugins/maungs-agentic-toolbelt/hooks/*.sh | wc -l | tr -d ' ')
           echo "canonical: ${A} agents + ${S} skills"
-          echo "codex:     ${CA} agents (*.toml) + ${CS} skill folders"
+          echo "codex:     ${CA} agents (*.toml) + ${CS} skill folders + ${CH} hook scripts"
           fail=0
           if [ "$CA" -ne "$A" ]; then
             echo "  ✗ FAIL codex agents ${CA} != canonical ${A}"
@@ -354,6 +356,18 @@ jobs:
             echo "::error::codex skill-folder count (${CS}) != canonical (${S}) — regenerate"; fail=1
           else
             echo "  ✓ PASS codex skill folders ${CS} == canonical ${S}"
+          fi
+          if [ "$CH" -ne "$H" ]; then
+            echo "  ✗ FAIL codex hook scripts ${CH} != canonical ${H}"
+            echo "::error::codex hook count (${CH}) != canonical (${H}) — regenerate"; fail=1
+          else
+            echo "  ✓ PASS codex hook scripts ${CH} == canonical ${H}"
+          fi
+          if [ ! -f plugins/maungs-agentic-toolbelt/hooks/hooks.json ]; then
+            echo "  ✗ FAIL plugin hooks.json missing"
+            echo "::error::plugin hooks.json missing — regenerate"; fail=1
+          else
+            echo "  ✓ PASS plugin hooks.json present"
           fi
           echo "::endgroup::"
           if [ "$fail" -eq 0 ]; then

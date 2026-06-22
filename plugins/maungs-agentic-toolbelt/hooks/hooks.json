@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"__TOOLBELT_HOOK_DIR__\"/toolbelt-router.sh",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/toolbelt-router.sh\"",
             "timeout": 10
           }
         ]
@@ -17,17 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"__TOOLBELT_HOOK_DIR__\"/pretooluse-guard.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Task|Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"__TOOLBELT_HOOK_DIR__\"/usage-tracker.sh",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/pretooluse-guard.sh\"",
             "timeout": 10
           }
         ]
@@ -38,7 +28,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"__TOOLBELT_HOOK_DIR__\"/sessionstart-loader.sh",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/sessionstart-loader.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/usage-tracker.sh\"",
             "timeout": 10
           }
         ]

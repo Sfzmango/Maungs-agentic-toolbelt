@@ -228,3 +228,8 @@ on an always-on host you control. There is a second, complementary scheduler —
 Use the **local-daemon** path here for a self-maintaining wiki on a host you own; use
 **`/dossier-jobs`** for unattended cloud routines that need no local daemon. They are
 complementary mechanisms — pick by where you want the job to run.
+
+On Codex, invoke `$dossier-jobs`. If the active Codex surface exposes
+automation-management tools, the skill can use them after confirmation. In Codex
+CLI, it generates complete copy/paste Codex app Automation configurations and
+does not claim the automations were created.

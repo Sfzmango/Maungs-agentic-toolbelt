@@ -6,13 +6,13 @@
 # toolbelt-router.sh — UserPromptSubmit hook for Maungs-agentic-toolbelt.
 #
 # On every prompt, it checks whether the request matches one of the toolbelt's
-# capability areas. If so, it injects a SHORT, suggestive note so Claude can
+# capability areas. If so, it injects a SHORT, suggestive note so Codex can
 # OFFER the relevant agent/skill. If nothing fits, it stays silent (no tokens,
 # no noise).
 #
 # Safety contract:
 #   - It NEVER blocks a prompt (always exits 0; exit 2 would erase the prompt).
-#   - It only ADDS context. It cannot run agents itself — Claude (and the user)
+#   - It only ADDS context. It cannot run agents itself — Codex (and the user)
 #     decide whether to act on the suggestion.
 #   - It is read-only: no writes, no network, no side effects.
 #   - Disable it any time with:  export MAUNGS_TOOLBELT_ROUTER=off
@@ -53,12 +53,24 @@ if [ "$HAVE_JQ" = "1" ]; then
   TB_CWD="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"
 fi
 
+
+# Codex has no Skill hook event. Count explicit $skill mentions at prompt submit.
+if [ "$HAVE_JQ" = "1" ] && command -v tb_debug_on >/dev/null 2>&1 && tb_debug_on; then
+  for slug in agentic-onboard bug-catcher chore dossier-jobs handoff migration-planner orchestrator release-notes todo toolbelt wiki-generator; do
+    case "$prompt" in
+      *'$'"$slug"*|*'@maungs-agentic-toolbelt:'"$slug"*)
+        tb_append "$(jq -nc --arg ts "$(tb_now)" --arg component "$slug"           --arg session "$TB_SESSION" --arg cwd "$TB_CWD"           '{ts:$ts,event:"invoked",kind:"skill",component:$component,raw:$component,session:$session,cwd:$cwd}' 2>/dev/null)"
+        ;;
+    esac
+  done
+fi
+
 # lowercase for matching
 p="$(printf '%s' "$prompt" | tr '[:upper:]' '[:lower:]')"
 
-# --- emit: log the suggestion (opt-in), then surface it to Claude -----------
+# --- emit: log the suggestion (opt-in), then surface it to Codex -----------
 # Args: <intent-id> <offered-component-slugs,csv> <content>
-# The first two feed `@toolbelt metrics`; the third is what Claude actually sees.
+# The first two feed `\$toolbelt metrics`; the third is what Codex actually sees.
 emit() {
   if [ "$HAVE_JQ" = "1" ] && command -v tb_debug_on >/dev/null 2>&1 && tb_debug_on; then
     tb_append "$(jq -nc \
@@ -66,13 +78,12 @@ emit() {
       --arg session "$TB_SESSION" --arg cwd "$TB_CWD" \
       '{ts:$ts,event:"suggested",kind:"router",intent:$intent,offers:$offers,session:$session,cwd:$cwd}' 2>/dev/null)"
   fi
-  # Codex: emit BOTH the structured additionalContext envelope AND the
-  # plain-stdout fallback, so the suggestion surfaces whichever channel
-  # Codex consumes (additionalContext consumption on Codex is unverified).
+  # Codex: stdout must be either one JSON object or plain text, not both.
   if [ "$HAVE_JQ" = "1" ]; then
-    jq -n --arg c "$3" '{suppressOutput:false,hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}'
+    jq -n --arg c "$3" '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}'
+  else
+    printf '%s\n' "$3"
   fi
-  printf '%s\n' "$3"
   exit 0
 }
 
@@ -88,16 +99,16 @@ PREFIX="[Maungs-agentic-toolbelt] An installed toolbelt may help here. Offer the
 if m 'from scratch|greenfield|from the ground up|build .* from scratch|brand[- ]?new (app|project|site|store|service|repo|codebase|product|business|startup|platform)|new ([a-z-]+ ){0,3}(app|project|repo|codebase|saas|web ?app|website|storefront|startup|platform)'; then
   emit "greenfield" "architect,product-owner,orchestrator" "$PREFIX
 Looks like a greenfield / from-scratch build (likely no repo or issue yet). These take a free-text TOPIC — no GitHub repo or issue required:
-- @architect — plan the whole build up front from a one-line description; writes a vetted plan with diagrams. The right first step when starting from scratch.
-- @product-owner — turn \"build X\" into sequenced milestones + scoped issues with acceptance criteria.
-- @orchestrator <topic> — runs the full plan -> build -> review cycle on a free-text topic (no issue needed; add --experiment for a local, no-PR/no-commit dry run). Human-gated at every commit/push."
+- architect subagent — plan the whole build up front from a one-line description; writes a vetted plan with diagrams. The right first step when starting from scratch.
+- product-owner subagent — turn \"build X\" into sequenced milestones + scoped issues with acceptance criteria.
+- \$orchestrator <topic> — runs the full plan -> build -> review cycle on a free-text topic (no issue needed; add --experiment for a local, no-PR/no-commit dry run). Human-gated at every commit/push."
 fi
 
 # 0) Onboard / prep a repo for agentic development
 if m 'claude\.?md|agents\.?md|onboard (this|the|my|a|our)|set ?up (this|the|my|a|our)[a-z ]*(repo|codebase|project)|make (this|the|my|our) (repo|codebase|project) agent|agent-ready|prep (this|the|my|a|our) (repo|codebase|project)|bootstrap (the )?([a-z]+ )?(context|repo|project)|generate (a |the )?claude|there.?s no claude|missing (a )?claude|no (claude|agent|ai)[- ]?(context|config|setup)'; then
   emit "onboard" "agentic-onboard" "$PREFIX
 Looks like preparing a repo for agentic development. Consider:
-- @agentic-onboard — scans the repo and generates the agent-context files the rest of the toolbelt depends on (CLAUDE.md + AGENTS.md + a concise architecture map). Handles cold repos and refreshes stale/outdated context. Add --deep for a full docs/wiki."
+- \$agentic-onboard — scans the repo and generates the agent-context files the rest of the toolbelt depends on (CLAUDE.md + AGENTS.md + a concise architecture map). Handles cold repos and refreshes stale/outdated context. Add --deep for a full docs/wiki."
 fi
 
 # 0c) Personal to-do / tabled work — a private, per-project backlog. Placed HIGH on
@@ -108,7 +119,7 @@ if m '\bbacklog\b|(to-?do|task)s?[ -]?list|table (this|that|it|these|them)|remin
    && ! m '(build|implement|develop|scaffold|create|make|design|code|program|generate) .{0,25}(to-?do|todo|task).{0,18}(app|application|feature|component|page|api|crud|module|service|widget|website|site|clone|tool|program|software|system|board|tracker|manager|ui|frontend|backend)'; then
   emit "todo" "todo" "$PREFIX
 Looks like tabling work for a later session. Consider:
-- @todo <text> — saves it to your private, per-project backlog (stored locally at ~/.claude/maungs-toolbelt/todos/, never committed to the repo). @todo alone lists what you've tabled; @todo done <id> / @todo drop <id> manage it. It only records — turning a todo into work is a separate step you take later."
+- \$todo <text> — saves it to your private, per-project backlog (stored locally at ~/.codex/maungs-toolbelt/todos/, never committed to the repo). \$todo alone lists what you've tabled; \$todo done <id> / \$todo drop <id> manage it. It only records — turning a todo into work is a separate step you take later."
 fi
 
 # 0b) Schema / data migration
@@ -118,23 +129,23 @@ if m 'migrat(e|ion|ing)|schema change|alter table|add (a |the )?[a-z_-]* ?column
    && ! m 'data ?grid|datagrid|table component|grid component|ag-?grid|react[- ]?table|css|tailwind|flexbox'; then
   emit "migration" "migration-planner" "$PREFIX
 Looks like a database/schema migration. Consider:
-- @migration-planner — a read-only pre-flight that produces a risk dossier BEFORE the migration is written: data-loss + lock/downtime risks, a backfill + expand/contract rollout, and a rollback plan. It never writes the migration itself."
+- \$migration-planner — a read-only pre-flight that produces a risk dossier BEFORE the migration is written: data-loss + lock/downtime risks, a backfill + expand/contract rollout, and a rollback plan. It never writes the migration itself."
 fi
 
 # 1) Security / compliance
 if m 'security|secure\b|vulnerab|injection|xss|csrf|sql ?inj|owasp|soc ?2|pci|hipaa|nist|cve\b|secret(s)?\b|credential|encrypt|authn|authz|authoriz|authentic'; then
   emit "security" "security-reviewer,security-mentor" "$PREFIX
 Looks security/compliance-related. Consider:
-- @security-reviewer PR <n> — cold security + compliance gate (SOC2/OWASP/PCI/NIST/CWE), ship/no-ship verdict.
-- @security-mentor PR <n> — same review but explains the threat model + fix on each finding."
+- security-reviewer subagent PR <n> — cold security + compliance gate (SOC2/OWASP/PCI/NIST/CWE), ship/no-ship verdict.
+- security-mentor subagent PR <n> — same review but explains the threat model + fix on each finding."
 fi
 
 # 2) Code / PR review
 if m 'review (this|the|my|that)|pull request|\bpr #?[0-9]|\bpr\b|look over|code review|feedback on (this|my|the) (code|change|diff|pr)|is this[a-z ]* (correct|right|safe|good)'; then
   emit "review" "pr-reviewer,security-reviewer" "$PREFIX
 Looks like a review request. Consider:
-- @pr-reviewer PR <n> — fresh-eyes correctness/quality/tenant-safety review with inline comments + a SHIP / SHIP WITH FIXES / DO NOT SHIP verdict.
-- @security-reviewer PR <n> — add this if security/compliance matters."
+- pr-reviewer subagent PR <n> — fresh-eyes correctness/quality/tenant-safety review with inline comments + a SHIP / SHIP WITH FIXES / DO NOT SHIP verdict.
+- security-reviewer subagent PR <n> — add this if security/compliance matters."
 fi
 
 # 2b) Translate / port code between languages (read-only context). Scoped to a
@@ -142,7 +153,7 @@ fi
 if m 'translate .*(to|into) (ruby|rails|python|django|flask|fastapi|node|express|java|javascript|typescript|go|golang|rust|php|laravel|kotlin|swift|scala|elixir|phoenix|c\+\+|c#|dotnet)|(port|convert|rewrite)(ing|s)? .*(to|into|in) (ruby|rails|python|django|flask|fastapi|node|express|java|javascript|typescript|go|golang|rust|php|laravel|kotlin|swift|scala|elixir|phoenix|c\+\+|c#|dotnet)|from (ruby|rails|python|django|flask|fastapi|node|express|java|javascript|typescript|go|golang|rust|php|laravel|kotlin|swift|scala|elixir|phoenix|c\+\+|c#|dotnet) .*(to|into)'; then
   emit "translate" "code-translator" "$PREFIX
 Looks like translating / porting code between languages. Consider:
-- @code-translator — read-only: fetches the real docs for BOTH languages first, then returns a doc-grounded translation bundle (translated code + a cited idiom map + caveats) for you or the @orchestrator flow. It writes nothing; it only provides grounded context."
+- code-translator subagent — read-only: fetches the real docs for BOTH languages first, then returns a doc-grounded translation bundle (translated code + a cited idiom map + caveats) for you or the \$orchestrator flow. It writes nothing; it only provides grounded context."
 fi
 
 # 3) Bug / defect
@@ -154,66 +165,66 @@ if m 'bug\b|broke(n)?\b|not working|n.?t work|does(n.?t| not) work|fail(s|ing|ed
    && ! m 'add (an? )?error|add (a |an )?(toast|banner|alert|modal|spinner|skeleton|loader)|(build|implement|create|need|want|design|adding) (an? )?error[- ]?(handling|page|boundary|screen|state|view|message|toast|banner)'; then
   emit "bug" "bug-catcher" "$PREFIX
 Looks like a bug/defect. Consider:
-- @bug-catcher <symptom> — diagnoses the ROOT cause (not the symptom) with a file:line evidence chain, then adversarially verifies it before any fix is planned. It never edits code itself."
+- \$bug-catcher <symptom> — diagnoses the ROOT cause (not the symptom) with a file:line evidence chain, then adversarially verifies it before any fix is planned. It never edits code itself."
 fi
 
 # 3b) Author tests
 if m 'write (a |unit |some |more )?tests?|add ([a-z]+ ){0,4}tests?|test coverage|missing tests?|cover .* with (a )?tests?|need (more )?tests?|test cases? for'; then
   emit "tests" "test-author" "$PREFIX
 Looks like adding test coverage. Consider:
-- @test-author — authors tests (especially the negative-path/edge cases the happy path misses), runs them against the project's real test runner, and never weakens an assertion to pass. Read-only on source; writes only test files."
+- test-author subagent — authors tests (especially the negative-path/edge cases the happy path misses), runs them against the project's real test runner, and never weakens an assertion to pass. Read-only on source; writes only test files."
 fi
 
 # 4) Handoff / resume later
 if m 'hand ?off|resume (this|it|later)|pick (this|it) (back )?up|continue (this )?later|context for (the|a|another|the next)|brief for|catch (someone|somebody|a teammate) up'; then
   emit "handoff" "handoff" "$PREFIX
 Looks like transferring or resuming work. Consider:
-- @handoff <issue-id|topic> — drafts a self-contained, drift-aware brief so a zero-context agent (or your future self) can resume cold."
+- \$handoff <issue-id|topic> — drafts a self-contained, drift-aware brief so a zero-context agent (or your future self) can resume cold."
 fi
 
 # 4b) Release notes / changelog / deploy summary
 if m 'release notes?|changelog|cut a release|prepare (a |the )?release|draft (the )?release|deploy(ment)? (comment|notes|description|summary)|what.?s in (this|the) (release|deploy)|release summary'; then
   emit "release-notes" "release-notes" "$PREFIX
 Looks like preparing release notes or a deploy summary. Consider:
-- @release-notes — generates grouped release notes (features / fixes / breaking / migrations) from a commit range or PRs, with a SemVer bump recommendation. Read-only (outputs text; never tags or posts). Add --format deploy-comment to enrich a deployment comment."
+- \$release-notes — generates grouped release notes (features / fixes / breaking / migrations) from a commit range or PRs, with a SemVer bump recommendation. Read-only (outputs text; never tags or posts). Add --format deploy-comment to enrich a deployment comment."
 fi
 
 # 5) Chore-sized change
 if m 'typo|\bbump\b|upgrade (the |a )?([a-z]+ )?(depend|package|version|lib|gem)|dependency (bump|update|upgrade)|rename (a|the|this|that)|small (fix|change|tweak)|one-?liner|(tweak|edit|change|update) (the )?([a-z]+ )?config|config (change|tweak)|update (the |a )?([a-z]+ )?(readme|comment|changelog|doc)'; then
   emit "chore" "chore" "$PREFIX
 Looks like a small, single-concern change. Consider:
-- @chore <description> — a lightweight PR flow that keeps the commit/push gates but skips the full pipeline. It re-routes to @orchestrator if the task turns out bigger than a chore."
+- \$chore <description> — a lightweight PR flow that keeps the commit/push gates but skips the full pipeline. It re-routes to \$orchestrator if the task turns out bigger than a chore."
 fi
 
 # 6) Understand / document a codebase
 if m 'document (the|this)|write (the )?docs|\bwiki\b|how does (the|this).*(work|function)|explain (the|this) (codebase|module|service|system|architecture)|where (is|does)|walk me through (the|this) (code|repo|codebase)'; then
   emit "document" "wiki-generator" "$PREFIX
 Looks like understanding or documenting a codebase. Consider:
-- @wiki-generator — builds/maintains a near-100% technical wiki (per-module analysis, schemas, diagrams, related files) at docs/wiki/. Best when the question is about THIS project's code; ignore for general questions."
+- \$wiki-generator — builds/maintains a near-100% technical wiki (per-module analysis, schemas, diagrams, related files) at docs/wiki/. Best when the question is about THIS project's code; ignore for general questions."
 fi
 
 # 7) Plan / design / architecture
 if m 'plan (this|the|out|a)|design (the|a|this)|architect\b|architecture|approach to|how should (i|we) (build|structure|design|approach)|rfc\b|proposal|spec out|scope (this|the|out)|requirements|acceptance criteria|write (an?|the) issue'; then
   emit "plan" "architect,product-owner" "$PREFIX
 Looks like planning / scoping / architecture. Consider:
-- @architect — front-loads every architectural decision into a vetted plan file before any code is written.
-- @product-owner — turns a fuzzy ask into a scoped issue with business-language acceptance criteria (and UI/UX wireframes for user-facing work)."
+- architect subagent — front-loads every architectural decision into a vetted plan file before any code is written.
+- product-owner subagent — turns a fuzzy ask into a scoped issue with business-language acceptance criteria (and UI/UX wireframes for user-facing work)."
 fi
 
 # 7b) What can the toolbelt do (meta / discovery)
 if m 'what can (this|the|your|you).*(toolbelt|do|help)|what (tools|agents|skills|commands|components) (do|are|does|can|you)|which (component|agent|skill|tool|command)|what.?s in (the|your) toolbelt|list (the )?([a-z]+ )?(agents|skills|tools|components|commands)|toolbelt (help|status|inventory)'; then
   emit "meta" "toolbelt" "$PREFIX
 Looks like a question about the toolbelt itself. Consider:
-- @toolbelt — lists the full inventory, recommends the best component for a stated goal, and shows status (router state, MCP servers, whether a CLAUDE.md exists)."
+- \$toolbelt — lists the full inventory, recommends the best component for a stated goal, and shows status (router state, MCP servers, whether a CLAUDE.md exists)."
 fi
 
 # 8) Build / implement a feature
 if m 'build (an?|the|this|me)|implement\b|add (an?|the).*(feature|page|endpoint|screen|form|flow|api|component|button|modal)|create (an?|the).*(app|feature|service|endpoint|page|screen|form|flow|component)|new feature|scaffold|ship (an?|the|this)|develop (an?|the|this)|help me (build|make|create)'; then
   emit "build" "orchestrator,architect,product-owner" "$PREFIX
 Looks like building or extending a feature. Consider OFFERING (do not auto-start — these open PRs and push):
-- @orchestrator <issue|topic> — runs the full plan -> build -> review -> merge-ready cycle, human-gated at every commit/push.
-- @architect — if scope is fuzzy, plan it first.
-- @product-owner — if it isn't a scoped issue/requirements yet."
+- \$orchestrator <issue|topic> — runs the full plan -> build -> review -> merge-ready cycle, human-gated at every commit/push.
+- architect subagent — if scope is fuzzy, plan it first.
+- product-owner subagent — if it isn't a scoped issue/requirements yet."
 fi
 
 # no match -> silent

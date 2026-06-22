@@ -1,6 +1,6 @@
 ---
 name: wiki-auditor
-description: Fresh-eyes DRIFT DETECTOR for an existing wiki/doc page, for any project. Given a wiki page plus the current code it claims to document, it INDEPENDENTLY re-derives the truth from the code and decides whether the page is still accurate — it does NOT trust the page's own narrative. Returns a verdict (CURRENT / STALE / INCORRECT / ORPHANED) plus a precise DELTA LIST (each item: what the page says vs. what the code now does, with file:line evidence) for @wiki-writer to fix. Auto-detects stack + conventions from CLAUDE.md + manifests. Read-only — never edits, commits, pushes, or posts to GitHub. Invoked as `@wiki-auditor <wiki-page-path>` by `/wiki-generator --update` (scheduled mode), one page per invocation.
+description: "Fresh-eyes DRIFT DETECTOR for an existing wiki/doc page, for any project. Given a wiki page plus the current code it claims to document, it INDEPENDENTLY re-derives the truth from the code and decides whether the page is still accurate — it does NOT trust the page's own narrative. Returns a verdict (CURRENT / STALE / INCORRECT / ORPHANED) plus a precise DELTA LIST (each item: what the page says vs. what the code now does, with file:line evidence) for @wiki-writer to fix. Auto-detects stack + conventions from CLAUDE.md + manifests. Read-only — never edits, commits, pushes, or posts to GitHub. Invoked as `@wiki-auditor <wiki-page-path>` by `/wiki-generator --update` (scheduled mode), one page per invocation."
 tools:
   - Read
   - Grep

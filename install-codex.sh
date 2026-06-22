@@ -1,26 +1,25 @@
 #!/usr/bin/env bash
 #
 # install-codex.sh — install this toolbelt's AGENTS + HOOKS into the OpenAI
-# Codex CLI config (~/.codex). Skills ship via the Codex marketplace/plugin
-# manifest, NOT this installer (the Codex plugin manifest cannot carry agents +
-# hooks), so this is the agents+hooks track. See docs/codex.md for the two-track
-# story.
+# Codex CLI config (~/.codex). The plugin carries skills + lifecycle hooks; this
+# installer carries the custom subagents Codex does not currently package in
+# third-party plugins. See docs/codex.md.
 #
-#   ./install-codex.sh              # install agents + hooks into ~/.codex
+#   ./install-codex.sh              # install custom agents into ~/.codex
 #   ./install-codex.sh --target DIR # install into DIR/.codex instead of ~/.codex
 #   ./install-codex.sh --dry-run    # show what would happen, change nothing
-#   ./install-codex.sh --skills     # ALSO copy the generated skills locally
-#                                   #   (fallback when you are not using the
-#                                   #    marketplace; the marketplace is preferred)
+#   ./install-codex.sh --standalone # also install skills + hooks without plugin
+#   ./install-codex.sh --skills     # compatibility alias for --standalone
 #
 # It:
 #   1. copies each generated codex-agents/<name>.toml  -> ~/.codex/agents/
-#   2. copies the five generated codex-hooks/*.sh       -> ~/.codex/hooks/
-#   3. MERGES codex-hooks/hooks.json into ~/.codex/hooks.json (never clobbers an
+#   2. with --standalone, copies plugin hooks             -> ~/.codex/hooks/
+#   3. with --standalone, MERGES hooks.json into ~/.codex/hooks.json (never clobbers an
 #      existing notify / mcp_servers), AFTER substituting every
-#      __TOOLBELT_HOOK_DIR__ placeholder with the absolute ~/.codex/hooks dir, so
+#      ${PLUGIN_ROOT}/hooks reference with the absolute ~/.codex/hooks dir, so
 #      each command entry resolves to the copied script.
-#   4. prints MCP setup guidance (it does NOT run `codex mcp add` for you).
+#   4. with --standalone, copies skills                   -> ~/.agents/skills/
+#   5. prints MCP setup guidance (it does NOT run `codex mcp add` for you).
 #
 # jq is used for the hooks.json merge; without jq it PRINTS the generated hooks
 # block and the target path so you can merge by hand (jq is not a hard dep).
@@ -28,15 +27,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET="${HOME}/.codex"
+BASE="${HOME}"
+TARGET="${BASE}/.codex"
 DRY_RUN="false"
-WITH_SKILLS="false"
+STANDALONE="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target)  [[ $# -ge 2 ]] || { echo "Missing DIR for --target" >&2; exit 1; }; TARGET="${2%/}/.codex"; shift 2 ;;
+    --target)  [[ $# -ge 2 ]] || { echo "Missing DIR for --target" >&2; exit 1; }; BASE="${2%/}"; TARGET="${BASE}/.codex"; shift 2 ;;
     --dry-run) DRY_RUN="true"; shift ;;
-    --skills)  WITH_SKILLS="true"; shift ;;
+    --standalone|--skills) STANDALONE="true"; shift ;;
     -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
@@ -54,20 +54,20 @@ run() {
 }
 
 AGENTS_SRC="$SCRIPT_DIR/codex-agents"
-HOOKS_SRC="$SCRIPT_DIR/codex-hooks"
+HOOKS_SRC="$SCRIPT_DIR/plugins/maungs-agentic-toolbelt/hooks"
 SKILLS_SRC="$SCRIPT_DIR/plugins/maungs-agentic-toolbelt/skills"
 
-if [[ ! -d "$AGENTS_SRC" || ! -d "$HOOKS_SRC" ]]; then
+if [[ ! -d "$AGENTS_SRC" ]]; then
   echo "Generated artifacts not found. Run: python3 tools/build.py --target codex" >&2
   exit 1
 fi
 
-# nullglob so an EMPTY codex-agents/ or codex-hooks/ expands to nothing (not a
+# nullglob so an EMPTY codex-agents/ or plugin hooks directory expands to nothing (not a
 # literal `*.toml`/`*.sh` that `cp` would choke on and abort under `set -e`).
 shopt -s nullglob
 AGENT_FILES=("$AGENTS_SRC"/*.toml)
 HOOK_FILES=("$HOOKS_SRC"/*.sh)
-if [[ ${#AGENT_FILES[@]} -eq 0 || ${#HOOK_FILES[@]} -eq 0 ]]; then
+if [[ ${#AGENT_FILES[@]} -eq 0 ]]; then
   echo "Generated artifacts not found. Run: python3 tools/build.py --target codex" >&2
   exit 1
 fi
@@ -84,8 +84,9 @@ for f in "${AGENT_FILES[@]}"; do
   info "agent: agents/$name"
 done
 
-# 2) Hooks -> ~/.codex/hooks/
-echo "Hooks:"
+# 2) Standalone fallback: hooks -> ~/.codex/hooks/
+if [[ "$STANDALONE" == "true" ]]; then
+echo "Hooks (standalone fallback — plugin install is preferred):"
 HOOK_DIR="$TARGET/hooks"
 run mkdir -p "$HOOK_DIR"
 for f in "${HOOK_FILES[@]}"; do
@@ -99,7 +100,7 @@ done
 GEN_HOOKS_JSON="$HOOKS_SRC/hooks.json"
 DST_HOOKS_JSON="$TARGET/hooks.json"
 
-# Resolve the __TOOLBELT_HOOK_DIR__ placeholder to the real install hook dir.
+# Resolve the plugin-root hook path to the standalone install hook dir.
 # $HOOK_DIR is user-controlled (--target DIR), so the substitution MUST be
 # metacharacter-safe: a raw `sed s#…#$HOOK_DIR#` would mis-substitute on `&` or
 # `\N` and abort if the path contained `#` (CWE-150). We substitute with jq's
@@ -114,7 +115,7 @@ subst_placeholder() {
     # path is never parsed as a pattern. walk every string, replacing the exact
     # placeholder token with the literal $dir.
     jq --arg dir "$1" '
-      def subst: if type == "string" then sub("__TOOLBELT_HOOK_DIR__"; $dir) else . end;
+      def subst: if type == "string" then sub("\\$\\{PLUGIN_ROOT\\}/hooks"; $dir) else . end;
       walk(subst)
     '
   elif command -v python3 >/dev/null 2>&1; then
@@ -125,7 +126,7 @@ subst_placeholder() {
 d = sys.argv[1]
 def walk(x):
     if isinstance(x, str):
-        return x.replace("__TOOLBELT_HOOK_DIR__", d)
+        return x.replace("${PLUGIN_ROOT}/hooks", d)
     if isinstance(x, list):
         return [walk(v) for v in x]
     if isinstance(x, dict):
@@ -179,24 +180,26 @@ else
   else
     # No jq AND no python3 — substitute nothing rather than risk a metacharacter
     # mangle. Print the raw template and tell the user the exact replacement.
-    warn "python3 also not found — printing the template UNSUBSTITUTED; replace every '__TOOLBELT_HOOK_DIR__' with: ${HOOK_DIR}"
+    warn "python3 also not found — printing the template UNSUBSTITUTED; replace every '\${PLUGIN_ROOT}/hooks' with: ${HOOK_DIR}"
     cat "$GEN_HOOKS_JSON"
   fi
 fi
+fi
 
-# 4) Optional: skills locally (marketplace is preferred).
-if [[ "$WITH_SKILLS" == "true" ]]; then
-  echo "Skills (local fallback — marketplace is preferred):"
+# 4) Standalone fallback: skills in Codex's documented user skill directory.
+if [[ "$STANDALONE" == "true" ]]; then
+  echo "Skills (standalone fallback — plugin install is preferred):"
   if [[ -d "$SKILLS_SRC" ]]; then
-    run mkdir -p "$TARGET/skills"
+    SKILL_TARGET="$BASE/.agents/skills"
+    run mkdir -p "$SKILL_TARGET"
     for d in "$SKILLS_SRC"/*/; do
       name="$(basename "$d")"
       # rm-then-copy so the copy is IDEMPOTENT: a plain `cp -R` over an existing
       # skill dir would NEST or leave stale files dropped across versions. The
       # `run` wrapper keeps --dry-run honest (it only prints the rm + cp).
-      run rm -rf "$TARGET/skills/$name"
-      run cp -R "${d%/}" "$TARGET/skills/$name"
-      info "skill: skills/$name"
+      run rm -rf "$SKILL_TARGET/$name"
+      run cp -R "${d%/}" "$SKILL_TARGET/$name"
+      info "skill: .agents/skills/$name"
     done
   else
     warn "generated skills not found at $SKILLS_SRC — run: python3 tools/build.py --target codex"
@@ -206,15 +209,16 @@ fi
 cat <<'EOF'
 
 Done. Next steps:
-  1. Restart your agent (Codex CLI) so it picks up the new agents + hooks.
-  2. Skills: add the marketplace + install the plugin (preferred over --skills):
+  1. Add the marketplace + install the plugin (skills + lifecycle hooks):
        codex plugin marketplace add Sfzmango/Maungs-agentic-toolbelt
        codex plugin add maungs-agentic-toolbelt@maung-tools
-  3. These agents assume MCP servers are configured. Check + add as needed:
+  2. Open /hooks, review the plugin-bundled hooks, and trust them.
+  3. Start a new Codex thread so it picks up the custom agents and plugin.
+  4. These agents assume MCP servers are configured. Check + add as needed:
        codex mcp list
        # GitHub MCP   — issue/PR read+write (used by most agents)
-       # Playwright MCP — browser verification (used by @developer for UI changes)
-       # Context7 MCP  — doc grounding (used by @code-translator)
+       # Playwright MCP — browser verification (used by the developer subagent)
+       # Context7 MCP  — doc grounding (used by the code-translator subagent)
      The installer does NOT run `codex mcp add` for you — add the servers you need.
-  4. Try it:  @architect plan a small change   ·   trigger a skill in chat
+  5. Try it:  ask Codex to spawn the architect subagent, or run $toolbelt.
 EOF

@@ -5,7 +5,7 @@
 #
 # sessionstart-loader.sh — SessionStart hook for Maungs-agentic-toolbelt.
 #
-# Injects a concise, read-only project snapshot at session start so Claude
+# Injects a concise, read-only project snapshot at session start so Codex
 # begins warm instead of re-deriving the repo from scratch. Local git is
 # instant; the optional `gh` PR lookup is best-effort and bounded by the hook
 # timeout in hooks.json.
@@ -30,19 +30,19 @@ n="$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"; add "- Uncommitte
 rc="$(git log --oneline -3 2>/dev/null | sed 's/^/    /')"; [ -n "$rc" ] && add "- Recent commits:
 ${rc}"
 
-if [ ! -f CLAUDE.md ] && [ ! -f CLAUDE.local.md ]; then
-  add "- No CLAUDE.md found — run @agentic-onboard to generate agent context for this repo."
+if [ ! -f AGENTS.md ] && [ ! -f CLAUDE.md ] && [ ! -f CLAUDE.local.md ]; then
+  add "- No AGENTS.md or CLAUDE.md found — run \$agentic-onboard to generate agent context for this repo."
 fi
 
 plan="$(ls -t docs/plans/*.md 2>/dev/null | head -1)"; [ -n "$plan" ] && add "- Latest plan file: ${plan}"
 hand="$(ls -t HANDOFF*.md docs/handoffs/*.md 2>/dev/null | head -1)"; [ -n "$hand" ] && add "- Pending handoff: ${hand}"
 
-# private per-project to-do backlog (the @todo skill) — local only, never in the repo.
-# Slug must match the @todo skill's canonical computation: repo root, non-alnum -> '-'.
-tfile="${HOME}/.claude/maungs-toolbelt/todos/$(printf '%s' "$root" | sed 's#[^A-Za-z0-9]#-#g').md"
+# private per-project to-do backlog (the \$todo skill) — local only, never in the repo.
+# Slug must match the \$todo skill's canonical computation: repo root, non-alnum -> '-'.
+tfile="${HOME}/.codex/maungs-toolbelt/todos/$(printf '%s' "$root" | sed 's#[^A-Za-z0-9]#-#g').md"
 if [ -f "$tfile" ]; then
   topen="$(grep -c '^- \[ \] ' "$tfile" 2>/dev/null | tr -d ' ')"
-  case "$topen" in ''|0) ;; *) add "- Open todos: ${topen} (private backlog — @todo to view)";; esac
+  case "$topen" in ''|0) ;; *) add "- Open todos: ${topen} (private backlog — \$todo to view)";; esac
 fi
 
 if command -v gh >/dev/null 2>&1; then
