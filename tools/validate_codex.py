@@ -11,9 +11,10 @@ hand-maintained wrappers are well-formed:
     dir (the manifest and marketplace live at different depths, so the validator
     derives each base dir from that file's path; the two never collide).
 
-The one cross-wrapper reference is pinned: the marketplace entry's ``source`` key
-must equal ``plugins/maungs-agentic-toolbelt/`` and resolve (from the repo root)
-to the directory holding ``.codex-plugin/plugin.json``.
+The cross-wrapper reference is pinned to Codex's current structured local-source
+schema: ``source.source`` must be ``local`` and ``source.path`` must equal
+``./plugins/maungs-agentic-toolbelt``. The path resolves from the repo root to
+the directory holding ``.codex-plugin/plugin.json``.
 
 NEITHER wrapper carries a numeric component count (decision 14) — the CI count
 assertion derives the count from the filesystem, so there is nothing to drift.
@@ -34,7 +35,8 @@ REPO_ROOT = os.path.dirname(_THIS_DIR)
 
 MANIFEST_REL = "plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json"
 MARKETPLACE_REL = ".agents/plugins/marketplace.json"
-PINNED_SOURCE = "plugins/maungs-agentic-toolbelt/"
+PINNED_SOURCE_PATH = "./plugins/maungs-agentic-toolbelt"
+PINNED_SKILLS_PATH = "./skills/"
 
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 # Broadened component-count denylist (BUG-12): case-insensitive, singular/plural
@@ -59,19 +61,16 @@ MANIFEST_ALLOWED = {
 }
 MANIFEST_REQUIRED = {"name", "description", "version", "skills"}
 
-MARKETPLACE_ALLOWED = {"name", "description", "owner", "plugins"}
+MARKETPLACE_ALLOWED = {"name", "interface", "plugins"}
 MARKETPLACE_REQUIRED = {"name", "plugins"}
-MARKETPLACE_PLUGIN_ALLOWED = {
-    "name",
-    "source",
-    "description",
-    "author",
-    "homepage",
-    "license",
-    "category",
-    "keywords",
-}
-MARKETPLACE_PLUGIN_REQUIRED = {"name", "source"}
+MARKETPLACE_PLUGIN_ALLOWED = {"name", "source", "policy", "category"}
+MARKETPLACE_PLUGIN_REQUIRED = {"name", "source", "policy", "category"}
+MARKETPLACE_SOURCE_ALLOWED = {"source", "path"}
+MARKETPLACE_SOURCE_REQUIRED = {"source", "path"}
+MARKETPLACE_POLICY_ALLOWED = {"installation", "authentication", "products"}
+MARKETPLACE_POLICY_REQUIRED = {"installation", "authentication"}
+INSTALLATION_POLICIES = {"NOT_AVAILABLE", "AVAILABLE", "INSTALLED_BY_DEFAULT"}
+AUTHENTICATION_POLICIES = {"ON_INSTALL", "ON_USE"}
 
 
 def _load_json(path: str, problems: list):
@@ -150,49 +149,33 @@ def validate_manifest(problems: list) -> None:
 
     # Manifest base dir = the dir TWO levels up from the manifest file.
     base = os.path.dirname(os.path.dirname(path))  # plugins/maungs-agentic-toolbelt/
-    skills = obj.get("skills", [])
-    if not isinstance(skills, list) or not skills:
-        problems.append("manifest: 'skills' must be a non-empty list")
+    skills = obj.get("skills", "")
+    if skills != PINNED_SKILLS_PATH:
+        problems.append(
+            "manifest: 'skills' must equal '%s' (got '%s')"
+            % (PINNED_SKILLS_PATH, skills)
+        )
     else:
-        for ref in skills:
-            target = os.path.join(base, ref)
-            if not os.path.isfile(target):
-                problems.append(
-                    "manifest: referenced skill path does not exist: %s "
-                    "(resolved against %s)" % (ref, os.path.relpath(base, REPO_ROOT))
-                )
-        # COMPLETENESS (AC-2): the skills list is HAND-MAINTAINED, but the skill
-        # FOLDERS under it are GENERATED from canonical. A skill added to canonical
-        # (regenerated into a new ``skills/<name>/SKILL.md`` here) that is not also
-        # added to this list would be SILENTLY dropped from the Codex marketplace
-        # track — existence-only validation cannot catch that. Assert the referenced
-        # set EQUALS the generated-folder set (a missing entry AND a stray entry both
-        # fail), so the hand-maintained list can never drift from the generated tree.
-        skills_dir = os.path.join(base, "skills")
-        generated = set()
-        if os.path.isdir(skills_dir):
-            for name in sorted(os.listdir(skills_dir)):
-                if os.path.isfile(os.path.join(skills_dir, name, "SKILL.md")):
-                    generated.add("skills/%s/SKILL.md" % name)
-        if len(skills) != len(set(skills)):
-            problems.append("manifest: 'skills' contains duplicate entries")
-        referenced = set(skills)
-        for missing in sorted(generated - referenced):
+        skills_dir = os.path.normpath(os.path.join(base, skills))
+        if not os.path.isdir(skills_dir):
             problems.append(
-                "manifest: generated skill not referenced in 'skills' (add it): %s" % missing
+                "manifest: referenced skills directory does not exist: %s "
+                "(resolved against %s)" % (skills, os.path.relpath(base, REPO_ROOT))
             )
-        for stray in sorted(referenced - generated):
-            problems.append(
-                "manifest: 'skills' references a skill with no generated folder: %s" % stray
-            )
+        elif not any(
+            os.path.isfile(os.path.join(skills_dir, name, "SKILL.md"))
+            for name in os.listdir(skills_dir)
+        ):
+            problems.append("manifest: referenced skills directory contains no skills")
 
 
 def validate_marketplace(problems: list) -> None:
-    """Validate the marketplace root + the pinned cross-wrapper ``source`` hop.
+    """Validate the marketplace root + pinned structured local-source hop.
 
     Base dir for the marketplace is the REPO ROOT (where ``.agents/`` sits). The
-    plugin entry's ``source`` must equal the pinned ``plugins/maungs-agentic-
-    toolbelt/`` and resolve (from repo root) to the dir holding the manifest.
+    plugin entry's ``source.path`` must equal the pinned
+    ``./plugins/maungs-agentic-toolbelt`` and resolve from the repo root to the
+    directory holding the manifest.
     """
     path = os.path.join(REPO_ROOT, MARKETPLACE_REL)
     obj = _load_json(path, problems)
@@ -224,27 +207,66 @@ def validate_marketplace(problems: list) -> None:
             "marketplace plugin entry",
             problems,
         )
-        source = entry.get("source", "")
+        source = entry.get("source", {})
+        if not isinstance(source, dict):
+            problems.append("marketplace plugin entry: 'source' must be a JSON object")
+            source = {}
+        else:
+            _check_keys(
+                source,
+                MARKETPLACE_SOURCE_ALLOWED,
+                MARKETPLACE_SOURCE_REQUIRED,
+                "marketplace plugin source",
+                problems,
+            )
+
+        policy = entry.get("policy", {})
+        if not isinstance(policy, dict):
+            problems.append("marketplace plugin entry: 'policy' must be a JSON object")
+            policy = {}
+        else:
+            _check_keys(
+                policy,
+                MARKETPLACE_POLICY_ALLOWED,
+                MARKETPLACE_POLICY_REQUIRED,
+                "marketplace plugin policy",
+                problems,
+            )
+            if policy.get("installation") not in INSTALLATION_POLICIES:
+                problems.append(
+                    "marketplace plugin policy: invalid installation value '%s'"
+                    % policy.get("installation")
+                )
+            if policy.get("authentication") not in AUTHENTICATION_POLICIES:
+                problems.append(
+                    "marketplace plugin policy: invalid authentication value '%s'"
+                    % policy.get("authentication")
+                )
+
         if entry.get("name") == "maungs-agentic-toolbelt":
             found_pinned = True
-            # Pin the cross-wrapper reference exactly.
-            if source != PINNED_SOURCE:
+            if source.get("source") != "local":
                 problems.append(
-                    "marketplace: plugin 'source' must equal '%s' (got '%s')"
-                    % (PINNED_SOURCE, source)
+                    "marketplace: plugin 'source.source' must equal 'local' (got '%s')"
+                    % source.get("source")
                 )
-            # Resolve the source from the repo root and confirm it holds the manifest.
-            plugin_dir = os.path.join(REPO_ROOT, source)
+            source_path = source.get("path", "")
+            if source_path != PINNED_SOURCE_PATH:
+                problems.append(
+                    "marketplace: plugin 'source.path' must equal '%s' (got '%s')"
+                    % (PINNED_SOURCE_PATH, source_path)
+                )
+            plugin_dir = os.path.normpath(os.path.join(REPO_ROOT, source_path))
             if not os.path.isdir(plugin_dir):
                 problems.append(
-                    "marketplace: 'source' dir does not exist: %s" % source
+                    "marketplace: 'source.path' dir does not exist: %s" % source_path
                 )
             else:
                 manifest = os.path.join(plugin_dir, ".codex-plugin", "plugin.json")
                 if not os.path.isfile(manifest):
                     problems.append(
-                        "marketplace: 'source' dir does not contain "
-                        ".codex-plugin/plugin.json: %s" % source
+                        "marketplace: 'source.path' dir does not contain "
+                        ".codex-plugin/plugin.json: %s" % source_path
                     )
     if not found_pinned:
         problems.append(

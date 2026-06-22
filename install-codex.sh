@@ -209,7 +209,7 @@ Done. Next steps:
   1. Restart your agent (Codex CLI) so it picks up the new agents + hooks.
   2. Skills: add the marketplace + install the plugin (preferred over --skills):
        codex plugin marketplace add Sfzmango/Maungs-agentic-toolbelt
-       codex plugin install maungs-agentic-toolbelt
+       codex plugin add maungs-agentic-toolbelt@maung-tools
   3. These agents assume MCP servers are configured. Check + add as needed:
        codex mcp list
        # GitHub MCP   — issue/PR read+write (used by most agents)

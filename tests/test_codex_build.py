@@ -291,8 +291,8 @@ def _run_validate(cwd):
     return proc.returncode, proc.stdout + proc.stderr
 
 
-def test_validate_duplicate_skills_rejected():
-    print("\n[validate_codex: duplicate 'skills' entries rejected (BUG-11)]")
+def test_validate_legacy_skills_list_rejected():
+    print("\n[validate_codex: legacy explicit 'skills' list rejected]")
     import json
     tmp = tempfile.mkdtemp()
     try:
@@ -301,13 +301,32 @@ def test_validate_duplicate_skills_rejected():
                                 ".codex-plugin", "plugin.json")
         with open(manifest, encoding="utf-8") as fh:
             obj = json.load(fh)
-        # Duplicate the first skills entry.
-        obj["skills"] = obj["skills"] + [obj["skills"][0]]
+        obj["skills"] = ["skills/toolbelt/SKILL.md"]
         with open(manifest, "w", encoding="utf-8") as fh:
             json.dump(obj, fh, indent=2)
         rc, out = _run_validate(tmp)
-        check("duplicate-skills validate exits non-zero", rc != 0, out.strip()[:200])
-        check("duplicate-skills reported", "duplicate entries" in out, out.strip()[:200])
+        check("legacy-skills-list validate exits non-zero", rc != 0, out.strip()[:200])
+        check("canonical skills directory reported", "./skills/" in out, out.strip()[:200])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_validate_legacy_marketplace_source_rejected():
+    print("\n[validate_codex: legacy string marketplace source rejected]")
+    import json
+    tmp = tempfile.mkdtemp()
+    try:
+        copy_repo_subset(tmp)
+        marketplace = os.path.join(tmp, ".agents", "plugins", "marketplace.json")
+        with open(marketplace, encoding="utf-8") as fh:
+            obj = json.load(fh)
+        obj["plugins"][0]["source"] = "plugins/maungs-agentic-toolbelt/"
+        with open(marketplace, "w", encoding="utf-8") as fh:
+            json.dump(obj, fh, indent=2)
+        rc, out = _run_validate(tmp)
+        check("legacy-source validate exits non-zero", rc != 0, out.strip()[:200])
+        check("structured source object reported",
+              "'source' must be a JSON object" in out, out.strip()[:200])
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -361,30 +380,42 @@ def test_validate_non_dict_toplevel_rejected():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def test_manifest_lists_every_generated_skill():
-    print("\n[manifest: .codex-plugin/plugin.json lists EVERY generated skill (AC-2 completeness)]")
+def test_manifest_discovers_every_generated_skill():
+    print("\n[manifest: .codex-plugin/plugin.json discovers the generated skills directory]")
     import json
     base = os.path.join(REPO_ROOT, "plugins", "maungs-agentic-toolbelt")
     with open(os.path.join(base, ".codex-plugin", "plugin.json"), encoding="utf-8") as fh:
-        referenced = set(json.load(fh).get("skills", []))
+        skills_ref = json.load(fh).get("skills")
     skills_dir = os.path.join(base, "skills")
-    generated = set(
-        "skills/%s/SKILL.md" % n
+    generated = {
+        n
         for n in os.listdir(skills_dir)
         if os.path.isfile(os.path.join(skills_dir, n, "SKILL.md"))
-    )
+    }
     canonical = {c.name for c in common.load_skills(REPO_ROOT)}
-    # The skills LIST is hand-maintained but the FOLDERS are generated — a new
-    # canonical skill that is regenerated but not added to the manifest would be
-    # silently dropped from the Codex marketplace track (the bug this guards).
-    check("manifest references EVERY generated skill (no silent drop)",
-          referenced == generated,
-          "missing=%s stray=%s" % (sorted(generated - referenced), sorted(referenced - generated)))
-    check("manifest skill count == canonical skill count",
-          len(referenced) == len(canonical),
-          "manifest=%d canonical=%d" % (len(referenced), len(canonical)))
-    for s in ("dossier-jobs", "todo"):
-        check("manifest lists %s" % s, "skills/%s/SKILL.md" % s in referenced)
+    check("manifest uses current directory discovery syntax",
+          skills_ref == "./skills/", repr(skills_ref))
+    check("generated skill folders equal canonical skills",
+          generated == canonical,
+          "missing=%s stray=%s" % (sorted(canonical - generated), sorted(generated - canonical)))
+
+
+def test_codex_install_command_is_current():
+    print("\n[docs: current Codex plugin add command]")
+    active_files = ("README.md", "docs/codex.md", "install-codex.sh")
+    stale = []
+    selector_missing = []
+    for rel in active_files:
+        with open(os.path.join(REPO_ROOT, rel), encoding="utf-8") as fh:
+            text = fh.read()
+        if "codex plugin install" in text:
+            stale.append(rel)
+        if "codex plugin add maungs-agentic-toolbelt@maung-tools" not in text:
+            selector_missing.append(rel)
+    check("no active install guide uses removed 'codex plugin install'",
+          not stale, str(stale))
+    check("all active install guides use the marketplace-qualified selector",
+          not selector_missing, str(selector_missing))
 
 
 # ---------------------------------------------------------------------------
@@ -1046,10 +1077,12 @@ def main():
         test_determinism_shuffled_readdir,
         test_determinism_newline_normalization,
         test_validate_codex,
-        test_validate_duplicate_skills_rejected,
+        test_validate_legacy_skills_list_rejected,
+        test_validate_legacy_marketplace_source_rejected,
         test_validate_version_parity,
         test_validate_non_dict_toplevel_rejected,
-        test_manifest_lists_every_generated_skill,
+        test_manifest_discovers_every_generated_skill,
+        test_codex_install_command_is_current,
         test_transforms_claude_mcp_cli,
         test_transforms_mcp_prose_server_agnostic,
         test_transforms_context7_emitted_body,

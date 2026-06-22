@@ -13,7 +13,7 @@ Codex port ships on **two tracks**:
 
 | Track | Carries | How you get it |
 |-------|---------|----------------|
-| **Marketplace / plugin** | the 11 skills | `codex plugin marketplace add …` + `codex plugin install …` |
+| **Marketplace / plugin** | the 11 skills | `codex plugin marketplace add …` + `codex plugin add …` |
 | **Installer** | the 16 agents + the 4 hooks | `./install-codex.sh` |
 
 This split is a Codex platform constraint, not a preference: the manifest format
@@ -26,12 +26,13 @@ marketplace owns skills.
 
 ```sh
 codex plugin marketplace add Sfzmango/Maungs-agentic-toolbelt
-codex plugin install maungs-agentic-toolbelt
+codex plugin add maungs-agentic-toolbelt@maung-tools
 ```
 
-The marketplace reads `.agents/plugins/marketplace.json`, whose plugin `source`
-points at `plugins/maungs-agentic-toolbelt/`, where the skills-only manifest
-(`.codex-plugin/plugin.json`) and the generated `skills/<name>/SKILL.md` live.
+The marketplace reads `.agents/plugins/marketplace.json`, whose structured local
+`source.path` points at `./plugins/maungs-agentic-toolbelt`, where the
+skills-only manifest (`.codex-plugin/plugin.json`) and the generated
+`skills/<name>/SKILL.md` live.
 
 ### 2. Agents + hooks (installer)
 

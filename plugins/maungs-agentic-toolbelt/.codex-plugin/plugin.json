@@ -18,17 +18,5 @@
     "documentation",
     "workflow"
   ],
-  "skills": [
-    "skills/agentic-onboard/SKILL.md",
-    "skills/bug-catcher/SKILL.md",
-    "skills/chore/SKILL.md",
-    "skills/dossier-jobs/SKILL.md",
-    "skills/handoff/SKILL.md",
-    "skills/migration-planner/SKILL.md",
-    "skills/orchestrator/SKILL.md",
-    "skills/release-notes/SKILL.md",
-    "skills/todo/SKILL.md",
-    "skills/toolbelt/SKILL.md",
-    "skills/wiki-generator/SKILL.md"
-  ]
+  "skills": "./skills/"
 }
