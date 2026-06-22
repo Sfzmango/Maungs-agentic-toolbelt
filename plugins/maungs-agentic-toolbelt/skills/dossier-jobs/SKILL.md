@@ -1,11 +1,11 @@
 ---
-name: overnight
-description: Conductor that stands up the toolbelt's overnight CLOUD routines for any target repo with one command. `/overnight [repo]` (or no arg → the cwd's git remote) sets up, by default, THREE scheduled cloud routines — bug · security · wiki — via the RemoteTrigger tool (the claude.ai/code routines API), each its own routine, all feeding ONE rolling `[overnight] Dossier` tracking issue (each job owns its own marker-tagged comment, race-safe). The bug routine sweeps the codebase and auto-develops the top `--max-fixes` (default 5) NON-SEV1 findings into DRAFT, never-merged fix PRs (SEV1 stays issue-only); the security routine runs a generic repo-wide compliance sweep (issue-only, no fix PRs); the wiki routine runs a full-coverage build and opens ONE rolling propose-only PR. Flags: `--bug`/`--security`/`--wiki` to subset, `--max-fixes <n>`, `--time <hh:mm>`/`--tz <IANA>`, `--status`/`--disable`, `--run-now`. Reads and preflights for free; gates the one outward action (the RemoteTrigger create/update/run call) behind an explicit human confirmation that shows the exact config first. Invoke as `/overnight [repo] [flags]`.
-disable-model-invocation: false
+name: dossier-jobs
+description: Conductor that stands up the toolbelt's scheduled CLOUD routines for any target repo with one command. `@dossier-jobs [repo]` (or no arg → the cwd's git remote) sets up, by default, THREE scheduled cloud routines — bug · security · wiki — via the RemoteTrigger tool (the claude.ai/code routines API), each its own routine, all feeding ONE rolling `[dossier-jobs] Dossier` tracking issue (each job owns its own marker-tagged comment, race-safe). The bug routine sweeps the codebase and auto-develops the top `--max-fixes` (default 5) NON-SEV1 findings into DRAFT, never-merged fix PRs (SEV1 stays issue-only); the security routine runs a generic repo-wide compliance sweep (issue-only, no fix PRs); the wiki routine runs a full-coverage build and opens ONE rolling propose-only PR. Flags: `--bug`/`--security`/`--wiki` to subset, `--max-fixes <n>`, `--time <hh:mm>`/`--tz <IANA>`, `--status`/`--disable`, `--run-now`. Reads and preflights for free; gates the one outward action (the RemoteTrigger create/update/run call) behind an explicit human confirmation that shows the exact config first. Invoke as `@dossier-jobs [repo] [flags]`.
 ---
-# /overnight — one-command setup for overnight cloud "dossier" routines
 
-You are the **conductor**. You do NOT sweep for bugs, run the security compliance sweep, or write wiki pages yourself — you set up and manage the **schedule**. The heavy lifting happens later, in the cloud, when each scheduled routine fires: the routine's *prompt* (which you author here) invokes `/bug-catcher --global`, the compliance sweep, or `/wiki-generator` inside the claude.ai/code environment. Your job is purely **setup + lifecycle of the schedule**, delegated twice over — first to the cloud routine, then (inside the routine) to the existing toolbelt skills (or a generic equivalent on a repo that lacks them).
+# @dossier-jobs — one-command setup for scheduled cloud "dossier" routines
+
+You are the **conductor**. You do NOT sweep for bugs, run the security compliance sweep, or write wiki pages yourself — you set up and manage the **schedule**. The heavy lifting happens later, in the cloud, when each scheduled routine fires: the routine's *prompt* (which you author here) invokes `@bug-catcher --global`, the compliance sweep, or `@wiki-generator` inside the claude.ai/code environment. Your job is purely **setup + lifecycle of the schedule**, delegated twice over — first to the cloud routine, then (inside the routine) to the existing toolbelt skills (or a generic equivalent on a repo that lacks them).
 
 The argument is in `$ARGUMENTS` — an optional `<repo>` (positional, e.g. `owner/repo` or a clone URL) optionally preceded/followed by flags. With no positional repo, the target is resolved from the cwd's `git remote`. With no actionable flag and no repo and no resolvable remote, explain what the skill does and ask for the repo (or confirm the cwd) **before doing anything**.
 
@@ -15,36 +15,37 @@ The skill's entire value is encoding eight hard-won operational lessons (idempot
 
 Before doing anything, detect the shape of the work so the gates, identity, and conventions are right:
 
-1. **`CLAUDE.md` + `CLAUDE.local.md`** — the project's cardinal rules and conventions. They override anything here on conflict.
+1. **`AGENTS.md / CLAUDE.md` + `CLAUDE.local.md`** — the project's cardinal rules and conventions. They override anything here on conflict.
 2. **Target repo** — the positional `$ARGUMENTS` repo if given; else `git -C <cwd> remote get-url origin` (normalize to `owner/repo` + the `https://github.com/owner/repo` URL). If neither resolves, stop and ask.
 3. **Commit identity** — `git config user.name` and `git config user.email` of the **invoking user** (especially the GitHub-noreply email that maps commits to their account). These become the `git config` the routine prompt sets at runtime — read them **fresh** during preflight; never hardcode a captured literal into this file.
 4. **Host timezone** — the system tz (for the `--time` default), always **echoed** in the confirm panel, never silently assumed.
 5. **The `RemoteTrigger` tool** — confirm it is available before the gate. If it is not, do not error — print the exact config + the manual setup path (see the circuit-breaker table).
-6. **Whether the target repo / the user's plugins ship `/bug-catcher` and `/wiki-generator`** — informs the HYBRID branch the routine prompt encodes (run the skill if present, else a generic equivalent). This is a *runtime* decision the routine makes inside the cloud env; the prompt carries both branches.
+6. **Whether the target repo / the user's plugins ship `@bug-catcher` and `@wiki-generator`** — informs the HYBRID branch the routine prompt encodes (run the skill if present, else a generic equivalent). This is a *runtime* decision the routine makes inside the cloud env; the prompt carries both branches.
 
-## Cardinal rules (non-negotiable — inherited from the project's CLAUDE.md / CLAUDE.local.md)
+## Cardinal rules (non-negotiable — inherited from the project's AGENTS.md / CLAUDE.md / CLAUDE.local.md)
 
 1. **Reads and preflights are free; the outward action is gated.** The single outward, gated action is the `RemoteTrigger` create/update/run call. Everything before the gate — resolving the repo, reading `git config`, listing existing routines, the connector sanity-check — is read-only and requires no confirmation.
 2. **Explicit, fresh, per-action human confirmation.** Creating/updating routines is gated behind an explicit "yes"; `--run-now` is a **separate** fresh "yes" after that. Never bundle the two; never infer approval from an earlier "go" or from silence. `--status` is read-only — no gate.
 3. **No AI attribution** anywhere — not in this skill, not in the routine prompts it installs, not in the commits/PRs those routines produce. The installed prompts must strip any platform-appended "Generated by Claude Code" footer (see lesson 6).
-4. **Idempotency is structural.** Before any create, list existing routines and match on the deterministic per-repo+job name; on a match, **UPDATE in place** — never create a second routine. The API has **no delete**, so a duplicate is permanent. The routine-name scheme is **frozen post-ship** — renaming it strands old routines un-findable AND un-deletable.
+4. **Idempotency is structural.** Before any create, list existing routines and match on the deterministic per-repo+job name (`dossier-jobs-{bug,security,wiki} · owner/repo`); on a match, **UPDATE in place** — never create a second routine. The API has **no delete**, so a duplicate is permanent. The routine-name scheme is **frozen post-ship** — renaming it strands old routines un-findable AND un-deletable.
+   > **One-time migration (the former `/overnight` → `@dossier-jobs` rename).** Routines created by the old `/overnight` command used the `overnight-{bug,security,wiki} · owner/repo` scheme and fed an `[overnight] Dossier` issue; `@dossier-jobs` does **not** find them. Delete the stale `overnight-*` routines in the claude.ai UI (Settings → Automations/Routines — the API has no delete), then re-run `@dossier-jobs` to create the renamed routines fresh. The old `[overnight] Dossier` issue can be closed by hand.
 5. **Every identity/path value in this skill is a PLACEHOLDER.** Use `<you>@users.noreply.github.com`, `<owner>/<repo>`, `<your-name>` — never a real captured email and never an absolute home path (the repo's leak-grep CI gate hard-fails on `/Users/<lowercase>`). The routine writes `git config` from *runtime* values read during preflight, not from anything written here.
 6. **No unattended catastrophe.** SEV1 findings are never auto-developed; security findings never get a fix PR; every auto-developed fix PR is a **DRAFT** the routine **never merges** and that runs the project's local quality gate. The wiki routine is **propose-only** (one rolling PR). These are the structural safety floor (see lesson 4 + the note in **SEV1-exclusion + the cap are best-effort**).
 
 ## Flags (the full surface)
 
-Parse flags first; the remaining non-flag token is the positional `<repo>`. An unrecognized `--flag` → **echo it and stop**; never guess intent (mirrors `/chore`).
+Parse flags first; the remaining non-flag token is the positional `<repo>`. An unrecognized `--flag` → **echo it and stop**; never guess intent (mirrors `@chore`).
 
 | Flag | Effect |
 |---|---|
-| _(none)_ + optional `<repo>` | Set up **all three** job routines (bug · security · wiki) for `<repo>` (or the cwd's `git remote` if omitted), all feeding the shared `[overnight] Dossier` issue. |
+| _(none)_ + optional `<repo>` | Set up **all three** job routines (bug · security · wiki) for `<repo>` (or the cwd's `git remote` if omitted), all feeding the shared `[dossier-jobs] Dossier` issue. |
 | `--bug` / `--security` / `--wiki` | Select which jobs to set up — each becomes its **own** routine; any subset works (e.g. `--bug --security` ⇒ 2 routines). No job flag ⇒ all three. (`--bug-only` etc. are single-job aliases.) |
-| `--max-fixes <n>` | Cap on overnight auto-developed DRAFT fix PRs per bug run (default **5**, SEV2–SEV4 by severity). SEV1 is never auto-developed regardless. **Prompt-enforced/best-effort** (see below), not a tool gate. |
-| `--time <hh:mm>` | Local fire time (default **04:00**). Each selected job's routine is staggered a few minutes apart from this time (off the `:00`/`:30` herd). |
+| `--max-fixes <n>` | Cap on auto-developed DRAFT fix PRs per bug run (default **5**, SEV2–SEV4 by severity). SEV1 is never auto-developed regardless. **Prompt-enforced/best-effort** (see below), not a tool gate. |
+| `--time <hh:mm>` | Local fire time. **If omitted, the skill ASKS for the time before the create gate, defaulting to `08:00` if you skip.** Each selected job's routine is staggered a few minutes apart from this time (off the `:00`/`:30` herd). |
 | `--tz <IANA>` | Timezone for `--time` (default: host system tz, **always echoed** in the confirm). |
-| `--status` | **Read-only**: list this repo's overnight routines (enabled?, next fire local+UTC, last run). No gate. |
-| `--disable` | Set `enabled:false` on this repo's routines (the API has no delete). Re-running `/overnight` re-enables. |
-| `--run-now` | After create/update, fire `RemoteTrigger {action:"run"}` **behind its own separate gate** to validate the connector/identity wiring immediately instead of waiting until ~4am. |
+| `--status` | **Read-only**: list this repo's dossier-jobs routines (enabled?, next fire local+UTC, last run). No gate. |
+| `--disable` | Set `enabled:false` on this repo's routines (the API has no delete). Re-running `@dossier-jobs` re-enables. |
+| `--run-now` | After create/update, fire `RemoteTrigger {action:"run"}` **behind its own separate gate** to validate the connector/identity wiring immediately instead of waiting for the next scheduled fire. |
 | unknown `--flag` | Echo it and stop — never guess intent. |
 
 `$ARGUMENTS` empty and no actionable flag → the skill explains what it does and asks for the repo (or confirms the cwd) before doing anything.
@@ -75,9 +76,9 @@ Cloud routines are created with the **`RemoteTrigger`** tool (the claude.ai/code
 ```
 
 - **`model` + `allowed_tools` are a target-seam parameter**, not a literal the conductor hardcodes: Claude's default is `claude-opus-4-8`; a Codex automation backend supplies its own. Keep the create/update/run mechanism behind this small seam so the conductor logic ports unchanged. **Wiring the Codex backend is out of scope here** (it belongs to the Codex port); this iteration only keeps the seam clean.
-- **Cron is UTC** with a **minimum interval of 1h**. The skill converts the user's local `--time`/`--tz` to a 5-field UTC expression and deliberately **avoids the `:00`/`:30` herd** — e.g. for 04:00 Pacific it schedules bug at `0 11 * * *`, security a few minutes later at `5 11 * * *`, wiki at `10 11 * * *` (04:00 / 04:05 / 04:10 local), so two routines for the same repo never fire in the same instant and the cloud fleet isn't stampeded on the hour.
+- **Cron is UTC** with a **minimum interval of 1h**. The skill converts the user's local `--time`/`--tz` to a 5-field UTC expression and deliberately **avoids the `:00`/`:30` herd** — e.g. for 08:00 Pacific it schedules bug at `0 15 * * *`, security a few minutes later at `5 15 * * *`, wiki at `10 15 * * *` (08:00 / 08:05 / 08:10 local), so two routines for the same repo never fire in the same instant and the cloud fleet isn't stampeded on the hour.
 - `RemoteTrigger {action:"list"}` enumerates routines; `{action:"update",trigger_id}` edits one; `{action:"run",trigger_id}` runs one now. **There is no delete** — `--disable` sets `enabled:false` via `update`.
-- **DST-drift note.** RemoteTrigger crons are **UTC and DST-naive**. A cron pinned to a fixed UTC hour will fire **±1h off the intended local time** across a daylight-saving transition (e.g. a 04:00-Pacific routine drifts to 05:00 or 03:00 local for the half of the year on the other side of the DST boundary) **until the routine is re-saved** at the new offset. State this in the confirm panel / report when the resolved tz observes DST, so the user knows a seasonal re-run of `/overnight` re-pins the local fire time.
+- **DST-drift note.** RemoteTrigger crons are **UTC and DST-naive**. A cron pinned to a fixed UTC hour will fire **±1h off the intended local time** across a daylight-saving transition (e.g. an 08:00-Pacific routine drifts to 09:00 or 07:00 local for the half of the year on the other side of the DST boundary) **until the routine is re-saved** at the new offset. State this in the confirm panel / report when the resolved tz observes DST, so the user knows a seasonal re-run of `@dossier-jobs` re-pins the local fire time.
 
 ## Control flow
 
@@ -85,7 +86,7 @@ Cloud routines are created with the **`RemoteTrigger`** tool (the claude.ai/code
 
 ```mermaid
 flowchart TD
-    A["/overnight [repo] [flags]"] --> B{"parse flags<br/>(--bug/--security/--wiki,<br/>--max-fixes, --time/--tz,<br/>--disable/--status, --run-now)"}
+    A["@dossier-jobs [repo] [flags]"] --> B{"parse flags<br/>(--bug/--security/--wiki,<br/>--max-fixes, --time/--tz,<br/>--disable/--status, --run-now)"}
     B -->|unknown flag| STOP["echo flag + stop"]
     B -->|--status| LIST0["RemoteTrigger list → filter this repo →<br/>print table (read-only, no gate)"]
     B -->|ok| C["PREFLIGHT (read-only, free)"]
@@ -94,12 +95,12 @@ flowchart TD
     C2 --> C3{"connector account looks<br/>like the repo owner?"}
     C3 -->|"bot / mismatch"| WARN["WARN + show fix click-path<br/>(claude.ai connectors / gh auth login);<br/>cannot switch it itself"]
     C3 -->|ok| D
-    WARN --> D["IDEMPOTENCY: RemoteTrigger list →<br/>match 'overnight-{bug,security,wiki} · owner/repo'"]
+    WARN --> D["IDEMPOTENCY: RemoteTrigger list →<br/>match 'dossier-jobs-{bug,security,wiki} · owner/repo'"]
     D --> E{"existing routine<br/>for this repo+job?"}
     E -->|"yes"| UPD["plan = UPDATE in place"]
     E -->|"no"| CRE["plan = CREATE"]
     UPD --> F
-    CRE --> F["build cron (local→UTC, off-herd),<br/>build routine prompt(s),<br/>set commit identity in prompt"]
+    CRE --> F["ask fire time if --time omitted (default 08:00),<br/>build cron (local→UTC, off-herd),<br/>build routine prompt(s),<br/>set commit identity in prompt"]
     F --> G{{"HUMAN GATE — show exact config:<br/>repo · cron local+UTC · model ·<br/>create-vs-update · prompt summary"}}
     G -->|"no"| STOP2["abort, nothing created"]
     G -->|"yes"| H["RemoteTrigger create | update<br/>(one routine per selected job)"]
@@ -118,17 +119,17 @@ flowchart TD
 
 ### 1 — Parse + resolve
 
-Parse flags (job selection, `--max-fixes`, `--time`/`--tz`, `--status`/`--disable`, `--run-now`); an unknown flag → echo + stop. Resolve the target repo (positional arg, else cwd's `git remote`); if neither resolves, stop and ask. `--status` short-circuits to a read-only list (Step 6) with no gate.
+Parse flags (job selection, `--max-fixes`, `--time`/`--tz`, `--status`/`--disable`, `--run-now`); an unknown flag → echo + stop. Resolve the target repo (positional arg, else cwd's `git remote`); if neither resolves, stop and ask. `--status` short-circuits to a read-only list (Step 6) with no gate. If no `--time` was given and the run will create/update (not `--status`/`--disable`), **ask the user for the local fire time before building the config — default to `08:00` if they skip.** (The chosen time is still echoed in the confirm panel, so the gate shows it either way.)
 
 ### 2 — Preflight (read-only, free)
 
 - **Commit identity (lesson 2):** read `git config user.name` / `user.email` — *especially the GitHub-noreply email*. These feed the `git config …` the routine prompt sets at runtime so dossier commits attribute to the user, not the cloud env's default bot.
 - **Connector preflight (lesson 3):** the account that authenticates the push / opens the PR is the **claude.ai GitHub connection** (account-level, bound at routine creation) — **NOT settable from the routine prompt**. Detect/warn if it looks like a bot vs the repo owner, and document the fix click-path: **the claude.ai connectors settings** (Settings → Connectors → GitHub), or `gh auth login`; then **re-create or re-save** the routines after switching, since identity binds at creation. The skill **cannot switch the connector itself** — it can only warn loudly.
-- **Tooling (lesson 7):** note whether `/bug-catcher` and `/wiki-generator` are reachable so the routine prompt's HYBRID branch is accurate.
+- **Tooling (lesson 7):** note whether `@bug-catcher` and `@wiki-generator` are reachable so the routine prompt's HYBRID branch is accurate.
 
 ### 3 — Idempotency list-check (lesson 1)
 
-`RemoteTrigger {action:"list"}`, **reading the full list** (handle pagination / eventual-consistency, so a not-yet-visible prior create can't spawn a duplicate). Match on the deterministic name per repo+job: `overnight-bug · <owner>/<repo>`, `overnight-security · <owner>/<repo>`, `overnight-wiki · <owner>/<repo>`. A match ⇒ plan = **UPDATE** that routine; no match ⇒ plan = **CREATE**. Surface the result as `action: CREATE|UPDATE` per job in the confirm panel.
+`RemoteTrigger {action:"list"}`, **reading the full list** (handle pagination / eventual-consistency, so a not-yet-visible prior create can't spawn a duplicate). Match on the deterministic name per repo+job: `dossier-jobs-bug · <owner>/<repo>`, `dossier-jobs-security · <owner>/<repo>`, `dossier-jobs-wiki · <owner>/<repo>`. A match ⇒ plan = **UPDATE** that routine; no match ⇒ plan = **CREATE**. Surface the result as `action: CREATE|UPDATE` per job in the confirm panel.
 
 ### 4 — Build the config
 
@@ -139,19 +140,19 @@ For each selected job: build the cron (local `--time`/`--tz` → 5-field UTC, ho
 Show the **exact** config and require an explicit "yes" BEFORE any `RemoteTrigger create/update`. The panel shows, per selected job: repo · cron in **local AND UTC** · model · create-vs-update · a prompt summary · the commit-identity line · the connector warning (if any) · the DST note (if the tz observes DST). Shape:
 
 ```text
-About to CREATE 3 overnight routines for <owner>/<repo>
-  (all feed one shared issue: [overnight] Dossier)
-  ┌ bug        overnight-bug · <owner>/<repo>            [action: CREATE]
-  │   fires: 04:00 <IANA tz>  →  cron (UTC): 0 11 * * *
-  │   runs: /bug-catcher --global (or generic) → its Bug comment
+About to CREATE 3 dossier-jobs routines for <owner>/<repo>
+  (all feed one shared issue: [dossier-jobs] Dossier)
+  ┌ bug        dossier-jobs-bug · <owner>/<repo>            [action: CREATE]
+  │   fires: 08:00 <IANA tz>  →  cron (UTC): 0 15 * * *
+  │   runs: @bug-catcher --global (or generic) → its Bug comment
   │         + auto-dev top 5 NON-SEV1 findings → DRAFT, never-merged fix PRs
-  ├ security   overnight-security · <owner>/<repo>       [action: CREATE]
-  │   fires: 04:05 <IANA tz>  →  cron (UTC): 5 11 * * *
+  ├ security   dossier-jobs-security · <owner>/<repo>       [action: CREATE]
+  │   fires: 08:05 <IANA tz>  →  cron (UTC): 5 15 * * *
   │   runs: generic repo-wide compliance sweep → its Security comment
   │         (issue-only, NO fix PRs)
-  ├ wiki       overnight-wiki · <owner>/<repo>           [action: CREATE]
-  │   fires: 04:10 <IANA tz>  →  cron (UTC): 10 11 * * *
-  │   runs: /wiki-generator (or generic) full build → its Wiki comment
+  ├ wiki       dossier-jobs-wiki · <owner>/<repo>           [action: CREATE]
+  │   fires: 08:10 <IANA tz>  →  cron (UTC): 10 15 * * *
+  │   runs: @wiki-generator (or generic) full build → its Wiki comment
   │         + ONE rolling propose-only PR (not one PR per page)
   └ commits attribute to: <your-name> <<you>@users.noreply.github.com>
   ⚠ connector check: the claude.ai GitHub connection authenticates the push/PR —
@@ -159,7 +160,7 @@ About to CREATE 3 overnight routines for <owner>/<repo>
     Fix: claude.ai → Settings → Connectors → GitHub (or `gh auth login`),
          then re-save these routines (identity binds at creation).
   ⓘ DST: cron is UTC + DST-naive — the local fire time drifts ±1h across a DST
-    transition until you re-run /overnight to re-pin it.
+    transition until you re-run @dossier-jobs to re-pin it.
 Proceed? (explicit "yes" required)
 ```
 
@@ -179,19 +180,19 @@ Report routine ids, next fire (local + UTC), where the dossier issue (+ PRs) wil
 
 ## The dossier output model
 
-The dossier is a **rolling GitHub tracking ISSUE** titled `[overnight] Dossier` (one per repo). Each enabled job is **always its own cloud routine**, staggered a few minutes apart; they condense into the one shared issue.
+The dossier is a **rolling GitHub tracking ISSUE** titled `[dossier-jobs] Dossier` (one per repo). Each enabled job is **always its own cloud routine**, staggered a few minutes apart; they condense into the one shared issue.
 
 ### Race-safe coordination via per-job COMMENTS (not a shared body)
 
 `gh issue edit --body` is a **full-body overwrite** with no per-section atomicity, and the bug run alone can take 20–40 min and overlap the others — three routines editing one body would lost-update each other. So:
 
 - The issue **body** is a static index + a `🚨 Review first` skeleton **seeded once** on first setup and **never rewritten by a routine**.
-- **Each job owns ONE comment** tagged with a hidden marker — `<!-- overnight:bug -->`, `<!-- overnight:security -->`, `<!-- overnight:wiki -->` (the three tokens are distinct, so the routines never edit each other's comment) — and **only ever edits THAT comment**, leading its comment with its own criticals (bug SEV1/SEV2; security compliance-blockers / P0s). There is no single `gh` create-or-edit-by-marker primitive, so the routine does it in two steps: **read** the issue's comments, **find** its own marker, then **edit that comment by id** if present (`gh api -X PATCH …/issues/comments/<id>`) or **create** one with the marker embedded (`gh issue comment`) if not — the exact commands are in the shared preamble's step 3 below.
+- **Each job owns ONE comment** tagged with a hidden marker — `<!-- dossier-jobs:bug -->`, `<!-- dossier-jobs:security -->`, `<!-- dossier-jobs:wiki -->` (the three tokens are distinct, so the routines never edit each other's comment) — and **only ever edits THAT comment**, leading its comment with its own criticals (bug SEV1/SEV2; security compliance-blockers / P0s). There is no single `gh` create-or-edit-by-marker primitive, so the routine does it in two steps: **read** the issue's comments, **find** its own marker, then **edit that comment by id** if present (`gh api -X PATCH …/issues/comments/<id>`) or **create** one with the marker embedded (`gh issue comment`) if not — the exact commands are in the shared preamble's step 3 below.
 - Because every routine touches only its own marker-tagged comment, they **cannot clobber each other** — the per-comment edit is the race-safe coordination primitive. With one job selected there is just the one job-comment.
 
 ### Rolling discipline (all jobs)
 
-Each run FIRST `gh issue list … "[overnight] Dossier in:title"` (reading the **full** list — handle pagination / eventual-consistency so a not-yet-visible prior create can't spawn a duplicate). On an open match it finds **its own marked comment** and rolls it forward in place: adds new items with `First seen: <date>`, leaves still-open items unchanged (their original date is the reference), checks off resolved ones, bumps that comment's `Last updated: <date>`. If the issue is absent it creates it (seeding the body skeleton) and adds its comment; if the issue exists but its own comment is missing, it adds the comment. Auto-developed fix PRs (bug) and the single rolling wiki PR follow the same find-open-then-update-else-create rule. **A quiet night touches nothing.**
+Each run FIRST `gh issue list … "[dossier-jobs] Dossier in:title"` (reading the **full** list — handle pagination / eventual-consistency so a not-yet-visible prior create can't spawn a duplicate). On an open match it finds **its own marked comment** and rolls it forward in place: adds new items with `First seen: <date>`, leaves still-open items unchanged (their original date is the reference), checks off resolved ones, bumps that comment's `Last updated: <date>`. If the issue is absent it creates it (seeding the body skeleton) and adds its comment; if the issue exists but its own comment is missing, it adds the comment. Auto-developed fix PRs (bug) and the single rolling wiki PR follow the same find-open-then-update-else-create rule. **A quiet run touches nothing.**
 
 ### SEV1-exclusion + the `--max-fixes` cap are PROMPT-enforced (best-effort)
 
@@ -206,7 +207,7 @@ These are the prompts the skill writes into each routine's `message.content`. Th
 ### Shared preamble (every routine)
 
 ```text
-You are an unattended overnight routine for <owner>/<repo>. Operate autonomously and idempotently.
+You are an unattended scheduled routine for <owner>/<repo>. Operate autonomously and idempotently.
 
 COMMIT IDENTITY: run, before any commit —
   git config user.name "<your-name>"
@@ -217,21 +218,21 @@ NO AI ATTRIBUTION: never add an AI co-author trailer or a "generated by an AI as
 footer to any commit or PR. If the platform auto-appends a "Generated by Claude Code"
 footer to a PR body, STRIP it via `gh pr edit <n> --body "<clean body>"`.
 
-SHARED DOSSIER ISSUE: there is ONE rolling issue per repo, titled exactly `[overnight] Dossier`.
-  1. `gh issue list --search "[overnight] Dossier in:title" --state open` — read the FULL list
+SHARED DOSSIER ISSUE: there is ONE rolling issue per repo, titled exactly `[dossier-jobs] Dossier`.
+  1. `gh issue list --search "[dossier-jobs] Dossier in:title" --state open` — read the FULL list
      (handle pagination / eventual-consistency; a not-yet-visible prior create must NOT spawn a duplicate).
   2. If absent: create it, seeding a STATIC body = an index + a `## 🚨 Review first` skeleton.
      NEVER rewrite the body on later runs.
   3. Roll YOUR OWN comment forward — there is NO single `gh` create-or-edit-by-marker primitive,
-     so do it in four explicit steps (your marker is `<!-- overnight:JOB -->`, where JOB is your job
+     so do it in four explicit steps (your marker is `<!-- dossier-jobs:JOB -->`, where JOB is your job
      name — distinct from the other jobs', so you can never touch theirs):
        a. READ the issue's comments via the REST list endpoint — it returns each comment's
           NUMERIC id, which the PATCH in step (c) requires:
             `gh api repos/{owner}/{repo}/issues/<n>/comments --paginate`
           (do NOT read with `gh issue view <n> --json comments` here: that path is GraphQL-backed
           and yields node ids like `IC_kwDO…`, which 404 against the REST PATCH endpoint in step c.)
-       b. FIND the comment whose body contains your `<!-- overnight:JOB -->` marker; capture its
-          numeric `id` (e.g. `jq -r '.[] | select(.body|contains("<!-- overnight:JOB -->")) | .id'`).
+       b. FIND the comment whose body contains your `<!-- dossier-jobs:JOB -->` marker; capture its
+          numeric `id` (e.g. `jq -r '.[] | select(.body|contains("<!-- dossier-jobs:JOB -->")) | .id'`).
        c. If FOUND → EDIT that comment in place by id (keep the marker embedded so the next run finds it):
             `gh api -X PATCH repos/{owner}/{repo}/issues/comments/<comment-id> -F body=@<file>`
             (use `-F`/`--field`, NOT `-f`/`--raw-field`: only `-F` honors the `@<file>` "read body
@@ -242,21 +243,21 @@ SHARED DOSSIER ISSUE: there is ONE rolling issue per repo, titled exactly `[over
   4. Roll forward (the `<file>` body you PATCH/create in step 3): new items get `First seen: <date>`;
      still-open items keep their original date; resolved items are checked off; bump your comment's
      `Last updated: <date>`.
-  5. Quiet night → touch nothing.
+  5. Quiet run → touch nothing.
 ```
 
-### Bug routine prompt (`<!-- overnight:bug -->`)
+### Bug routine prompt (`<!-- dossier-jobs:bug -->`)
 
 ```text
 [shared preamble, JOB = bug]
 
 SWEEP (HYBRID — repo-agnostic):
-  IF `/bug-catcher` is available → run `/bug-catcher --global` for a whole-codebase + docs sweep.
+  IF `@bug-catcher` is available → run `@bug-catcher --global` for a whole-codebase + docs sweep.
   ELSE → generic equivalent on the detected stack: read manifests → derive language + test
     framework → enumerate the codebase + test suites + docs → for each candidate bug:
     diagnose root cause with a file:line evidence chain → adversarially verify → DROP anything unconfirmed.
 
-DOSSIER COMMENT (your `<!-- overnight:bug -->` comment):
+DOSSIER COMMENT (your `<!-- dossier-jobs:bug -->` comment):
   - Lead with `## 🚨 SEV1 & SEV2 — review first` listing every SEV1/SEV2 finding.
   - Below it, the full SEV-ranked checklist (SEV1 → SEV4), one item per CONFIRMED finding:
     `- [ ] SEV# · <title> · file:line · root cause · fix direction · First seen <date>`
@@ -275,7 +276,7 @@ AUTO-DEVELOP (bounded, best-effort cap — the structural floor is draft + never
     an issue item. Findings beyond the cap stay issue items for manual triage.
 ```
 
-### Security routine prompt (`<!-- overnight:security -->`)
+### Security routine prompt (`<!-- dossier-jobs:security -->`)
 
 ```text
 [shared preamble, JOB = security]
@@ -298,7 +299,7 @@ SWEEP (ALWAYS GENERIC — there is NO skill to delegate to):
       (private keys, AWS/GCP keys, `sk_(live|test)_…`, slack/github tokens, etc.).
   Map findings to SOC2 CC1–CC9 / OWASP Top 10 / PCI DSS / NIST 800-63B.
 
-DOSSIER COMMENT (your `<!-- overnight:security -->` comment):
+DOSSIER COMMENT (your `<!-- dossier-jobs:security -->` comment):
   - Lead with the compliance-blockers / P0s.
   - Tag each finding with its control ref + `FAIL` / `CONCERN` / `COMPLIANCE BLOCKER`.
   - Carry a `Last updated: <date>` stamp.
@@ -307,25 +308,25 @@ ISSUE-ONLY — NO FIX PRs. Security fixes are held for a human (like SEV1). NEVE
 secret beyond flagging that it must be ROTATED, not just removed.
 ```
 
-### Wiki routine prompt (`<!-- overnight:wiki -->`)
+### Wiki routine prompt (`<!-- dossier-jobs:wiki -->`)
 
 ```text
 [shared preamble, JOB = wiki]
 
 BUILD (HYBRID — repo-agnostic, full coverage):
-  IF `/wiki-generator` is available → run `/wiki-generator` (the FULL build, NOT `--update`) toward
+  IF `@wiki-generator` is available → run `@wiki-generator` (the FULL build, NOT `--update`) toward
     near-100% coverage: drift-sync existing pages, add a FAQ page and a page for EVERY un-documented
     module/topic, plus a Home index + coverage report.
   ELSE → generic equivalent: enumerate modules/topics → write/refresh one page each + a FAQ + a coverage index.
 
-DOSSIER COMMENT (your `<!-- overnight:wiki -->` comment):
+DOSSIER COMMENT (your `<!-- dossier-jobs:wiki -->` comment):
   - Record coverage status: pages present · stale-synced · newly-added · still-missing.
   - Carry a `Last synced: <date>` stamp.
 
 ONE ROLLING PROPOSE-ONLY PR (NOT one PR per page):
-  Because the full `/wiki-generator` build opens no PR of its own (it writes pages and leaves committing
+  Because the full `@wiki-generator` build opens no PR of its own (it writes pages and leaves committing
   to the human), THIS routine opens ONE rolling propose-only PR carrying ALL page changes (drift + new
-  pages), refreshed nightly (find-open-then-update-else-create). One-PR-per-page on a near-100% first
+  pages), refreshed daily (find-open-then-update-else-create). One-PR-per-page on a near-100% first
   build would be PR spam. The PR body carries `Last synced: <date>` and NO AI attribution.
 ```
 
@@ -338,15 +339,15 @@ The skill MUST encode each of these:
 1. **Idempotency / no-duplicate routines.** List-then-match-then-UPDATE before any create; the API cannot delete, so a duplicate is permanent — design it out. The name scheme is frozen post-ship.
 2. **Commit identity.** The routine prompt sets `git config user.name`/`user.email` (incl. the GitHub-noreply email) from the invoking user's identity read at preflight — so dossier commits attribute to them, not the cloud bot.
 3. **GitHub connector preflight + warning.** Detect/warn on a bot-vs-owner connector mismatch; document the fix click-path (claude.ai connectors settings, or `gh auth login`; re-save routines after switching). Cannot switch the connector itself — only warn.
-4. **Rolling dossier ISSUE + bounded auto-dev (no spam).** One rolling issue, rolled forward in place via per-job marker-tagged comments (race-safe, no shared body); bug auto-develops top `--max-fixes` (default 5) NON-SEV1 findings into DRAFT never-merged fix PRs; security is issue-only; wiki opens ONE rolling propose-only PR; quiet night → nothing.
+4. **Rolling dossier ISSUE + bounded auto-dev (no spam).** One rolling issue, rolled forward in place via per-job marker-tagged comments (race-safe, no shared body); bug auto-develops top `--max-fixes` (default 5) NON-SEV1 findings into DRAFT never-merged fix PRs; security is issue-only; wiki opens ONE rolling propose-only PR; quiet run → nothing.
 5. **Visible revision stamp + SEV1/2-first.** The bug comment carries `Last updated: <date> — swept against main @ <sha>`, a prominent `🚨 SEV1 & SEV2 — review first` lead, and a dated revision log; the wiki comment + PR body carry `Last synced: <date>`. Bumped every refresh.
 6. **No AI attribution + footer-strip.** No AI attribution on any commit/PR; strip any auto-appended "Generated by Claude Code" footer via `gh pr edit`.
-7. **Repo-agnostic methodology (HYBRID).** Bug + wiki run `/bug-catcher --global` / `/wiki-generator` (full build) when available, else a generic stack-adapted equivalent — they never assume the target repo ships the toolbelt's own `skills/*` files. **Security is always generic** (no skill to delegate to).
+7. **Repo-agnostic methodology (HYBRID).** Bug + wiki run `@bug-catcher --global` / `@wiki-generator` (full build) when available, else a generic stack-adapted equivalent — they never assume the target repo ships the toolbelt's own `skills/*` files. **Security is always generic** (no skill to delegate to).
 8. **Human-gated.** Creating/updating routines and `--run-now` are each gated behind an explicit, fresh "yes" that follows a panel showing repo · cron (local AND UTC) · model · create-vs-update · prompt summary; `--status` is read-only with no gate.
 
 ## A note on the two schedulers
 
-`docs/scheduling.md` documents a **local daemon** cron path for `/wiki-generator --update` (5-field *local*-time cron in `.claude/scheduled_tasks.json`, daemon-gated). This skill targets the **cloud RemoteTrigger** path instead (UTC cron, account-bound connector, dossier issue + PRs) — a different, complementary mechanism. Use the local-daemon path for a self-maintaining wiki on an always-on host you control; use `/overnight` for unattended cloud routines that need no local daemon.
+`docs/scheduling.md` documents a **local daemon** cron path for `@wiki-generator --update` (5-field *local*-time cron in `.claude/scheduled_tasks.json`, daemon-gated). This skill targets the **cloud RemoteTrigger** path instead (UTC cron, account-bound connector, dossier issue + PRs) — a different, complementary mechanism. Use the local-daemon path for a self-maintaining wiki on an always-on host you control; use `@dossier-jobs` for unattended cloud routines that need no local daemon.
 
 ## Circuit-breakers (failure-mode table)
 
@@ -357,7 +358,7 @@ The skill MUST encode each of these:
 | Connector looks like a bot / mismatches the repo owner | WARN loudly + show the fix click-path; proceed only if the user confirms at the gate. The skill cannot switch the connector itself. |
 | Cron would violate the 1h-minimum interval, or `--time`/`--tz` is unparseable | Surface the constraint + the resolved values; do not create. |
 | `RemoteTrigger list` returns a partial/paginated page | Read the FULL list before the idempotency decision — a missed prior routine creates an un-deletable duplicate. |
-| An `overnight-<job> · owner/repo` routine already exists | Plan = UPDATE in place; never CREATE a second (the API has no delete). |
+| A `dossier-jobs-<job> · owner/repo` routine already exists | Plan = UPDATE in place; never CREATE a second (the API has no delete). |
 | User declines the create/update gate | Abort; nothing is created. Report that nothing changed. |
 | `--run-now` requested but the create/update gate was declined | There is nothing to run; skip run-now and report. |
 | Unknown `--flag` | Echo it and stop; never guess intent. |
@@ -370,7 +371,7 @@ Soft budget: 100k tokens per invocation (conductor work is light — preflight r
 
 ## Out of scope
 
-- **Any non-overnight / sub-hourly cadence.** RemoteTrigger's minimum interval is 1h; this skill is built around a once-nightly fire. A general cron-builder is a separate concern.
+- **Any sub-hourly cadence.** RemoteTrigger's minimum interval is 1h; this skill is built around a once-daily fire. A general cron-builder is a separate concern.
 - **Jobs beyond bug · security · wiki.** The skill ships exactly these three job routines. A pluggable "register an arbitrary routine prompt" mode is a possible follow-up.
 - **Wiring the Codex routine backend.** Kept behind a target seam; building the backend belongs to the Codex port, not this iteration.
 - **Switching the claude.ai GitHub connector.** The skill warns + documents the fix; it structurally cannot change the account-level connection.

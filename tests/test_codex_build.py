@@ -383,7 +383,7 @@ def test_manifest_lists_every_generated_skill():
     check("manifest skill count == canonical skill count",
           len(referenced) == len(canonical),
           "manifest=%d canonical=%d" % (len(referenced), len(canonical)))
-    for s in ("overnight", "todo"):
+    for s in ("dossier-jobs", "todo"):
         check("manifest lists %s" % s, "skills/%s/SKILL.md" % s in referenced)
 
 
@@ -441,7 +441,7 @@ def test_transforms_skill_backtick_and_paren_boundary():
         "`/toolbelt metrics`": "`@toolbelt metrics`",
         # double-quote left boundary — the mermaid node-label form (a quoted
         # invocation in a flow diagram) and flush-quoted invocations.
-        'A["/overnight [repo] [flags]"]': 'A["@overnight [repo] [flags]"]',
+        'A["/dossier-jobs [repo] [flags]"]': 'A["@dossier-jobs [repo] [flags]"]',
         '"/orchestrator"': '"@orchestrator"',
     }
     for src, want in cases_rewrite.items():
@@ -519,18 +519,18 @@ def test_transforms_skill_with_arguments():
 
 
 def test_transforms_dynamic_skill_names_new_skills():
-    print("\n[transforms: SKILL_NAMES is dynamic — new skills (overnight, todo) rewrite]")
+    print("\n[transforms: SKILL_NAMES is dynamic — new skills (dossier-jobs, todo) rewrite]")
     # SKILL_NAMES is DERIVED from the canonical skills/ dir (not a hand-maintained
     # list), so skills added to main AFTER the Codex generator was written
-    # (overnight, todo) flow through the /skill->@skill rewrite automatically.
+    # (dossier-jobs, todo) flow through the /skill->@skill rewrite automatically.
     # This is the regression guard against the old hardcoded 9-item list — without
-    # the dynamic fix, /overnight and /todo would survive un-rewritten as invalid
+    # the dynamic fix, /dossier-jobs and /todo would survive un-rewritten as invalid
     # slash-forms on Codex (AC-3 violation).
     fs_skills = {c.name for c in common.load_skills(REPO_ROOT)}
     check("SKILL_NAMES == canonical skills/ enumeration (single source, no drift)",
           set(transforms.SKILL_NAMES) == fs_skills,
           "SKILL_NAMES=%s fs=%s" % (sorted(transforms.SKILL_NAMES), sorted(fs_skills)))
-    for new_skill in ("overnight", "todo"):
+    for new_skill in ("dossier-jobs", "todo"):
         check("%s present in canonical skills/" % new_skill, new_skill in fs_skills)
         check("%s present in SKILL_NAMES (picked up dynamically)" % new_skill,
               new_skill in transforms.SKILL_NAMES)
