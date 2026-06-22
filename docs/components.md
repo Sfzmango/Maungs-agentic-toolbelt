@@ -115,3 +115,7 @@ Some patterns are not a component of their own — they are conventions shared a
 | Interview catalogs | [`interview-catalogs/`](interview-catalogs/) | `@architect` (greenfield), `/migration-planner` |
 
 **Interview catalogs** are named, declarative markdown checklists of the questions a component must surface — *before* its main work — so foundational answers are produced by a guaranteed coverage rule instead of model improvisation. They are the deliberate alternative to a centralized runtime "interviewer middleware" (evaluated and declined; see design principle §8 in [`design-philosophy.md`](design-philosophy.md)). Each catalog obeys six invariants — declarative, bucketed, coverage-rule, front-loaded, referenced-not-centralized, drift-guarded — and a CI check asserts each catalog's bucket headers appear in its consuming component(s). Two ship today: the greenfield catalog (consumed by `@architect`'s Phase 0 — Discovery) and the migration catalog (consumed by `/migration-planner` before its risk dossier). See [`interview-catalogs/README.md`](interview-catalogs/README.md).
+
+## A note on Codex artifacts
+
+The Codex target (`codex-agents/*.toml`, `codex-hooks/*`, `plugins/maungs-agentic-toolbelt/skills/`) is **derived**, not a set of new components. It is generated from the same canonical `agents/*.md` + `skills/*/SKILL.md` by `tools/build.py`, so the count above stays exactly **27 components** (16 agents + 11 skills) regardless of how many targets the generator emits to. See [`docs/codex.md`](codex.md) and [`docs/architecture.md`](architecture.md).

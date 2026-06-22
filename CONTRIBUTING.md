@@ -43,13 +43,37 @@ The single highest-leverage thing you can add to a target project is a good
    rules, explicit auto-detection, a circuit-breaker table, a token budget, and
    human gates for any outward-facing action.
 3. Re-run `./install.sh` (or `git pull` if you symlinked).
-4. **Update the counts + descriptions** — see [Keeping counts & descriptions in sync](#keeping-counts--descriptions-in-sync). The `validate` workflow fails until they match.
+4. **Regenerate the Codex artifacts** — see [Editing canonical & regenerating Codex artifacts](#editing-canonical--regenerating-codex-artifacts) below.
+5. **Update the counts + descriptions** — see [Keeping counts & descriptions in sync](#keeping-counts--descriptions-in-sync). The `validate` workflow fails until they match.
 
 ## Adding a new skill
 
 Create `skills/<your-skill>/SKILL.md` with frontmatter (`name`, `description`,
 `disable-model-invocation`). Skills are conductors — prefer delegating heavy
-work to agents over doing it inline. Then **update the counts + descriptions** (below).
+work to agents over doing it inline. Then **regenerate the Codex artifacts** (below)
+and **update the counts + descriptions** (below).
+
+## Editing canonical & regenerating Codex artifacts
+
+`agents/*.md` + `skills/*/SKILL.md` + `hooks/` are the **single canonical source**.
+The Codex artifacts under `codex-agents/`, `codex-hooks/`, and
+`plugins/maungs-agentic-toolbelt/skills/` are **generated** from that source by
+`tools/build.py` — never hand-edited. After ANY change to a canonical `.md` or a
+hook `.sh`, regenerate and commit the result:
+
+```bash
+python3 tools/build.py --target codex          # regenerate the Codex artifacts
+python3 tools/build.py --target codex --check   # CI mode: fails on any drift
+python3 tools/build.py --target claude --check  # validate-only: Claude never rewritten
+python3 tools/validate_codex.py                 # manifest + marketplace well-formed
+python3 tests/test_codex_build.py               # generator + gate-semantics tests
+```
+
+CI's drift guard re-runs the generator and turns red with a "regenerate" message
+if the committed Codex artifacts don't match canonical, so regenerating is not
+optional. The Claude side stays untouched — the Claude emitter is validate-only
+and writes nothing. See [`docs/codex.md`](docs/codex.md) and
+[`docs/architecture.md`](docs/architecture.md).
 
 ## Keeping counts & descriptions in sync
 

@@ -1,0 +1,30 @@
+{
+  "name": "maung-tools",
+  "description": "Maung Htike's catalog of agentic plugins, for the OpenAI Codex CLI.",
+  "owner": {
+    "name": "Maung Htike"
+  },
+  "plugins": [
+    {
+      "name": "maungs-agentic-toolbelt",
+      "source": "plugins/maungs-agentic-toolbelt/",
+      "description": "A project-agnostic, human-gated multi-agent software-development pipeline, ported to the OpenAI Codex CLI: skills via this marketplace, agents + hooks via install-codex.sh. Plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, and a self-maintaining codebase wiki.",
+      "author": {
+        "name": "Maung Htike"
+      },
+      "homepage": "https://github.com/Sfzmango/Maungs-agentic-toolbelt",
+      "license": "PolyForm-Noncommercial-1.0.0",
+      "category": "development",
+      "keywords": [
+        "codex",
+        "openai-codex",
+        "agents",
+        "skills",
+        "code-review",
+        "security",
+        "documentation",
+        "workflow"
+      ]
+    }
+  ]
+}

@@ -4,14 +4,14 @@
 
 ## Project overview
 
-This repo is a project-agnostic, human-gated multi-agent workflow **for** Claude Code — and it is itself a Claude Code **plugin**, not an application. It ships **16 agents + 10 skills (26 components)**: agents are `@name` subagents (specialized workers) and skills are `/name` conductors (orchestrators). Together they take a piece of work from a raw idea to a security-reviewed, merge-ready PR, and keep a codebase's docs current. Every component auto-detects the **host** project's stack and conventions at runtime — nothing is hardcoded to one language or framework. It is distributed two ways: as a Claude Code plugin via the `maung-tools` marketplace, and via a copy/symlink `install.sh` into `~/.claude`.
+This repo is a project-agnostic, human-gated multi-agent workflow **for** Claude Code — and it is itself a Claude Code **plugin**, not an application. It ships **16 agents + 11 skills (27 components)**: agents are `@name` subagents (specialized workers) and skills are `/name` conductors (orchestrators). Together they take a piece of work from a raw idea to a security-reviewed, merge-ready PR, and keep a codebase's docs current. Every component auto-detects the **host** project's stack and conventions at runtime — nothing is hardcoded to one language or framework. It is distributed two ways: as a Claude Code plugin via the `maung-tools` marketplace, and via a copy/symlink `install.sh` into `~/.claude`.
 
 ## Stack
 
 The "product" is **Markdown prompt definitions**: `agents/*.md` and `skills/<name>/SKILL.md`, each with YAML frontmatter. Supporting code:
 
 - **Bash** — `hooks/*.sh`, `install.sh`, `bin/toolbelt-metrics.sh`, `statusline/toolbelt-statusline.sh`.
-- **Python 3, stdlib only** (no pytest, no third-party deps) — `tests/test_router.py`, `tests/translator_eval/eval.py`.
+- **Python 3, stdlib only** (no pytest, no third-party deps) — the `tools/` generator (`build.py`, `emit/common.py`, `emit/target_claude.py`, `emit/target_codex.py`, `transforms.py`, `validate_codex.py`) and the test scripts `tests/test_router.py`, `tests/translator_eval/eval.py`, `tests/test_pretooluse_guard.py`, `tests/test_codex_build.py`.
 - **JSON** — `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `hooks/hooks.json`.
 
 There is **no package manager and no build system** — there is no `package.json`, `Gemfile`, `pyproject.toml`, `go.mod`, `Cargo.toml`, or equivalent in the repo.
@@ -40,10 +40,11 @@ Every command below is cited to its source. There is no install/build/lint/forma
 Top-level layout (roles below; for the full component inventory and the end-to-end flow diagram, see [`docs/architecture.md`](docs/architecture.md) — it is the canonical map and is CI-load-bearing, so this section references it rather than duplicating it):
 
 - **`agents/`** — 16 subagent definitions (`*.md`, flat directory; frontmatter `name`/`description`/`tools`). The specialized workers invoked as `@name`.
-- **`skills/`** — 10 skill conductors (`<name>/SKILL.md`, foldered; frontmatter `name`/`description`/`disable-model-invocation`). Model-invocable and slash-invoked orchestrators. Includes `overnight` (stands up overnight cloud routines via `RemoteTrigger`).
+- **`skills/`** — 11 skill conductors (`<name>/SKILL.md`, foldered; frontmatter `name`/`description`/`disable-model-invocation`). Model-invocable and slash-invoked orchestrators. Includes `overnight` (stands up overnight cloud routines via `RemoteTrigger`) and `todo` (a private, never-committed per-project backlog).
 - **`hooks/`** — `toolbelt-router.sh` (UserPromptSubmit suggester), `pretooluse-guard.sh` (PreToolUse/Bash deny+ask guard), `usage-tracker.sh` (PreToolUse on Task/Skill, opt-in telemetry), `sessionstart-loader.sh` (SessionStart snapshot), `lib-telemetry.sh` (shared lib), `hooks.json` (registration).
-- **`docs/`** — `architecture.md`, `components.md`, `design-philosophy.md`, `getting-started.md`, `scheduling.md`, `wiki-generator.md`.
-- **`tests/`** — `test_router.py` (router: 16 intents, 100+ cases) and `translator_eval/` (`eval.py` + 10 problems, each with `reference/` solutions across ~11 languages and `spec.json` I/O vectors).
+- **`docs/`** — `architecture.md`, `codex.md`, `components.md`, `design-philosophy.md`, `faq.md`, `getting-started.md`, `scheduling.md`, `wiki-generator.md`.
+- **`tests/`** — `test_router.py` (router: 16 intents, 100+ cases), `translator_eval/` (`eval.py` + 10 problems, each with `reference/` solutions across ~11 languages and `spec.json` I/O vectors), and `test_codex_build.py` (the Codex generator + gate-semantics tests).
+- **`tools/`** — the model-agnostic **generator** (pure Python 3 stdlib): `build.py` (entrypoint, `--target codex|claude|all [--check]`), `emit/common.py` (frontmatter parser + `Component` + deterministic IO), `emit/target_claude.py` (validate-only — writes nothing), `emit/target_codex.py` + `transforms.py` (the Codex emitter + body-adaptation rules), `validate_codex.py` (manifest/marketplace validator). It renders the canonical `agents/*.md` + `skills/*/SKILL.md` + `hooks/` into the **derived** Codex artifacts under `codex-agents/`, `codex-hooks/`, and `plugins/maungs-agentic-toolbelt/skills/`. **Codex artifacts are GENERATED, never hand-edited** — edit canonical, then run `python3 tools/build.py --target codex`; CI's drift guard fails on any diff. See `docs/codex.md`.
 - **`examples/`** — sample outputs per component (e.g. `sample-plan.md`, `sample-pr-review.md`, `sample-onboarding/`, `sample-wiki/`).
 - **`bin/toolbelt-metrics.sh`** — usage-telemetry summarizer behind `/toolbelt metrics`.
 - **`statusline/toolbelt-statusline.sh`** — cockpit status line.
@@ -67,7 +68,7 @@ Top-level layout (roles below; for the full component inventory and the end-to-e
 ## Testing + how to verify a change
 
 - **Framework:** plain Python 3 stdlib (no pytest). Tests live in `tests/`.
-- **The two suites:** `python3 tests/test_router.py` (router routing) and `python3 tests/translator_eval/eval.py` (translator reference solutions vs. I/O vectors). CI runs both on push and PR.
+- **The four CI-run python suites:** `python3 tests/test_router.py` (router routing), `python3 tests/translator_eval/eval.py` (translator reference solutions vs. I/O vectors), `python3 tests/test_pretooluse_guard.py` (guard deny/ask/allow precision), and `python3 tests/test_codex_build.py` (the Codex generator + gate semantics; also exercises `tools/build.py` + `tools/validate_codex.py`). CI runs all four on push and PR.
 - **How to verify a change before you push** (the quality bar — meet it before claiming a change is done):
   1. **For a routing change:** run `python3 tests/test_router.py` and ensure it exits 0.
   2. **For a translator/eval change:** run `python3 tests/translator_eval/eval.py` and ensure it exits 0.
@@ -78,7 +79,7 @@ Top-level layout (roles below; for the full component inventory and the end-to-e
 *(lead footguns first — these are the ones CI hard-fails on)*
 
 - **Leak-grep (CI hard-fail):** CI runs a case-insensitive `grep` across `*.md`/`*.json`/`*.sh` and fails on any match against a small denylist — two private/employer name fragments plus the pattern for an absolute macOS home path (`/Users/<lowercase>`). The exact regex lives in `.github/workflows/validate.yml:30`. **Never** write an absolute home path (use `~/...` or a repo-relative path), and never write the private name fragments. Note: even *documenting* these strings literally would trip the grep, so refer to them by description, not by spelling them out. *(`.github/workflows/validate.yml:26-36`)*
-- **Component counts are load-bearing (CI hard-fail):** adding or removing an agent or skill changes the totals, and CI derives the real counts from the filesystem and asserts the exact strings in **six files** — `README.md`, `docs/components.md`, `docs/architecture.md`, `docs/design-philosophy.md`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`. Update all six (and update the GitHub "About" via `gh repo edit <owner>/<repo> --description "…"`, which CI only *warns* on). Today the count is **16 agents + 10 skills = 26 components**. *(`.github/workflows/validate.yml:44-72`, `CONTRIBUTING.md:54-65`)*
+- **Component counts are load-bearing (CI hard-fail):** adding or removing an agent or skill changes the totals, and CI derives the real counts from the filesystem and asserts the exact strings in **six files** — `README.md`, `docs/components.md`, `docs/architecture.md`, `docs/design-philosophy.md`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`. Update all six (and update the GitHub "About" via `gh repo edit <owner>/<repo> --description "…"`, which CI only *warns* on). Today the count is **16 agents + 11 skills = 27 components**. *(`.github/workflows/validate.yml:44-72`, `CONTRIBUTING.md:54-65`)*
 - **No AI-assistant attribution** in commit messages, PR bodies, or files — and the shipped `pretooluse-guard.sh` *denies* commits that carry an AI co-author trailer or a "generated by an AI assistant" footer. *(`CONTRIBUTING.md:28`, `hooks/pretooluse-guard.sh:67-69`)*
 - **Frontmatter is mandatory:** every `agents/*.md` and `skills/*/SKILL.md` must start with `---` and declare a `name:` field, or CI fails. *(`.github/workflows/validate.yml:13-24`)*
 - **The "product" is prompt markdown** — the test suite validates **routing** and the **translator eval**, not application logic. There is nothing to "build."

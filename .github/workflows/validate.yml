@@ -13,7 +13,11 @@ jobs:
       # Seed the job summary table. Every check below appends one row, so the
       # summary shows ALL results (pass and fail) at a glance — not just the
       # first failure. `if: always()` on every check keeps them all running and
-      # reporting even after one fails; the job still goes red if any step exits non-zero.
+      # reporting even after one fails; the job still goes red if any step exits
+      # non-zero. The Codex steps (8-12) are deliberately orthogonal: a Codex
+      # emit/drift failure (8) must not mask the Claude-regression signal (9),
+      # the wrapper validation (10), the count asserts (11), or the generator
+      # tests (12) — so each runs and reports independently.
       - name: Init summary
         if: always()
         run: |
@@ -56,10 +60,13 @@ jobs:
         run: |
           # A safety gate: the public repo must never contain private project
           # names, employer identities, or absolute home paths.
-          echo "::group::Leak-grep (*.md *.json *.sh, excluding .git/.github)"
+          # *.toml covers the generated Codex agents; *.py the new tools/ generator
+          # surface (both repo-wide, like *.md / *.json / *.sh).
+          echo "::group::Leak-grep (*.md *.json *.sh *.toml *.py, excluding .git/.github)"
           rc=0
           matches="$(grep -rniE 'botdo|accrualify|/Users/[a-z]' \
                --include='*.md' --include='*.json' --include='*.sh' \
+               --include='*.toml' --include='*.py' \
                --exclude-dir=.git --exclude-dir=.github .)" || rc=$?
           if [ -n "$matches" ]; then
             printf '%s\n' "$matches"
@@ -251,5 +258,127 @@ jobs:
           else
             echo "Guard precision: ❌ FAIL — ${detail:-see log}"
             echo "| 7 | Guard precision | ❌ FAIL | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc
+
+      - name: 8 · Codex artifacts are regenerable from canonical (drift guard)
+        if: always()
+        run: |
+          # Re-run the Codex emitter and fail if the working tree changed — a
+          # canonical .md/.sh edit that wasn't regenerated turns this red with an
+          # actionable "regenerate" message. Scoped to --target codex ONLY, kept
+          # orthogonal to the Claude validate-only step below so a Codex emit
+          # failure never masks the Claude-regression signal.
+          echo "::group::Codex drift guard (python3 tools/build.py --target codex)"
+          rc=0
+          python3 tools/build.py --target codex || rc=$?
+          diff_out="$(git status --porcelain -- codex-agents codex-hooks plugins/maungs-agentic-toolbelt/skills)"
+          echo "::endgroup::"
+          if [ "$rc" -ne 0 ]; then
+            echo "Codex drift guard: ❌ FAIL — emitter aborted (rc=$rc)"
+            echo "| 8 | Codex drift guard | ❌ FAIL | emitter aborted (rc=$rc) |" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [ -n "$diff_out" ]; then
+            echo "Codex artifacts drifted from canonical — regenerate with 'python3 tools/build.py --target codex' and commit:"
+            printf '%s\n' "$diff_out"
+            git --no-pager diff -- codex-agents codex-hooks plugins/maungs-agentic-toolbelt/skills | head -200
+            echo "::error::Codex artifacts drifted — run 'python3 tools/build.py --target codex' and commit the result"
+            echo "Codex drift guard: ❌ FAIL — regenerate the Codex artifacts"
+            echo "| 8 | Codex drift guard | ❌ FAIL | regenerate (canonical moved) |" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Codex drift guard: ✅ PASS — generated == committed"
+          echo "| 8 | Codex drift guard | ✅ PASS | generated == committed |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 9 · Claude target unchanged (validate-only — writes nothing)
+        if: always()
+        run: |
+          # Validate-only Claude emitter (AC-7): FAILS when canonical no longer
+          # reproduces today's Claude artifacts. Scoped to --target claude (NOT
+          # --target all) ON PURPOSE — coupling it to a Codex emit would let a
+          # Codex emit failure mask the Claude-regression signal.
+          echo "::group::Claude validate-only (python3 tools/build.py --target claude --check)"
+          rc=0
+          out="$(python3 tools/build.py --target claude --check 2>&1)" || rc=$?
+          printf '%s\n' "$out"
+          echo "::endgroup::"
+          if [ "$rc" -eq 0 ]; then
+            echo "Claude validate-only: ✅ PASS — canonical reproduces today's Claude artifacts"
+            echo "| 9 | Claude validate-only | ✅ PASS | canonical reproduces Claude artifacts |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Claude validate-only: ❌ FAIL — canonical regressed the Claude target"
+            echo "| 9 | Claude validate-only | ❌ FAIL | canonical regressed Claude target |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc
+
+      - name: 10 · Codex manifest + marketplace are well-formed
+        if: always()
+        run: |
+          echo "::group::validate_codex (manifest + marketplace)"
+          rc=0
+          out="$(python3 tools/validate_codex.py 2>&1)" || rc=$?
+          printf '%s\n' "$out"
+          echo "::endgroup::"
+          if [ "$rc" -eq 0 ]; then
+            echo "Codex wrappers: ✅ PASS — manifest + marketplace well-formed"
+            echo "| 10 | Codex wrappers | ✅ PASS | manifest + marketplace well-formed |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Codex wrappers: ❌ FAIL — see log"
+            echo "| 10 | Codex wrappers | ❌ FAIL | see log |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc
+
+      - name: 11 · Codex artifact counts match canonical (filesystem-derived)
+        if: always()
+        run: |
+          # Derive the Codex count from the generated file lists — NOT from any
+          # hand-maintained wrapper string (the wrappers carry no count) — and
+          # assert it equals the canonical count.
+          echo "::group::Codex artifact-count consistency"
+          A=$(ls agents/*.md | wc -l | tr -d ' ')
+          S=$(ls skills/*/SKILL.md | wc -l | tr -d ' ')
+          CA=$(ls codex-agents/*.toml | wc -l | tr -d ' ')
+          CS=$(ls -d plugins/maungs-agentic-toolbelt/skills/*/ | wc -l | tr -d ' ')
+          echo "canonical: ${A} agents + ${S} skills"
+          echo "codex:     ${CA} agents (*.toml) + ${CS} skill folders"
+          fail=0
+          if [ "$CA" -ne "$A" ]; then
+            echo "  ✗ FAIL codex agents ${CA} != canonical ${A}"
+            echo "::error::codex agent count (${CA}) != canonical (${A}) — regenerate"; fail=1
+          else
+            echo "  ✓ PASS codex agents ${CA} == canonical ${A}"
+          fi
+          if [ "$CS" -ne "$S" ]; then
+            echo "  ✗ FAIL codex skill folders ${CS} != canonical ${S}"
+            echo "::error::codex skill-folder count (${CS}) != canonical (${S}) — regenerate"; fail=1
+          else
+            echo "  ✓ PASS codex skill folders ${CS} == canonical ${S}"
+          fi
+          echo "::endgroup::"
+          if [ "$fail" -eq 0 ]; then
+            echo "Codex counts: ✅ PASS — ${CA} agents + ${CS} skills == canonical"
+            echo "| 11 | Codex counts | ✅ PASS | ${CA} agents + ${CS} skills == canonical |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Codex counts: ❌ FAIL — codex artifacts out of sync with canonical"
+            echo "| 11 | Codex counts | ❌ FAIL | codex out of sync with canonical |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $fail
+
+      - name: 12 · Codex generator + gate tests
+        if: always()
+        run: |
+          echo "::group::Codex generator tests (tests/test_codex_build.py)"
+          rc=0
+          out="$(python3 tests/test_codex_build.py 2>&1)" || rc=$?
+          printf '%s\n' "$out"
+          echo "::endgroup::"
+          detail="$(printf '%s\n' "$out" | grep -m1 -E '^TOTAL:' | sed -E 's/^TOTAL: //')"
+          if [ "$rc" -eq 0 ]; then
+            echo "Codex generator tests: ✅ PASS — ${detail:-ok}"
+            echo "| 12 | Codex generator tests | ✅ PASS | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Codex generator tests: ❌ FAIL — ${detail:-see log}"
+            echo "| 12 | Codex generator tests | ❌ FAIL | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $rc
