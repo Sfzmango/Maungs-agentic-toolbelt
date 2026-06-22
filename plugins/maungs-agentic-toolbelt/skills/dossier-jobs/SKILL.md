@@ -1,6 +1,6 @@
 ---
 name: dossier-jobs
-description: Conductor that stands up the toolbelt's scheduled CLOUD routines for any target repo with one command. `@dossier-jobs [repo]` (or no arg → the cwd's git remote) sets up, by default, THREE scheduled cloud routines — bug · security · wiki — via the RemoteTrigger tool (the claude.ai/code routines API), each its own routine, all feeding ONE rolling `[dossier-jobs] Dossier` tracking issue (each job owns its own marker-tagged comment, race-safe). The bug routine sweeps the codebase and auto-develops the top `--max-fixes` (default 5) NON-SEV1 findings into DRAFT, never-merged fix PRs (SEV1 stays issue-only); the security routine runs a generic repo-wide compliance sweep (issue-only, no fix PRs); the wiki routine runs a full-coverage build and opens ONE rolling propose-only PR. Flags: `--bug`/`--security`/`--wiki` to subset, `--max-fixes <n>`, `--time <hh:mm>`/`--tz <IANA>`, `--status`/`--disable`, `--run-now`. Reads and preflights for free; gates the one outward action (the RemoteTrigger create/update/run call) behind an explicit human confirmation that shows the exact config first. Invoke as `@dossier-jobs [repo] [flags]`.
+description: Conductor that stands up the toolbelt's scheduled CLOUD routines for any target repo with one command. `@dossier-jobs [repo]` (or no arg → the cwd's git remote) sets up, by default, THREE scheduled cloud routines — bug · security · wiki — via the RemoteTrigger tool (the claude.ai/code routines API), each its own routine, all feeding ONE rolling `[dossier-jobs] Dossier` tracking issue (each job owns its own marker-tagged comment, race-safe). The bug routine sweeps the codebase and auto-develops the top `--max-fixes` (default 5) NON-SEV1 findings into DRAFT, never-merged fix PRs (SEV1 stays issue-only); the security routine runs a generic repo-wide compliance sweep (issue-only, no fix PRs); the wiki routine runs a full-coverage build and opens ONE rolling propose-only PR. Flags: `--bug`/`--security`/`--wiki` to subset, `--max-fixes <n>`, `--time <hh:mm>`/`--tz <IANA>`, `--model <model-id>`, `--status`/`--disable`, `--run-now`. Reads and preflights for free; gates the one outward action (the RemoteTrigger create/update/run call) behind an explicit human confirmation that shows the exact config first. Invoke as `@dossier-jobs [repo] [flags]`.
 ---
 
 # @dossier-jobs — one-command setup for scheduled cloud "dossier" routines
@@ -42,6 +42,7 @@ Parse flags first; the remaining non-flag token is the positional `<repo>`. An u
 | `--bug` / `--security` / `--wiki` | Select which jobs to set up — each becomes its **own** routine; any subset works (e.g. `--bug --security` ⇒ 2 routines). No job flag ⇒ all three. (`--bug-only` etc. are single-job aliases.) |
 | `--max-fixes <n>` | Cap on auto-developed DRAFT fix PRs per bug run (default **5**, SEV2–SEV4 by severity). SEV1 is never auto-developed regardless. **Prompt-enforced/best-effort** (see below), not a tool gate. |
 | `--time <hh:mm>` | Local fire time. **If omitted, the skill ASKS for the time before the create gate, defaulting to `08:00` if you skip.** Each selected job's routine is staggered a few minutes apart from this time (off the `:00`/`:30` herd). |
+| `--model <model-id>` | Model for the routines. **If omitted, the skill ASKS at setup time** — Claude path: `claude-opus-4-8` (default), `claude-sonnet-4-6`, `claude-haiku-4-5`; Codex path: `gpt-4o` (default), `gpt-4.1`, `o3`, `o4-mini`. |
 | `--tz <IANA>` | Timezone for `--time` (default: host system tz, **always echoed** in the confirm). |
 | `--status` | **Read-only**: list this repo's dossier-jobs routines (enabled?, next fire local+UTC, last run). No gate. |
 | `--disable` | Set `enabled:false` on this repo's routines (the API has no delete). Re-running `@dossier-jobs` re-enables. |
@@ -61,7 +62,7 @@ Cloud routines are created with the **`RemoteTrigger`** tool (the claude.ai/code
   "job_config": { "ccr": {
     "environment_id": "<env id>",
     "session_context": {
-      "model": "<target default — claude-opus-4-8 on Claude; the Codex backend supplies its own>",
+      "model": "<user-selected or runtime default — Claude: claude-opus-4-8/sonnet-4-6/haiku-4-5; Codex: gpt-4o/gpt-4.1/o3/o4-mini>",
       "sources": [ { "git_repository": { "url": "https://github.com/<owner>/<repo>" } } ],
       "allowed_tools": ["Bash","Read","Write","Edit","Glob","Grep"]
     },
@@ -75,7 +76,7 @@ Cloud routines are created with the **`RemoteTrigger`** tool (the claude.ai/code
   } } }
 ```
 
-- **`model` + `allowed_tools` are a target-seam parameter**, not a literal the conductor hardcodes: Claude's default is `claude-opus-4-8`; a Codex automation backend supplies its own. Keep the create/update/run mechanism behind this small seam so the conductor logic ports unchanged. **Wiring the Codex backend is out of scope here** (it belongs to the Codex port); this iteration only keeps the seam clean.
+- **`model` + `allowed_tools` are a target-seam parameter**, not a literal the conductor hardcodes. The user selects the model at setup time (via `--model` or the at-setup ask); the conductor injects the chosen value here. Claude path options: `claude-opus-4-8` (default), `claude-sonnet-4-6`, `claude-haiku-4-5`. Codex path options: `gpt-4o` (default), `gpt-4.1`, `o3`, `o4-mini`. Keep the create/update/run mechanism behind this seam so the conductor logic ports unchanged. **Wiring the Codex routine backend is out of scope here** (it belongs to the Codex port); this iteration only keeps the seam clean.
 - **Cron is UTC** with a **minimum interval of 1h**. The skill converts the user's local `--time`/`--tz` to a 5-field UTC expression and deliberately **avoids the `:00`/`:30` herd** — e.g. for 08:00 Pacific it schedules bug at `0 15 * * *`, security a few minutes later at `5 15 * * *`, wiki at `10 15 * * *` (08:00 / 08:05 / 08:10 local), so two routines for the same repo never fire in the same instant and the cloud fleet isn't stampeded on the hour.
 - `RemoteTrigger {action:"list"}` enumerates routines; `{action:"update",trigger_id}` edits one; `{action:"run",trigger_id}` runs one now. **There is no delete** — `--disable` sets `enabled:false` via `update`.
 - **DST-drift note.** RemoteTrigger crons are **UTC and DST-naive**. A cron pinned to a fixed UTC hour will fire **±1h off the intended local time** across a daylight-saving transition (e.g. an 08:00-Pacific routine drifts to 09:00 or 07:00 local for the half of the year on the other side of the DST boundary) **until the routine is re-saved** at the new offset. State this in the confirm panel / report when the resolved tz observes DST, so the user knows a seasonal re-run of `@dossier-jobs` re-pins the local fire time.
@@ -100,7 +101,7 @@ flowchart TD
     E -->|"yes"| UPD["plan = UPDATE in place"]
     E -->|"no"| CRE["plan = CREATE"]
     UPD --> F
-    CRE --> F["ask fire time if --time omitted (default 08:00),<br/>build cron (local→UTC, off-herd),<br/>build routine prompt(s),<br/>set commit identity in prompt"]
+    CRE --> F["ask fire time if --time omitted (default 08:00),<br/>ask model if --model omitted (Claude: opus default; Codex: gpt-4o default),<br/>build cron (local→UTC, off-herd),<br/>build routine prompt(s),<br/>set commit identity in prompt"]
     F --> G{{"HUMAN GATE — show exact config:<br/>repo · cron local+UTC · model ·<br/>create-vs-update · prompt summary"}}
     G -->|"no"| STOP2["abort, nothing created"]
     G -->|"yes"| H["RemoteTrigger create | update<br/>(one routine per selected job)"]
@@ -119,7 +120,7 @@ flowchart TD
 
 ### 1 — Parse + resolve
 
-Parse flags (job selection, `--max-fixes`, `--time`/`--tz`, `--status`/`--disable`, `--run-now`); an unknown flag → echo + stop. Resolve the target repo (positional arg, else cwd's `git remote`); if neither resolves, stop and ask. `--status` short-circuits to a read-only list (Step 6) with no gate. If no `--time` was given and the run will create/update (not `--status`/`--disable`), **ask the user for the local fire time before building the config — default to `08:00` if they skip.** (The chosen time is still echoed in the confirm panel, so the gate shows it either way.)
+Parse flags (job selection, `--max-fixes`, `--time`/`--tz`, `--status`/`--disable`, `--run-now`); an unknown flag → echo + stop. Resolve the target repo (positional arg, else cwd's `git remote`); if neither resolves, stop and ask. `--status` short-circuits to a read-only list (Step 6) with no gate. If no `--time` was given and the run will create/update (not `--status`/`--disable`), **ask the user for the local fire time before building the config — default to `08:00` if they skip.** Similarly, if no `--model` was given, **ask which model the routines should use — Claude path: `claude-opus-4-8` (default), `claude-sonnet-4-6`, `claude-haiku-4-5`; Codex path: `gpt-4o` (default), `gpt-4.1`, `o3`, `o4-mini` — default to the runtime's native default if the user skips.** (The chosen time is still echoed in the confirm panel, so the gate shows it either way.)
 
 ### 2 — Preflight (read-only, free)
 
@@ -154,6 +155,7 @@ About to CREATE 3 dossier-jobs routines for <owner>/<repo>
   │   fires: 08:10 <IANA tz>  →  cron (UTC): 10 15 * * *
   │   runs: @wiki-generator (or generic) full build → its Wiki comment
   │         + ONE rolling propose-only PR (not one PR per page)
+  │ model: <user-selected — claude-opus-4-8 / claude-sonnet-4-6 / claude-haiku-4-5 on Claude; gpt-4o / gpt-4.1 / o3 / o4-mini on Codex>
   └ commits attribute to: <your-name> <<you>@users.noreply.github.com>
   ⚠ connector check: the claude.ai GitHub connection authenticates the push/PR —
     verify it is YOUR account (not a bot) before relying on attribution.
