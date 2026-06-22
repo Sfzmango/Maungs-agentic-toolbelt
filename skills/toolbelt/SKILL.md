@@ -62,7 +62,7 @@ Group every installed component into the lifecycle stage it serves. A component 
 | **Review** | Fresh-eyes correctness + security gates on a PR | `@pr-reviewer`, `@security-reviewer`, `@security-mentor` |
 | **Wrap-up** | Resolve review threads; merge-ready hygiene | `@resolution` |
 | **Bug** | Diagnose + adversarially verify defects | `/bug-catcher`, `@bug-catcher-rick`, `@bug-catcher-adversary` |
-| **Utility** | Small/standalone helpers outside the full pipeline | `/chore`, `/handoff`, `/todo`, `/release-notes`, `/overnight`, plus the hooks prompt-router |
+| **Utility** | Small/standalone helpers outside the full pipeline | `/chore`, `/handoff`, `/todo`, `/release-notes`, `/dossier-jobs`, plus the hooks prompt-router |
 | **Wiki** | Generate + maintain a technical wiki | `/wiki-generator`, `@wiki-writer`, `@wiki-auditor` |
 
 Derive membership from the detected set: assign each enumerated skill/agent to a stage by its frontmatter role. If a newly-installed component does not match a known stage, place it under **Utility** and flag it as "unclassified — review stage" rather than dropping it. Never hide a component just because it does not fit cleanly.

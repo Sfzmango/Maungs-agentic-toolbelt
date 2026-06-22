@@ -1,6 +1,6 @@
 {
   "name": "maungs-agentic-toolbelt",
-  "description": "A project-agnostic, human-gated multi-agent software-development pipeline for Claude Code: 16 subagents + 11 skills spanning plan → build → review → wrap-up, plus bug diagnosis, code translation, chores, handoffs, overnight cloud routines, a private per-project to-do backlog, and a self-maintaining codebase wiki. Ships an always-on prompt router that surfaces the right component when a request fits, plus opt-in usage telemetry (/toolbelt metrics).",
+  "description": "A project-agnostic, human-gated multi-agent software-development pipeline for Claude Code: 16 subagents + 11 skills spanning plan → build → review → wrap-up, plus bug diagnosis, code translation, chores, handoffs, scheduled cloud routines, a private per-project to-do backlog, and a self-maintaining codebase wiki. Ships an always-on prompt router that surfaces the right component when a request fits, plus opt-in usage telemetry (/toolbelt metrics).",
   "version": "0.5.0",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": {

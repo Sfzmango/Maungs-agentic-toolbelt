@@ -36,7 +36,7 @@ from .emit import common
 # The canonical skill names — the only ``/name`` tokens the left-boundary rule
 # rewrites to ``@name``. Derived DYNAMICALLY from the canonical ``skills/``
 # directory (the same single source ``common.load_skills`` enumerates), so a NEW
-# skill — ``overnight``, ``todo``, or any future one — is picked up automatically
+# skill — ``dossier-jobs``, ``todo``, or any future one — is picked up automatically
 # with no hand-maintained list to drift out of sync with the emitter. Sorted;
 # longest-first matching is enforced in the regex build so e.g.
 # ``/migration-planner`` is not partially matched by a shorter name.
@@ -150,8 +150,8 @@ def _skill_alternation() -> str:
 # (backtick / open-paren / double-quote). Broadening past bare-whitespace is what
 # lets the rule reach backtick-wrapped (`` `/orchestrator` ``), parenthesized
 # (``(/wiki-generator …)``) AND double-quoted invocations — the latter is the
-# mermaid node-label form ``A["/overnight [repo]"]`` (a quoted invocation depicted
-# in a flow diagram), so the diagram label is rewritten to ``@overnight`` too. We
+# mermaid node-label form ``A["/dossier-jobs [repo]"]`` (a quoted invocation depicted
+# in a flow diagram), so the diagram label is rewritten to ``@dossier-jobs`` too. We
 # rewrite the leading skill TOKEN only (``/orchestrator`` -> ``@orchestrator``) and
 # leave everything to its right (args, sub-commands, flags, the closing delimiter)
 # intact. The STRICT right boundary — whitespace | end | one of .,;:!? | a closing
