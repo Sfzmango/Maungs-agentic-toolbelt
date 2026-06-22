@@ -14,6 +14,32 @@ cd Maungs-agentic-toolbelt
 
 Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` then `/plugin install maungs-agentic-toolbelt@maung-tools` (the plugin is served from the repo's `maung-tools` marketplace).
 
+### Install on the OpenAI Codex CLI
+
+The toolbelt is **model-agnostic** — the same components run on the **OpenAI Codex CLI**. Codex's plugin manifest cannot carry agents + hooks, so install is two-track:
+
+```bash
+# Track 1 — skills via the Codex marketplace/plugin:
+codex plugin marketplace add Sfzmango/Maungs-agentic-toolbelt
+codex plugin install maungs-agentic-toolbelt
+
+# Track 2 — agents + hooks via the installer:
+./install-codex.sh --dry-run     # preview, changes nothing
+./install-codex.sh               # install into ~/.codex
+```
+
+Verify: `ls ~/.codex/agents` shows the agents, `@mention` one in a Codex thread, trigger a skill in chat, and confirm `@developer` / `@architect` still **pause** on the commit/push gates. Full walkthrough + the writer/reader telemetry caveat: **[`docs/codex.md`](docs/codex.md)**.
+
+### Supported targets
+
+| Target | Status | Components | Install |
+|--------|--------|-----------|---------|
+| **Claude Code** | shipped | agents + skills (+ hooks via plugin) | `./install.sh` or the `maung-tools` plugin |
+| **OpenAI Codex CLI** | shipped | skills (marketplace) + agents & hooks (installer) | `./install-codex.sh` + `codex plugin install` |
+| cursor / aider / … | future | — | accommodated by the generator seam (add an emitter + a row); not built yet |
+
+Codex artifacts are **generated** from the canonical `agents/*.md` + `skills/*/SKILL.md` + `hooks/` by `tools/build.py` — never hand-authored. See **[`docs/codex.md`](docs/codex.md)** and **[`docs/architecture.md`](docs/architecture.md)**.
+
 > **Zero to running.** The agents use a **GitHub MCP** server (issue/PR tools) and, optionally, a **Playwright MCP** server (`@developer`'s browser checks). These do not need to be wired up by hand — running `/orchestrator` performs an environment **preflight** that detects what's missing, offers to add the MCP servers (behind a confirmation gate), and guides the user through anything that requires manual action (`gh auth login`, restarting Claude Code). Full walkthrough: **[`docs/getting-started.md`](docs/getting-started.md)**.
 
 ---

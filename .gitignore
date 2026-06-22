@@ -20,3 +20,7 @@ screenshots/
 
 # Node (only if you add tooling)
 node_modules/
+
+# Python bytecode (the tools/ generator is pure stdlib; never commit bytecode)
+__pycache__/
+*.pyc
