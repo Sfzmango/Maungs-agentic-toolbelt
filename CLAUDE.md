@@ -1,4 +1,4 @@
-> This repo is prepped for agentic development: the context below is verified against the tree and is meant to be acted on without re-deriving it from source. Last verified against commit `cf4d0e9`.
+> This repo is prepped for agentic development: the context below is verified against the tree and is meant to be acted on without re-deriving it from source.
 
 # CLAUDE.md — Maungs-agentic-toolbelt
 
@@ -12,7 +12,7 @@ The "product" is **Markdown prompt definitions**: `agents/*.md` and `skills/<nam
 
 - **Bash** — `hooks/*.sh`, `install.sh`, `bin/toolbelt-metrics.sh`, `statusline/toolbelt-statusline.sh`.
 - **Python 3, stdlib only** (no pytest, no third-party deps) — the `tools/` generator (`build.py`, `emit/common.py`, `emit/target_claude.py`, `emit/target_codex.py`, `transforms.py`, `validate_codex.py`) and the test scripts `tests/test_router.py`, `tests/translator_eval/eval.py`, `tests/test_pretooluse_guard.py`, `tests/test_codex_build.py`.
-- **JSON** — `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `hooks/hooks.json`.
+- **JSON** — Claude and Codex plugin manifests/marketplaces plus hook registrations.
 
 There is **no package manager and no build system** — there is no `package.json`, `Gemfile`, `pyproject.toml`, `go.mod`, `Cargo.toml`, or equivalent in the repo.
 
@@ -41,10 +41,10 @@ Top-level layout (roles below; for the full component inventory and the end-to-e
 
 - **`agents/`** — 16 subagent definitions (`*.md`, flat directory; frontmatter `name`/`description`/`tools`). The specialized workers invoked as `@name`.
 - **`skills/`** — 11 skill conductors (`<name>/SKILL.md`, foldered; frontmatter `name`/`description`/`disable-model-invocation`). Model-invocable and slash-invoked orchestrators. Includes `dossier-jobs` (stands up scheduled cloud routines via `RemoteTrigger`) and `todo` (a private, never-committed per-project backlog).
-- **`hooks/`** — `toolbelt-router.sh` (UserPromptSubmit suggester), `pretooluse-guard.sh` (PreToolUse/Bash deny+ask guard), `usage-tracker.sh` (PreToolUse on Task/Skill, opt-in telemetry), `sessionstart-loader.sh` (SessionStart snapshot), `lib-telemetry.sh` (shared lib), `hooks.json` (registration).
+- **`hooks/`** — canonical hook implementations: `toolbelt-router.sh`, `pretooluse-guard.sh`, `usage-tracker.sh`, `sessionstart-loader.sh`, `lib-telemetry.sh`, and `hooks.json`. The Codex emitter adapts event/schema differences and bundles the generated hooks in the Codex plugin.
 - **`docs/`** — `architecture.md`, `codex.md`, `components.md`, `design-philosophy.md`, `faq.md`, `getting-started.md`, `scheduling.md`, `wiki-generator.md`.
 - **`tests/`** — `test_router.py` (router: 16 intents, 100+ cases), `translator_eval/` (`eval.py` + 10 problems, each with `reference/` solutions across ~11 languages and `spec.json` I/O vectors), and `test_codex_build.py` (the Codex generator + gate-semantics tests).
-- **`tools/`** — the model-agnostic **generator** (pure Python 3 stdlib): `build.py` (entrypoint, `--target codex|claude|all [--check]`), `emit/common.py` (frontmatter parser + `Component` + deterministic IO), `emit/target_claude.py` (validate-only — writes nothing), `emit/target_codex.py` + `transforms.py` (the Codex emitter + body-adaptation rules), `validate_codex.py` (manifest/marketplace validator). It renders the canonical `agents/*.md` + `skills/*/SKILL.md` + `hooks/` into the **derived** Codex artifacts under `codex-agents/`, `codex-hooks/`, and `plugins/maungs-agentic-toolbelt/skills/`. **Codex artifacts are GENERATED, never hand-edited** — edit canonical, then run `python3 tools/build.py --target codex`; CI's drift guard fails on any diff. See `docs/codex.md`.
+- **`tools/`** — the model-agnostic **generator** (pure Python 3 stdlib): `build.py` (entrypoint, `--target codex|claude|all [--check]`), `emit/common.py` (frontmatter parser + `Component` + deterministic IO), `emit/target_claude.py` (validate-only — writes nothing), `emit/target_codex.py` + `transforms.py` (the Codex emitter + body-adaptation rules), `validate_codex.py` (manifest/marketplace validator). It renders the canonical `agents/*.md` + `skills/*/SKILL.md` + `hooks/` into the **derived** Codex artifacts under `codex-agents/` and `plugins/maungs-agentic-toolbelt/{skills,hooks,bin}/`. **Codex artifacts are GENERATED, never hand-edited** — edit canonical, then run `python3 tools/build.py --target codex`; CI's drift guard fails on any diff. See `docs/codex.md`.
 - **`examples/`** — sample outputs per component (e.g. `sample-plan.md`, `sample-pr-review.md`, `sample-onboarding/`, `sample-wiki/`).
 - **`bin/toolbelt-metrics.sh`** — usage-telemetry summarizer behind `/toolbelt metrics`.
 - **`statusline/toolbelt-statusline.sh`** — cockpit status line.
@@ -83,7 +83,7 @@ Top-level layout (roles below; for the full component inventory and the end-to-e
 - **No AI-assistant attribution** in commit messages, PR bodies, or files — and the shipped `pretooluse-guard.sh` *denies* commits that carry an AI co-author trailer or a "generated by an AI assistant" footer. *(`CONTRIBUTING.md:28`, `hooks/pretooluse-guard.sh:67-69`)*
 - **Frontmatter is mandatory:** every `agents/*.md` and `skills/*/SKILL.md` must start with `---` and declare a `name:` field, or CI fails. *(`.github/workflows/validate.yml:13-24`)*
 - **The "product" is prompt markdown** — the test suite validates **routing** and the **translator eval**, not application logic. There is nothing to "build."
-- **`plugin.json` uses strict semver** (currently `0.4.0`). *(`.claude-plugin/plugin.json`)*
+- **Plugin manifests use strict semver** and the Claude/Codex versions must stay in parity. *(`.claude-plugin/plugin.json`, `plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json`)*
 
 ## Plan-file convention
 

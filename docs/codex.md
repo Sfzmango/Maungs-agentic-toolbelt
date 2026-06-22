@@ -6,168 +6,154 @@ Claude Code also run on the **OpenAI Codex CLI**. Components are defined **once*
 (`tools/build.py`) renders them into Codex's native forms. You never hand-edit a
 Codex artifact; you edit the canonical source and regenerate.
 
-## Two-track distribution (and why)
+## Distribution model
 
-Codex's plugin manifest **cannot carry `agents` + `hooks`** — only skills. So the
-Codex port ships on **two tracks**:
+Codex plugins can bundle skills, lifecycle hooks, and helper scripts. They do not
+currently bundle custom TOML subagents, so the Codex port has two install pieces:
 
-| Track | Carries | How you get it |
-|-------|---------|----------------|
-| **Marketplace / plugin** | the 11 skills | `codex plugin marketplace add …` + `codex plugin add …` |
-| **Installer** | the 16 agents + the 4 hooks | `./install-codex.sh` |
+| Piece | Carries | Install |
+|-------|---------|---------|
+| **Marketplace plugin** | skills, lifecycle hooks, router, guard, telemetry, metrics helper | `codex plugin marketplace add …` then `codex plugin add …` |
+| **Agent installer** | custom subagents under `~/.codex/agents/` | `./install-codex.sh` |
 
-This split is a Codex platform constraint, not a preference: the manifest format
-forbids bundling agents and hooks, so the installer owns that track while the
-marketplace owns skills.
+The plugin is the normal path. `./install-codex.sh --standalone` is a fallback
+that also installs hooks and skills without the plugin.
 
 ## Install
-
-### 1. Skills (marketplace — preferred)
 
 ```sh
 codex plugin marketplace add Sfzmango/Maungs-agentic-toolbelt
 codex plugin add maungs-agentic-toolbelt@maung-tools
+
+./install-codex.sh --dry-run
+./install-codex.sh
 ```
 
-The marketplace reads `.agents/plugins/marketplace.json`, whose structured local
-`source.path` points at `./plugins/maungs-agentic-toolbelt`, where the
-skills-only manifest (`.codex-plugin/plugin.json`) and the generated
-`skills/<name>/SKILL.md` live.
+Then:
 
-### 2. Agents + hooks (installer)
+1. Open `/hooks`, review the plugin-bundled hooks, and trust them.
+2. Start a new Codex thread so plugin skills, hooks, and custom agents are loaded.
+3. Check MCP servers with `codex mcp list`.
+
+Most workflows expect a GitHub MCP server. The `developer` subagent optionally
+uses Playwright; `code-translator` uses Context7.
+
+### Standalone fallback
 
 ```sh
-./install-codex.sh --dry-run     # preview first — changes nothing
-./install-codex.sh               # install agents + hooks into ~/.codex
+./install-codex.sh --standalone
 ```
 
-The installer:
+Standalone mode installs:
 
-1. copies each generated `codex-agents/<name>.toml` into `~/.codex/agents/`;
-2. copies the five generated `codex-hooks/*.sh` into `~/.codex/hooks/`;
-3. **merges** the generated `codex-hooks/hooks.json` into `~/.codex/hooks.json`
-   — it never clobbers an existing `notify` / `mcp_servers` or your existing
-   hooks — after substituting every `__TOOLBELT_HOOK_DIR__` placeholder with the
-   absolute `~/.codex/hooks` install dir so each `command` resolves to the copied
-   script;
-4. prints MCP setup guidance (it does **not** run `codex mcp add` for you).
+- custom agents to `~/.codex/agents/`;
+- hooks to `~/.codex/hooks/` and merges them into `~/.codex/hooks.json`;
+- skills to the documented user skill directory, `~/.agents/skills/`.
 
-`--skills` is an opt-in fallback that also copies the skills locally when you are
-not using the marketplace. `--target DIR` and `--dry-run` mirror `install.sh`.
+`--skills` remains a compatibility alias for `--standalone`. `--target DIR`
+installs into `DIR/.codex` and `DIR/.agents`.
 
-### 3. MCP servers
+## Invocation on Codex
 
-Most agents expect a **github** MCP server; `@developer` uses **playwright** for
-UI verification; `@code-translator` uses **context7** for doc grounding. Check
-what you have and add what you need:
+- Explicit skill invocation: `$toolbelt`, `$orchestrator <topic>`, `$todo`.
+- Custom subagent: ask Codex to spawn it by type, for example “spawn the
+  `architect` subagent to plan this issue.”
+- Implicit skill invocation remains enabled through each skill's
+  `agents/openai.yaml` metadata.
 
-```sh
-codex mcp list
-codex mcp add …      # the installer prints the servers it expects
-```
+Claude's `/skill` and `@agent` shorthand are rewritten in generated Codex
+artifacts; they are not the documented Codex invocation surface.
 
 ## Verify it is live
 
 ```sh
-ls ~/.codex/agents            # 16 *.toml agents
-@architect …                  # @mention an agent in a Codex thread
-# trigger a skill in chat (model-invoked; no slash layer on Codex)
+ls ~/.codex/agents
+codex plugin list
 ```
 
-Confirm `@developer` / `@architect` still **PAUSE** on the commit/push gates —
-on Codex the `AskUserQuestion` mechanic is rewritten to an explicit "ask the user
-in chat and wait for an explicit 'yes' / confirmation before proceeding"
-instruction, so the human gates survive.
+In a new thread:
 
-### Install jq for full `PreToolUse` guard coverage
+1. Run `$toolbelt`.
+2. Ask Codex to spawn the `architect` subagent.
+3. Confirm the `developer` and `architect` subagents still stop at commit/push
+   confirmation gates.
+4. Trigger a router-matched prompt and confirm the hook contributes one toolbelt
+   suggestion.
 
-The `PreToolUse` guard (`pretooluse-guard.sh`) needs **jq** to parse the event
-and decide deny/ask. With jq present, the guard acts **only on Bash events** (the
-early `[ "$tool" = "Bash" ] || exit 0` allows non-Bash or unrecognized events
-through): it **DENIES** the banned commands, **ASKS** on the recognized risky
-ones, and **ALLOWS** everything else — i.e. it **fails open**, never "asks on
-every command." **Without jq the guard allows entirely** — it exits early at the
-top-of-file `command -v jq … || exit 0`, exactly as the canonical Claude guard
-does. So **install jq for full guard coverage**. The installer already warns when
-jq is absent: the `hooks.json` **merge is jq-only**, so without jq the installer
-prints the generated hooks block for you to merge by hand — and python3 is used
-**only** to substitute the `__TOOLBELT_HOOK_DIR__` placeholder safely in that
-print path, never to merge.
+## Hook behavior
 
-## How the artifacts are generated
+The plugin registers:
+
+- `UserPromptSubmit` → prompt router and explicit-skill telemetry;
+- `PreToolUse` for Bash → command guard;
+- `SessionStart` → project snapshot and private todo count;
+- `SubagentStart` → custom-agent usage telemetry.
+
+Hooks are trust-gated by Codex. If they do not run, check `/hooks` first.
+
+The guard requires `jq`. Without it, parsing fails open and commands are allowed.
+Codex `PreToolUse` supports `allow` and `deny`, not Claude's `ask`. For risky
+ask-tier commands, the generated guard:
+
+1. denies the first attempt with a detailed reason;
+2. instructs Codex to ask the user and wait;
+3. allows one confirmed retry prefixed with
+   `MAUNGS_TOOLBELT_CONFIRMED=1`.
+
+Hard-deny rules still run on the confirmed retry.
+
+## Generated artifacts
 
 ```sh
-python3 tools/build.py --target codex          # regenerate the Codex artifacts
-python3 tools/build.py --target codex --check  # CI mode: fail on any drift
-python3 tools/build.py --target claude --check # validate-only: Claude never rewritten
+python3 tools/build.py --target codex
+python3 tools/build.py --target codex --check
+python3 tools/build.py --target claude --check
+python3 tools/validate_codex.py
 ```
 
-- **Agents** → `codex-agents/<name>.toml`. The body becomes a TOML literal
-  `developer_instructions` string; `sandbox_mode` derives from the canonical
-  `tools:` allowlist (`read-only` unless `Edit`/`Write`); `mcp_servers`
-  enumerates every distinct `mcp__<server>__` prefix (so `@code-translator`
-  carries `["context7"]`). `model` / `model_reasoning_effort` are omitted by
-  design (model-agnostic) — an empty override hook is left in each file.
-- **Skills** → `plugins/maungs-agentic-toolbelt/skills/<name>/SKILL.md`
-  (+ `agents/openai.yaml` UI metadata), body-transformed,
-  `disable-model-invocation` stripped.
-- **Hooks** → `codex-hooks/*.sh` (genuinely generated, not copied — the bodies
-  carry Claude-only assumptions) + a `codex-hooks/hooks.json` template using the
-  `__TOOLBELT_HOOK_DIR__` placeholder.
+- **Agents** → `codex-agents/<name>.toml`.
+- **Skills** → `plugins/maungs-agentic-toolbelt/skills/<name>/SKILL.md` plus
+  current `agents/openai.yaml` interface/policy metadata.
+- **Hooks** → `plugins/maungs-agentic-toolbelt/hooks/`.
+- **Metrics helper** → plugin `bin/` and the `$toolbelt` skill's `scripts/`.
 
-A **CI drift guard** re-runs the generator and fails on any diff between the
-freshly-generated and committed Codex artifacts, so a canonical `.md` edit that
-isn't regenerated turns CI red with a "regenerate" message. **Edit canonical,
-then regenerate** — never hand-edit a Codex artifact.
+Generated Codex artifacts use `$skill`, explicit named-subagent wording,
+Codex-local state paths, Codex memories, and current hook schemas. The
+`dossier-jobs` skill uses automation tools when available; in Codex CLI it
+produces complete Codex app Automation configurations and never claims it
+created them.
 
-The hand-maintained Codex manifest version
-(`plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json`) **tracks the Claude
-plugin version** (`.claude-plugin/plugin.json`) — a divergence is now caught by
-`tools/validate_codex.py`, so the two version strings cannot silently drift apart.
+CI regenerates the owned roots and fails on missing, drifted, or stray files.
+Edit canonical sources, regenerate, and commit both source and generated output.
 
-## Known divergence: telemetry writer vs. readers
+## Local state
 
-Telemetry is opt-in and off by default. On Codex the generated `lib-telemetry.sh`
-**writer** homes the usage log under `~/.codex/maungs-toolbelt/usage.jsonl` (not
-`~/.claude`). The **readers** — `bin/toolbelt-metrics.sh` (the `/toolbelt
-metrics` summarizer) and `statusline/toolbelt-statusline.sh` (the cockpit tally)
-— still default to `~/.claude`. So on a Codex-only machine, reading the Codex
-telemetry requires setting `MAUNGS_TOOLBELT_LOG` (both readers honor it):
+Codex-local toolbelt state is self-consistent:
 
-```sh
-export MAUNGS_TOOLBELT_LOG="$HOME/.codex/maungs-toolbelt/usage.jsonl"
-```
+- telemetry: `~/.codex/maungs-toolbelt/usage.jsonl`;
+- private todos: `~/.codex/maungs-toolbelt/todos/<slug>.md`;
+- metrics: `$toolbelt metrics` runs the plugin-bundled helper.
 
-A follow-up will port the reader defaults so this is no longer needed. The
-writer/reader loop is **not** closed by the writer rewrite alone — documented,
-not claimed closed.
+`MAUNGS_TOOLBELT_LOG` still overrides the telemetry path.
 
-The same applies to the **`@todo` backlog**: its store, the `SessionStart` loader
-that resurfaces open todos, and the router suggestion all default to
-`~/.claude/maungs-toolbelt/todos/<slug>.md` on Codex too. Because the `@todo`
-writer and the loader/router readers all agree on that path, the feature works
-end-to-end (a Codex-only machine just gets a `~/.claude/maungs-toolbelt/todos/`
-directory). Re-homing it to `~/.codex` is the same kind of follow-up as the
-telemetry readers above — documented, not claimed closed.
+## Remaining platform differences
 
-## Known divergence: MCP grants are server-granularity on Codex
+- **Custom agents require the separate installer.** Plugins do not package the
+  TOML files under `~/.codex/agents/`.
+- **MCP grants are server-granularity.** A canonical per-tool allowlist becomes
+  a whole-server grant in Codex. Use least-privilege MCP credentials.
+- **Custom Claude statusline parity is unavailable.** Codex's `/statusline`
+  configures standard footer fields but does not consume the toolbelt's custom
+  pipeline-status file.
+- **CLI automation creation is unavailable.** `$dossier-jobs` emits Codex app
+  Automation setup when no automation-management tools are present.
 
-On Claude, a canonical agent's `tools:` allowlist can grant **specific** MCP
-tools (e.g. only the read tools of the GitHub MCP server). On Codex there is no
-per-tool MCP allowlist: the emitter enumerates the distinct `mcp__<server>__`
-prefixes and grants the **whole server**. So a Claude read-only `mcp__github__*`
-subset collapses to a grant of the **entire GitHub MCP server** on Codex.
+## Official Codex references
 
-Practically, the read-mostly reviewers — `@pr-reviewer`, `@security-reviewer`,
-`@resolution`, `@bug-catcher-rick` — effectively gain the full GitHub MCP server
-(including its write tools) on Codex, even though their canonical grants are
-read-leaning. The agents' own prompts still keep them to human-gated, read-first
-behavior, but the **platform** grant is broader than on Claude.
-
-Mitigation: provision a **least-privilege / read-mostly GitHub MCP token** (or a
-separate restricted GitHub MCP server) for these agents, so the server-granularity
-grant can't be used to write beyond what each agent is meant to do. This is a
-Codex platform constraint, not a generator choice — documented, not claimed away.
+- [Build plugins](https://developers.openai.com/codex/plugins/build)
+- [Lifecycle hooks](https://developers.openai.com/codex/hooks)
+- [Skills](https://developers.openai.com/codex/skills)
+- [Custom agents](https://developers.openai.com/codex/subagents)
 
 ## Adding another target (cursor / aider / …)
 

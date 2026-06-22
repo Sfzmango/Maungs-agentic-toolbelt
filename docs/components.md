@@ -118,4 +118,4 @@ Some patterns are not a component of their own — they are conventions shared a
 
 ## A note on Codex artifacts
 
-The Codex target (`codex-agents/*.toml`, `codex-hooks/*`, `plugins/maungs-agentic-toolbelt/skills/`) is **derived**, not a set of new components. It is generated from the same canonical `agents/*.md` + `skills/*/SKILL.md` by `tools/build.py`, so the count above stays exactly **27 components** (16 agents + 11 skills) regardless of how many targets the generator emits to. See [`docs/codex.md`](codex.md) and [`docs/architecture.md`](architecture.md).
+The Codex target (`codex-agents/*.toml` plus `plugins/maungs-agentic-toolbelt/{skills,hooks,bin}/`) is **derived**, not a set of new components. It is generated from the same canonical `agents/*.md` + `skills/*/SKILL.md` + `hooks/` by `tools/build.py`, so the count above stays exactly **27 components** (16 agents + 11 skills) regardless of how many targets the generator emits to. See [`docs/codex.md`](codex.md) and [`docs/architecture.md`](architecture.md).

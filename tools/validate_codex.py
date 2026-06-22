@@ -56,10 +56,13 @@ MANIFEST_ALLOWED = {
     "license",
     "author",
     "homepage",
+    "repository",
     "keywords",
     "skills",
+    "hooks",
+    "interface",
 }
-MANIFEST_REQUIRED = {"name", "description", "version", "skills"}
+MANIFEST_REQUIRED = {"name", "description", "version", "skills", "hooks", "interface"}
 
 MARKETPLACE_ALLOWED = {"name", "interface", "plugins"}
 MARKETPLACE_REQUIRED = {"name", "plugins"}
@@ -101,7 +104,7 @@ def _check_keys(obj, allowed, required, label, problems):
 
 
 def validate_manifest(problems: list) -> None:
-    """Validate the skills-only plugin manifest.
+    """Validate the skills-and-hooks plugin manifest.
 
     Base dir for the manifest's internal references is its parent's parent —
     ``plugins/maungs-agentic-toolbelt/`` — so ``skills/<name>/SKILL.md`` resolves
@@ -137,10 +140,10 @@ def validate_manifest(problems: list) -> None:
             "'%s' (keep parity)" % (version, claude_version)
         )
 
-    # Manifest forbids agents + hooks (Codex platform constraint) — skills only.
-    for forbidden in ("agents", "hooks"):
-        if forbidden in obj:
-            problems.append("manifest: must NOT carry '%s' (skills-only)" % forbidden)
+    # Codex plugins do not package custom TOML subagents. Those are installed
+    # separately by install-codex.sh; skills and lifecycle hooks live here.
+    if "agents" in obj:
+        problems.append("manifest: must NOT carry 'agents' (installed separately)")
 
     # No numeric component count anywhere (decision 14).
     blob = json.dumps(obj)
@@ -167,6 +170,25 @@ def validate_manifest(problems: list) -> None:
             for name in os.listdir(skills_dir)
         ):
             problems.append("manifest: referenced skills directory contains no skills")
+
+    hooks = obj.get("hooks", "")
+    if hooks != "./hooks/hooks.json":
+        problems.append(
+            "manifest: 'hooks' must equal './hooks/hooks.json' (got '%s')" % hooks
+        )
+    else:
+        hooks_path = os.path.normpath(os.path.join(base, hooks))
+        if not os.path.isfile(hooks_path):
+            problems.append("manifest: referenced hooks file does not exist: %s" % hooks)
+
+    interface = obj.get("interface", {})
+    if not isinstance(interface, dict):
+        problems.append("manifest: 'interface' must be a JSON object")
+    else:
+        for required in ("displayName", "shortDescription", "longDescription",
+                         "developerName", "category", "capabilities", "websiteURL"):
+            if required not in interface:
+                problems.append("manifest interface: missing required key '%s'" % required)
 
 
 def validate_marketplace(problems: list) -> None:

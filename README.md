@@ -16,26 +16,26 @@ Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-age
 
 ### Install on the OpenAI Codex CLI
 
-The toolbelt is **model-agnostic** — the same components run on the **OpenAI Codex CLI**. Codex's plugin manifest cannot carry agents + hooks, so install is two-track:
+The toolbelt is **model-agnostic** — the same components run on the **OpenAI Codex CLI**. Codex plugins carry the skills, lifecycle hooks, routing, guardrails, telemetry helpers, and metrics script. Custom TOML subagents are installed separately:
 
 ```bash
-# Track 1 — skills via the Codex marketplace/plugin:
+# Track 1 — plugin (skills + hooks + helper scripts):
 codex plugin marketplace add Sfzmango/Maungs-agentic-toolbelt
 codex plugin add maungs-agentic-toolbelt@maung-tools
 
-# Track 2 — agents + hooks via the installer:
+# Track 2 — custom subagents:
 ./install-codex.sh --dry-run     # preview, changes nothing
-./install-codex.sh               # install into ~/.codex
+./install-codex.sh               # installs into ~/.codex/agents
 ```
 
-Verify: `ls ~/.codex/agents` shows the agents, `@mention` one in a Codex thread, trigger a skill in chat, and confirm `@developer` / `@architect` still **pause** on the commit/push gates. Full walkthrough + the writer/reader telemetry caveat: **[`docs/codex.md`](docs/codex.md)**.
+Open `/hooks` once, review the plugin hooks, and trust them. Then start a new thread. Verify: `ls ~/.codex/agents` shows the custom agents, invoke a skill with `$toolbelt`, ask Codex to spawn the `architect` subagent, and confirm the `developer` / `architect` subagents still **pause** on commit/push gates. Full walkthrough: **[`docs/codex.md`](docs/codex.md)**.
 
 ### Supported targets
 
 | Target | Status | Components | Install |
 |--------|--------|-----------|---------|
 | **Claude Code** | shipped | agents + skills (+ hooks via plugin) | `./install.sh` or the `maung-tools` plugin |
-| **OpenAI Codex CLI** | shipped | skills (marketplace) + agents & hooks (installer) | `./install-codex.sh` + `codex plugin add` |
+| **OpenAI Codex CLI** | shipped | skills + hooks (plugin), custom subagents (installer) | `codex plugin add` + `./install-codex.sh` |
 | cursor / aider / … | future | — | accommodated by the generator seam (add an emitter + a row); not built yet |
 
 Codex artifacts are **generated** from the canonical `agents/*.md` + `skills/*/SKILL.md` + `hooks/` by `tools/build.py` — never hand-authored. See **[`docs/codex.md`](docs/codex.md)** and **[`docs/architecture.md`](docs/architecture.md)**.
@@ -74,6 +74,8 @@ Three more hooks come with the plugin:
 
 **Guardrail (`PreToolUse`).** Before any shell command runs, it enforces two tiers. **Deny** (hard block) — the always-wrong cardinal-rule violations: `git add -A`/`.`, `git push --force` (without `--force-with-lease`), `--no-verify`, catastrophic `rm -rf` (on `/` `~` `*`), and AI-attributed commits. **Ask** (always prompts, with a detailed reason) — risky/data-loss ops that *might* be legitimate but must be confirmed first: destructive SQL (`DROP`/`TRUNCATE`/`DELETE`/`DROP COLUMN`), `db:drop`/`reset` & datastore flushes, `git reset --hard`/`clean -fd`/`branch -D`/`push --delete`, `rm -rf` of a non-disposable dir, `terraform destroy`/`kubectl delete`/`docker volume rm`, and bulk `find -delete`. It matches tokens in **invocation position**, so it is *not* tripped by a banned token quoted inside an argument — a PR body or commit message that merely *mentions* a rule (e.g. `gh pr create --body "we never --no-verify"`) is allowed — nor by a force flag (`-f`/`--force`) that belongs to an *unrelated command segment* in a compound invocation (e.g. a real push refspec followed by `; rm -f /tmp/x`); it stays **fail-closed** (matches as before) whenever the quoting is ambiguous. Everything else passes untouched. Disable with `export MAUNGS_TOOLBELT_GUARD=off`.
 
+On Codex, `PreToolUse` does not support an `ask` decision. The generated hook denies the first risky attempt with instructions to ask the user, then allows one explicitly confirmed retry prefixed with `MAUNGS_TOOLBELT_CONFIRMED=1`; hard-deny rules still apply to the retry.
+
 **Session loader (`SessionStart`).** At session start it injects a concise, read-only project snapshot — branch, uncommitted-file count, recent commits, the latest plan, any pending handoff, open PRs, and a nudge to run `/agentic-onboard` if there's no `CLAUDE.md` — so Claude starts warm instead of re-deriving the repo. Disable with `export MAUNGS_TOOLBELT_LOADER=off`.
 
 **Usage telemetry (`PreToolUse` on `Task`/`Skill`).** A pass-through hook that records *when the toolbelt actually gets used* — paired with the router's *suggested* events, it answers "is this thing earning its keep?" It is **opt-in and off by default**: nothing is written unless you set `export MAUNGS_TOOLBELT_DEBUG=on` (or `=verbose`, which also traces each event to stderr — visible under `claude --debug`). When on, the router logs every component it **offers** and this hook logs every toolbelt agent/skill that actually **runs**, to an append-only JSONL log on your machine (`~/.claude/maungs-toolbelt/usage.jsonl`, override with `MAUNGS_TOOLBELT_LOG`) — never inside a project repo. It never blocks a tool, only counts our own components (built-in and third-party agents are ignored), and is read-only apart from that log. View a summary anytime with **`/toolbelt metrics`** — suggestions by intent, invocations by component, and the same-session suggestion→use conversion rate.
@@ -97,6 +99,8 @@ Unlike the hooks, it is **not** auto-enabled (Claude Code's status line is a use
 
 The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that `/orchestrator` writes at each phase boundary — **always on your local machine, never inside a project repo** — and it shows only while fresh (< 30 min) and matching the current repo.
 
+This custom statusline is Claude-specific. Codex provides `/statusline` for its standard footer fields, but it does not consume the toolbelt pipeline-status file.
+
 ---
 
 ## Skills
@@ -113,7 +117,7 @@ The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that 
 
 **`/handoff`** — *`/handoff <issue-id-or-topic>`*. Drafts one self-contained brief so a zero-context agent (or future self) can resume a specific piece of work cold. It auto-gathers git/PR/issue/deploy state and gates on an approved outline before writing — and is never produced proactively, because a stale handoff followed confidently is worse than none.
 
-**`/todo`** — *`/todo`* (list), *`/todo <text>`* (add), *`/todo done <id>`* / *`/todo drop <id>`* (mutate). A private, per-project backlog for work you've tabled for later. It's stored **locally** at `~/.claude/maungs-toolbelt/todos/<project-slug>.md` — outside the repo, so a tabled task never becomes an issue, a PR, or a committed file. The session loader resurfaces the open count at the next session start and the prompt-router offers it when you talk about deferring work; nothing ever acts on an item — recording is the whole job.
+**`/todo`** — *`/todo`* (list), *`/todo <text>`* (add), *`/todo done <id>`* / *`/todo drop <id>`* (mutate). A private, per-project backlog for work you've tabled for later. It's stored **locally** at `~/.claude/maungs-toolbelt/todos/<project-slug>.md` on Claude and `~/.codex/maungs-toolbelt/todos/<project-slug>.md` on Codex — outside the repo, so a tabled task never becomes an issue, a PR, or a committed file. The session loader resurfaces the open count at the next session start and the prompt-router offers it when you talk about deferring work; nothing ever acts on an item — recording is the whole job.
 
 **`/wiki-generator`** — *`/wiki-generator`* (full build), *`/wiki-generator --update`* (incremental, schedulable), or *`/wiki-generator --publish`* (publish to an external platform). Generates and maintains a near-100%-coverage technical wiki in Markdown at `docs/wiki/` — per-module business analysis, schemas, flow diagrams, related files per page, a glossary, and an onboarding guide. The `--update` mode re-syncs only the pages that drifted, so a scheduled run keeps the wiki current with no manual upkeep. The `--publish` mode ships the generated wiki — unchanged — to an external wiki platform through a pluggable, target-agnostic adapter seam (the GitHub repository wiki is shipped; Confluence and Azure DevOps wiki are documented future targets), always behind a dry-run preview and an explicit human approval gate. See [`docs/scheduling.md`](docs/scheduling.md) and [`docs/wiki-generator.md`](docs/wiki-generator.md).
 
@@ -122,6 +126,8 @@ The pipeline segment is driven by a small `~/.claude/toolbelt-status.json` that 
 **`/release-notes`** — *`/release-notes [<range> | PR <n>] [--format deploy-comment]`*. Generates grouped release notes (✨ features / 🐛 fixes / ⚠️ breaking / 🗄️ migrations) from a commit range or PRs, with a SemVer bump recommendation and a deploy checklist when migrations or env changes are detected. Read-only — it outputs text and never tags, commits, or posts; `--format deploy-comment` produces a compact block to enrich a deployment comment.
 
 **`/dossier-jobs`** — *`/dossier-jobs [repo] [--bug --security --wiki] [--max-fixes n] [--time hh:mm --tz IANA] [--status --disable --run-now]`*. A conductor that stands up the toolbelt's scheduled **cloud** routines for any target repo with one command, via the `RemoteTrigger` tool (the claude.ai/code routines API). By default it sets up three scheduled routines — bug · security · wiki — each its own routine, all feeding **one** rolling `[dossier-jobs] Dossier` tracking issue (each job owns its own marker-tagged comment, race-safe). The bug routine sweeps the codebase and auto-develops the top `--max-fixes` (default 5) non-SEV1 findings into **DRAFT, never-merged** fix PRs (SEV1 stays issue-only); the security routine runs a generic repo-wide compliance sweep (issue-only); the wiki routine runs a full-coverage build and opens **one** rolling propose-only PR. Reads and preflights for free; gates the one outward action (the routine create/update/run) behind an explicit human confirmation that shows the exact config first. Complementary to the local-daemon scheduler in [`docs/scheduling.md`](docs/scheduling.md).
+
+On Codex, `$dossier-jobs` uses automation-management tools when the active surface exposes them. In Codex CLI it produces complete copy/paste Codex app Automation configurations and never claims the automations were created.
 
 **`/toolbelt`** — *`/toolbelt`* (inventory), *`/toolbelt <goal>`* (recommend a component), or *`/toolbelt status`* (environment check). The self-describing front door: it lists every component grouped by stage, recommends the best fit for a stated goal, and reports what's active (router/guard state, MCP servers, whether a `CLAUDE.md` exists). Read-only.
 

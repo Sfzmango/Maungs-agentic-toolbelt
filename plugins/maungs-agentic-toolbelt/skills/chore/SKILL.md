@@ -1,11 +1,11 @@
 ---
 name: chore
-description: Lightweight workflow for small, one-off chore PRs (docs, config, tooling, comment/typo fixes, agent/skill edits, trivial dependency bumps) that don't warrant the full @orchestrator pipeline. No plan file, no architect/developer/reviewer agents — you do the change inline, honor the commit/push gates, open a summary-only PR, and merge after green CI. `--concurrently` runs the whole chore in an isolated git worktree off the default branch so it's safe to ship alongside another session/agent working in the same checkout; `--bypass` (with `--concurrently`) admin-merges automatically once CI is green — an explicit "ship it now" hatch that skips the human-review gate, never the test gate. Invoke as `@chore <short description>`, `@chore --concurrently <description>`, or `@chore --concurrently --bypass <description>`.
+description: Lightweight workflow for small, one-off chore PRs (docs, config, tooling, comment/typo fixes, agent/skill edits, trivial dependency bumps) that don't warrant the full $orchestrator pipeline. No plan file, no architect/developer/reviewer agents — you do the change inline, honor the commit/push gates, open a summary-only PR, and merge after green CI. `--concurrently` runs the whole chore in an isolated git worktree off the default branch so it's safe to ship alongside another session/agent working in the same checkout; `--bypass` (with `--concurrently`) admin-merges automatically once CI is green — an explicit "ship it now" hatch that skips the human-review gate, never the test gate. Invoke as `$chore <short description>`, `$chore --concurrently <description>`, or `$chore --concurrently --bypass <description>`.
 ---
 
-# @chore — lightweight one-off chore PRs
+# $chore — lightweight one-off chore PRs
 
-The argument is in `$ARGUMENTS` — a short free-text description of the chore, optionally preceded by flags. If there's no description (empty, or only flags), ask what the chore is and stop.
+The argument is in `the invocation arguments from the user's request` — a short free-text description of the chore, optionally preceded by flags. If there's no description (empty, or only flags), ask what the chore is and stop.
 
 **Parse flags first, then treat the remaining text as the description:**
 - `--concurrently` — run the chore in an isolated git worktree off the default branch instead of editing the shared checkout in place. Use it whenever another session or agent may be working in the same working tree (or just to keep the active checkout untouched). See **Flags** below.
@@ -13,36 +13,36 @@ The argument is in `$ARGUMENTS` — a short free-text description of the chore, 
 
 An unrecognized `--flag` → echo it and stop; do not guess intent.
 
-You do this work **inline** — no architect plan, no adversarial review. The whole point is to stay lightweight for changes that are too small to justify `@orchestrator`. But the project's cardinal rules still apply in full; "lightweight" never means "skip the gates."
+You do this work **inline** — no architect plan, no adversarial review. The whole point is to stay lightweight for changes that are too small to justify `$orchestrator`. But the project's cardinal rules still apply in full; "lightweight" never means "skip the gates."
 
 ## Auto-detection on every invocation
 
 Before starting, detect the project's shape so the gates and conventions are right:
 
-1. **`AGENTS.md / CLAUDE.md` + `CLAUDE.local.md`** — the project's cardinal rules and conventions. They override anything here on conflict.
+1. **`AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md`** — the project's cardinal rules and conventions. They override anything here on conflict.
 2. **Pre-commit hook system** — `lefthook.yml` / `.pre-commit-config.yaml` / `.husky/` — this is the local quality gate that runs on commit and push. Honor it; never bypass.
 3. **CI** — `.github/workflows/` — what must go green before merge.
 4. **Default branch** — usually `main` (confirm via `git`); branch off it and target it.
-5. **The project's auto-memory directory** (`~/.claude/projects/<project-slug>/memory/`) — captured feedback (commit-message style, PR-body conventions, attribution rules).
+5. **The project's memory context directory** (Codex-injected memories, when enabled) — captured feedback (commit-message style, PR-body conventions, attribution rules).
 
-## Cardinal rules (non-negotiable — inherited from the project's AGENTS.md / CLAUDE.md / CLAUDE.local.md)
+## Cardinal rules (non-negotiable — inherited from the project's AGENTS.md (and CLAUDE.md when present) / CLAUDE.local.md)
 
 1. **Full local quality gate on every commit and every push** (whatever the project's pre-commit hook system runs — lint, build, full test suite). No bypass flags (`--no-verify`, etc.).
 2. **Explicit per-commit AND per-push human confirmation.** Separate gates, fresh affirmation each time ("yes commit" / "yes push"). Never bundle them; never infer approval from an earlier "go."
-3. **No Claude / Claude Code attribution** in commits, PR bodies, or output.
+3. **No AI-assistant attribution** in commits, PR bodies, or output.
 4. **Force-push uses `--force-with-lease`, never `--force`** (rarely needed for a chore).
 5. **PR body is a factual summary only** — `Summary` + `Scope`; no agent/process references, no pivot / "how we got here" narrative, no reviewer-focus section.
 6. **Never bundle unrelated changes.** Stage only the files this chore touches, even if the working tree carries other local edits.
 
 ## Is it actually a chore? (gate before starting)
 
-Use `@chore` only when ALL of these hold:
+Use `$chore` only when ALL of these hold:
 
 - Single concern, small diff (roughly one file to a handful).
 - No architectural decision to make, no migration, no new app behavior that needs a test or review.
 - Low blast radius: docs, comments, README/SETUP, config, CI / pre-commit-hook tweaks, agent/skill definitions, a trivial dependency bump, a lint-fix.
 
-If it touches app behavior that needs a plan, a migration, multi-file feature work, or anything security-sensitive → **stop and recommend `@orchestrator <id>` instead.** When in doubt, say so and let the user pick. A chore that grows mid-flight should be re-routed, not forced through.
+If it touches app behavior that needs a plan, a migration, multi-file feature work, or anything security-sensitive → **stop and recommend `$orchestrator <id>` instead.** When in doubt, say so and let the user pick. A chore that grows mid-flight should be re-routed, not forced through.
 
 ## Flags — `--concurrently` and `--bypass`
 
@@ -69,7 +69,7 @@ Everything else (the commit/push gates, summary-only PR, scoped staging) is unch
 
 **What it NEVER bypasses — hard lines, even for an ASAP merge:**
 - **CI must be GREEN.** Wait for the checks to finish; if any fail or error, **halt and surface verbatim — do NOT merge.** Shipping a red build breaks the default branch for the concurrent session too, which defeats the point. "Skip review" never means "skip the tests."
-- **The "is it actually a chore?" gate** still applies — `--bypass` is about the merge, not about widening scope. A change that isn't chore-sized still re-routes to `@orchestrator`.
+- **The "is it actually a chore?" gate** still applies — `--bypass` is about the merge, not about widening scope. A change that isn't chore-sized still re-routes to `$orchestrator`.
 - **No `--no-verify`, no `git add -A`/`.`, no `git push --force`** (cardinal rules 1, 4, 6 stand).
 - **No AI attribution** anywhere.
 
@@ -81,7 +81,7 @@ Everything else (the commit/push gates, summary-only PR, scoped staging) is unch
 
 ### 1 — Acknowledge + scope
 
-Restate the chore in one sentence. Confirm it passes the "is it a chore?" gate; if not, recommend `@orchestrator` and stop. Identify the exact file(s) to change.
+Restate the chore in one sentence. Confirm it passes the "is it a chore?" gate; if not, recommend `$orchestrator` and stop. Identify the exact file(s) to change.
 
 ### 2 — Make the change inline
 
@@ -122,7 +122,7 @@ No agent/process narration. No attribution footer.
 
 ## Notes
 
-- **Agent/skill edits:** many projects keep skill/agent definition edits local until the related feature merges — but a `@chore` PR is the sanctioned standalone vehicle for shipping them once you're ready, so committing them here is correct.
+- **Agent/skill edits:** many projects keep skill/agent definition edits local until the related feature merges — but a `$chore` PR is the sanctioned standalone vehicle for shipping them once you're ready, so committing them here is correct.
 - **Token budget:** keep it small.
 - **Multiple unrelated chores:** one PR per concern. Don't batch several unrelated tweaks into one chore PR.
-- **The `--concurrently` / `--bypass` hatch is opt-in and loud.** `--concurrently` keeps a chore from colliding with concurrent work (isolated worktree off the default branch); `--bypass` ships it the moment CI is green without waiting for a review. Neither ever skips CI, the chore-scope gate, or the no-`--no-verify` / no-`-A` / no-`--force` rules. Default `@chore` (no flags) still gates every commit, push, and merge on explicit human confirmation.
+- **The `--concurrently` / `--bypass` hatch is opt-in and loud.** `--concurrently` keeps a chore from colliding with concurrent work (isolated worktree off the default branch); `--bypass` ships it the moment CI is green without waiting for a review. Neither ever skips CI, the chore-scope gate, or the no-`--no-verify` / no-`-A` / no-`--force` rules. Default `$chore` (no flags) still gates every commit, push, and merge on explicit human confirmation.

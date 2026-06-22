@@ -44,7 +44,7 @@ The pipeline is **16 agents + 11 skills = 27 components**. The split is delibera
 | Wiki | `@wiki-writer` | agent | Authors/updates ONE wiki page from real code; writes only its page, read-only on code; "verified against commit" stamp |
 | Wiki | `@wiki-auditor` | agent | Fresh-eyes drift detector → CURRENT / STALE / INCORRECT / ORPHANED + delta list; writes nothing |
 
-Plus four plugin **hooks** (not counted above): a `UserPromptSubmit` prompt-router that suggests the fitting component on each prompt, a `PreToolUse` guard that blocks cardinal-rule violations (`git add -A`, `--force`, `--no-verify`, catastrophic `rm -rf`, AI-attributed commits), a `SessionStart` loader that injects a project snapshot, and an opt-in `PreToolUse` usage-tracker (on `Task`/`Skill`) that records when components are offered vs. actually used (enable with `MAUNGS_TOOLBELT_DEBUG=on`; view via `/toolbelt metrics`). See the README's "Always-on hooks".
+Plus four plugin **hooks** (not counted above): a `UserPromptSubmit` prompt-router that suggests the fitting component on each prompt, a `PreToolUse` guard that blocks cardinal-rule violations (`git add -A`, `--force`, `--no-verify`, catastrophic `rm -rf`, AI-attributed commits), a `SessionStart` loader that injects a project snapshot, and opt-in usage telemetry that records when components are offered vs. used (Claude: `PreToolUse` on `Task`/`Skill`; Codex: `SubagentStart` plus explicit `$skill` prompt detection). Enable with `MAUNGS_TOOLBELT_DEBUG=on`; view via `/toolbelt metrics` on Claude or `$toolbelt metrics` on Codex.
 
 ## End-to-end flow
 
@@ -300,17 +300,19 @@ source into per-target artifacts. Codex is the first new target.
   Claude source.
 - **`tools/emit/target_codex.py` + `tools/transforms.py`** — the Codex emitter
   (agents `.md` → `codex-agents/*.toml`, skills → transformed `SKILL.md`, hooks →
-  `codex-hooks/*.sh` + `hooks.json`) and the table-driven body-adaptation rules.
+  `plugins/maungs-agentic-toolbelt/hooks/*.sh` + `hooks.json`, helper scripts →
+  plugin `bin/`) and the table-driven body-adaptation rules.
 - **`tools/validate_codex.py`** — validates the Codex manifest + marketplace
   wrappers (allowed-keys, strict-semver, referenced paths exist, the pinned
   cross-wrapper `source`).
 
-**Two-track Codex distribution** (the Codex plugin manifest cannot carry agents +
-hooks): skills ship via the marketplace/plugin manifest
-(`.agents/plugins/marketplace.json` → `plugins/maungs-agentic-toolbelt/`); agents +
-hooks ship via `install-codex.sh`. A **CI drift guard** re-runs the generator and
-fails on any diff between freshly-generated and committed Codex artifacts, so the
-derived files can never silently diverge from canonical.
+**Two-piece Codex distribution:** skills, lifecycle hooks, routing, telemetry,
+and helpers ship via the marketplace plugin
+(`.agents/plugins/marketplace.json` → `plugins/maungs-agentic-toolbelt/`);
+custom TOML subagents ship via `install-codex.sh` because plugins do not package
+them. A **CI drift guard** re-runs the generator and fails on any diff between
+freshly-generated and committed Codex artifacts, so the derived files can never
+silently diverge from canonical.
 
 **Adding a target is "add an emitter + a target-table row,"** not a
 rearchitecture — the target-agnostic core (`build.py`, `common.py`,

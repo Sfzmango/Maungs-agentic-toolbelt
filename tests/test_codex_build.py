@@ -72,6 +72,7 @@ def copy_repo_subset(dst):
         "agents",
         "skills",
         "hooks",
+        "bin",
         "tools",
         "codex-agents",
         "codex-hooks",
@@ -381,11 +382,12 @@ def test_validate_non_dict_toplevel_rejected():
 
 
 def test_manifest_discovers_every_generated_skill():
-    print("\n[manifest: .codex-plugin/plugin.json discovers the generated skills directory]")
+    print("\n[manifest: plugin discovers generated skills and lifecycle hooks]")
     import json
     base = os.path.join(REPO_ROOT, "plugins", "maungs-agentic-toolbelt")
     with open(os.path.join(base, ".codex-plugin", "plugin.json"), encoding="utf-8") as fh:
-        skills_ref = json.load(fh).get("skills")
+        manifest = json.load(fh)
+    skills_ref = manifest.get("skills")
     skills_dir = os.path.join(base, "skills")
     generated = {
         n
@@ -398,6 +400,108 @@ def test_manifest_discovers_every_generated_skill():
     check("generated skill folders equal canonical skills",
           generated == canonical,
           "missing=%s stray=%s" % (sorted(canonical - generated), sorted(generated - canonical)))
+    check("manifest points at plugin-bundled hooks",
+          manifest.get("hooks") == "./hooks/hooks.json", repr(manifest.get("hooks")))
+    check("manifest hook config exists",
+          os.path.isfile(os.path.join(base, "hooks", "hooks.json")))
+
+
+def test_skill_metadata_schema():
+    print("\n[skills: every agents/openai.yaml uses the current Codex schema]")
+    artifacts = target_codex.build_artifacts(REPO_ROOT)
+    metadata = {
+        rel: content
+        for rel, content in artifacts.items()
+        if rel.endswith("/agents/openai.yaml")
+    }
+    check("one openai.yaml emitted per canonical skill",
+          len(metadata) == len(common.load_skills(REPO_ROOT)), str(sorted(metadata)))
+    bad = []
+    for rel, content in metadata.items():
+        required = (
+            "interface:\n",
+            "  display_name:",
+            "  short_description:",
+            "  default_prompt:",
+            "policy:\n",
+            "  allow_implicit_invocation: true",
+        )
+        if not all(token in content for token in required):
+            bad.append(rel)
+        if re.search(r"^(name|summary):", content, re.MULTILINE):
+            bad.append(rel + " (legacy keys)")
+    check("all skill metadata uses interface + policy keys", not bad, str(bad[:5]))
+
+
+def test_generated_codex_runtime_portability():
+    print("\n[generated tree: no Claude-only runtime syntax survives]")
+    artifacts = target_codex.build_artifacts(REPO_ROOT)
+    joined = "\n".join(artifacts.values())
+    check("$ARGUMENTS placeholder removed from Codex skills", "$ARGUMENTS" not in joined)
+    check("Claude project-memory paths removed", "~/.claude/projects/" not in joined)
+    check("Claude plugin-root variable removed", "CLAUDE_PLUGIN_ROOT" not in joined)
+    check("legacy codex-hooks root is no longer emitted",
+          not any(rel.startswith("codex-hooks/") for rel in artifacts))
+    known_agents = "|".join(re.escape(name) for name in transforms.AGENT_NAMES)
+    leftovers = re.findall(r"@(?:" + known_agents + r")\b", joined)
+    check("Claude @agent shorthand removed", not leftovers, str(leftovers[:5]))
+    check("agent rewrite introduces no doubled article/role wording",
+          "the the " not in joined
+          and "subagent agent" not in joined
+          and "subagent` agent" not in joined)
+    orchestrator = artifacts[
+        "plugins/maungs-agentic-toolbelt/skills/orchestrator/SKILL.md"
+    ]
+    check("agent invocation code blocks use explicit spawn wording",
+          "spawn architect subagent plan issue" in orchestrator
+          and "spawn developer subagent implement plan" in orchestrator)
+    check("orchestrator reload guidance is Codex-native",
+          "Claude Code restarts" not in orchestrator
+          and "may require a new Codex thread" in orchestrator)
+    onboard = artifacts[
+        "plugins/maungs-agentic-toolbelt/skills/agentic-onboard/SKILL.md"
+    ]
+    check("agentic-onboard preserves target output filenames",
+          "`claude` → `CLAUDE.md`" in onboard
+          and "`agents` → `AGENTS.md`" in onboard)
+    dossier = artifacts[
+        "plugins/maungs-agentic-toolbelt/skills/dossier-jobs/SKILL.md"
+    ]
+    check("Codex dossier adapter never calls RemoteTrigger",
+          "Never call or simulate `RemoteTrigger`" in dossier
+          and "MANUAL APP SETUP REQUIRED" in dossier)
+
+
+def test_install_codex_modes():
+    print("\n[installer: default agents-only; standalone adds hooks + user skills]")
+    target = tempfile.mkdtemp()
+    try:
+        base_cmd = ["bash", "install-codex.sh", "--target", target, "--dry-run"]
+        default = subprocess.run(
+            base_cmd, cwd=REPO_ROOT, capture_output=True, text=True
+        )
+        check("default installer dry-run exits 0", default.returncode == 0, default.stderr)
+        check("default mode installs custom agents",
+              "agent: agents/architect.toml" in default.stdout)
+        check("default mode does not copy standalone hooks",
+              "Hooks (standalone fallback" not in default.stdout)
+        check("default mode does not copy standalone skills",
+              "Skills (standalone fallback" not in default.stdout)
+
+        standalone = subprocess.run(
+            base_cmd + ["--standalone"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        check("standalone installer dry-run exits 0",
+              standalone.returncode == 0, standalone.stderr)
+        check("standalone mode copies hooks",
+              "Hooks (standalone fallback" in standalone.stdout)
+        check("standalone mode installs skills under .agents/skills",
+              ".agents/skills/toolbelt" in standalone.stdout)
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
 
 
 def test_codex_install_command_is_current():
@@ -447,33 +551,33 @@ def test_transforms_context7_emitted_body():
 
 
 def test_transforms_skill_left_boundary():
-    print("\n[transforms: /skill -> @skill left-boundary]")
+    print("\n[transforms: /skill -> $skill left-boundary]")
     text = (
         "run /orchestrator now\n"
         "see skills/orchestrator/SKILL.md and developer/orchestrator and "
         "@playwright/mcp@latest\n"
     )
     out = transforms.rewrite_skill_invocations(text)
-    check("bare /orchestrator (whitespace-left) -> @orchestrator", "run @orchestrator now" in out)
+    check("bare /orchestrator (whitespace-left) -> $orchestrator", "run $orchestrator now" in out)
     check("skills/orchestrator/SKILL.md left untouched", "skills/orchestrator/SKILL.md" in out)
     check("developer/orchestrator left untouched", "developer/orchestrator" in out)
     check("@playwright/mcp@latest left untouched", "@playwright/mcp@latest" in out)
 
 
 def test_transforms_skill_backtick_and_paren_boundary():
-    print("\n[transforms: /skill -> @skill backtick + paren left-boundary (AC-3)]")
+    print("\n[transforms: /skill -> $skill backtick + paren left-boundary (AC-3)]")
     # Backtick-wrapped invocations are the dominant surviving form in generated
     # SKILL/agent bodies — the rule must reach them, not just bare `/orchestrator`.
     cases_rewrite = {
-        "`/orchestrator`": "`@orchestrator`",
-        "`/wiki-generator <topic>`": "`@wiki-generator <topic>`",
-        "(/wiki-generator now)": "(@wiki-generator now)",
-        "`/orchestrator`.": "`@orchestrator`.",
-        "`/toolbelt metrics`": "`@toolbelt metrics`",
+        "`/orchestrator`": "`$orchestrator`",
+        "`/wiki-generator <topic>`": "`$wiki-generator <topic>`",
+        "(/wiki-generator now)": "($wiki-generator now)",
+        "`/orchestrator`.": "`$orchestrator`.",
+        "`/toolbelt metrics`": "`$toolbelt metrics`",
         # double-quote left boundary — the mermaid node-label form (a quoted
         # invocation in a flow diagram) and flush-quoted invocations.
-        'A["/dossier-jobs [repo] [flags]"]': 'A["@dossier-jobs [repo] [flags]"]',
-        '"/orchestrator"': '"@orchestrator"',
+        'A["/dossier-jobs [repo] [flags]"]': 'A["$dossier-jobs [repo] [flags]"]',
+        '"/orchestrator"': '"$orchestrator"',
     }
     for src, want in cases_rewrite.items():
         out = transforms.rewrite_skill_invocations(src)
@@ -505,14 +609,14 @@ def test_generated_tree_no_slash_skill_invocation():
     inv = re.compile(r'(^|[\s`("])/(' + names + r')(?=[\s`.,;:!?)\]"]|$)', re.MULTILINE)
     offenders = []
     for rel, content in artifacts.items():
-        if rel.startswith("codex-agents/") or rel.startswith("codex-hooks/") or "/skills/" in rel:
+        if rel.startswith("codex-agents/") or "/hooks/" in rel or "/skills/" in rel:
             for m in inv.finditer(content):
                 offenders.append("%s: %s" % (rel, m.group(0).strip()))
     check("no opening-delimiter `/<skill>` invocation in any generated artifact",
           not offenders, "found: %s" % offenders[:5])
-    # And the @mention form IS present (skills still surface, Codex-correct).
+    # And the explicit $skill form IS present (skills still surface, Codex-correct).
     joined = "\n".join(artifacts.values())
-    check("backtick `@orchestrator` present in emitted tree", "`@orchestrator`" in joined)
+    check("backtick `$orchestrator` present in emitted tree", "`$orchestrator`" in joined)
 
 
 def test_generated_tree_no_slash_skill_invocation_independent():
@@ -530,7 +634,7 @@ def test_generated_tree_no_slash_skill_invocation_independent():
     )
     offenders = []
     for rel, content in artifacts.items():
-        if rel.startswith("codex-agents/") or rel.startswith("codex-hooks/") or "/skills/" in rel:
+        if rel.startswith("codex-agents/") or "/hooks/" in rel or "/skills/" in rel:
             for m in extra.finditer(content):
                 offenders.append("%s: %s" % (rel, m.group(0).strip()))
     check("independent AC-3 detector finds no /<skill> offender",
@@ -540,9 +644,9 @@ def test_generated_tree_no_slash_skill_invocation_independent():
 def test_transforms_skill_with_arguments():
     print("\n[transforms: /skill with trailing args rewrites token only]")
     cases = {
-        "/orchestrator <topic>": "@orchestrator <topic>",
-        "/toolbelt metrics": "@toolbelt metrics",
-        "/agentic-onboard --deep --target all": "@agentic-onboard --deep --target all",
+        "/orchestrator <topic>": "$orchestrator <topic>",
+        "/toolbelt metrics": "$toolbelt metrics",
+        "/agentic-onboard --deep --target all": "$agentic-onboard --deep --target all",
     }
     for src, want in cases.items():
         out = transforms.rewrite_skill_invocations(src)
@@ -553,7 +657,7 @@ def test_transforms_dynamic_skill_names_new_skills():
     print("\n[transforms: SKILL_NAMES is dynamic — new skills (dossier-jobs, todo) rewrite]")
     # SKILL_NAMES is DERIVED from the canonical skills/ dir (not a hand-maintained
     # list), so skills added to main AFTER the Codex generator was written
-    # (dossier-jobs, todo) flow through the /skill->@skill rewrite automatically.
+    # (dossier-jobs, todo) flow through the /skill->$skill rewrite automatically.
     # This is the regression guard against the old hardcoded 9-item list — without
     # the dynamic fix, /dossier-jobs and /todo would survive un-rewritten as invalid
     # slash-forms on Codex (AC-3 violation).
@@ -566,15 +670,15 @@ def test_transforms_dynamic_skill_names_new_skills():
         check("%s present in SKILL_NAMES (picked up dynamically)" % new_skill,
               new_skill in transforms.SKILL_NAMES)
         # Bare, backtick-wrapped, and with-args forms all rewrite the token only.
-        check("bare /%s -> @%s" % (new_skill, new_skill),
+        check("bare /%s -> $%s" % (new_skill, new_skill),
               transforms.rewrite_skill_invocations("run /%s now" % new_skill)
-              == "run @%s now" % new_skill)
-        check("backtick `/%s` -> `@%s`" % (new_skill, new_skill),
+              == "run $%s now" % new_skill)
+        check("backtick `/%s` -> `$%s`" % (new_skill, new_skill),
               transforms.rewrite_skill_invocations("`/%s`" % new_skill)
-              == "`@%s`" % new_skill)
-        check("with-args /%s --flag -> @%s --flag" % (new_skill, new_skill),
+              == "`$%s`" % new_skill)
+        check("with-args /%s --flag -> $%s --flag" % (new_skill, new_skill),
               transforms.rewrite_skill_invocations("/%s --status" % new_skill)
-              == "@%s --status" % new_skill)
+              == "$%s --status" % new_skill)
 
 
 def test_parser_both_tools_serializations():
@@ -691,19 +795,20 @@ def test_agent_no_triple_quote():
 
 
 def test_hook_completeness_every_canonical_hook_emitted():
-    print("\n[hook: EVERY canonical hooks/*.sh body appears in the generated codex-hooks/ set (BUG-2)]")
+    print("\n[hook: EVERY canonical hooks/*.sh body appears in the plugin hooks/ set (BUG-2)]")
     # load_hook_bodies is filesystem-derived, and the emitter iterates it — so a
     # newly added canonical hook is emitted automatically (no hand-maintained list).
     canonical = sorted(
         fn for fn in os.listdir(os.path.join(REPO_ROOT, "hooks")) if fn.endswith(".sh")
     )
     artifacts = target_codex.build_artifacts(REPO_ROOT)
+    prefix = "plugins/maungs-agentic-toolbelt/hooks/"
     generated = sorted(
-        rel[len("codex-hooks/"):]
+        rel[len(prefix):]
         for rel in artifacts
-        if rel.startswith("codex-hooks/") and rel.endswith(".sh")
+        if rel.startswith(prefix) and rel.endswith(".sh")
     )
-    check("every canonical hooks/*.sh has a generated codex-hooks/*.sh",
+    check("every canonical hooks/*.sh has a generated plugin hooks/*.sh",
           canonical == generated, "canonical=%s generated=%s" % (canonical, generated))
     # The hook list flows through common.load_hook_bodies (the single source).
     check("load_hook_bodies keys == canonical hooks/*.sh",
@@ -720,38 +825,36 @@ def test_hook_completeness_new_hook_picked_up():
         with open(new_hook, "w", encoding="utf-8") as fh:
             fh.write("#!/usr/bin/env bash\necho hi\n")
         artifacts = target_codex.build_artifacts(tmp)
-        check("new canonical hook auto-emitted to codex-hooks/",
-              "codex-hooks/new-experiment.sh" in artifacts,
-              str([k for k in artifacts if k.startswith("codex-hooks/")]))
+        check("new canonical hook auto-emitted to plugin hooks/",
+              "plugins/maungs-agentic-toolbelt/hooks/new-experiment.sh" in artifacts,
+              str([k for k in artifacts if "/hooks/" in k]))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_hook_usage_tracker():
-    print("\n[hook: usage-tracker CLAUDE_PLUGIN_ROOT rewritten, skill fallback agent-only]")
+    print("\n[hook: usage-tracker uses Codex SubagentStart events]")
     bodies = common.load_hook_bodies(REPO_ROOT)
     out = transforms.transform_hook_body("usage-tracker.sh", bodies["usage-tracker.sh"])
     check("CLAUDE_PLUGIN_ROOT gone", "CLAUDE_PLUGIN_ROOT" not in out)
-    check("agent membership checks .toml", "agents/${slug}.toml" in out)
-    check("bare-slug skill filesystem fallback dropped", "skills/${slug}" not in out)
+    check("SubagentStart event required", '"SubagentStart"' in out)
+    check("agent_type is the tracked component", ".agent_type // empty" in out)
+    check("Claude Task/Skill PreToolUse mechanics absent",
+          "tool_input.subagent_type" not in out and "tool_input.skill" not in out)
 
 
 def test_hook_pretooluse_guard():
-    print("\n[hook: pretooluse-guard broadened attribution + fail-open-to-ask]")
+    print("\n[hook: pretooluse-guard uses supported deny-confirm retry semantics]")
     bodies = common.load_hook_bodies(REPO_ROOT)
     out = transforms.transform_hook_body("pretooluse-guard.sh", bodies["pretooluse-guard.sh"])
     check("attribution branch broadened beyond Claude (matches copilot/codex/gpt)",
           "copilot" in out and "codex" in out and "gpt" in out)
-    # The guard emits BOTH the canonical hookSpecificOutput envelope AND a flat
-    # {decision,reason} shape from the SAME jq call (BUG-22: the dead, under-escaped
-    # jq-less else-branch was removed — the helpers are reached only with jq present,
-    # and a jq-less host already ALLOWED at the top-of-file jq guard). Assert the
-    # flat shape is present in both helpers' jq filters.
-    check("deny() emits flat {decision:\"deny\",reason}", 'decision:"deny",reason:$r' in out, out[:120])
-    check("ask() emits flat {decision:\"ask\",reason}", 'decision:"ask",reason:$r' in out, out[:120])
-    # The removed jq-less printf fallback must NOT survive (it under-escaped JSON).
-    check("dead jq-less printf fallback removed",
-          '{"decision":"ask","reason":%s}' not in out)
+    check("deny() emits Codex hookSpecificOutput decision",
+          'hookEventName:"PreToolUse",permissionDecision:"deny"' in out)
+    check("unsupported permissionDecision ask is absent",
+          'permissionDecision:"ask"' not in out)
+    check("ask tier instructs explicit confirmation + one retry",
+          "MAUNGS_TOOLBELT_CONFIRMED=1" in out and "wait for explicit confirmation" in out)
     # Functional: a non-Claude Co-Authored-By trailer is denied.
     tmp = tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False)
     tmp.write(out)
@@ -761,6 +864,21 @@ def test_hook_pretooluse_guard():
         proc = subprocess.run(["bash", tmp.name], input=payload, capture_output=True, text=True)
         check("generated guard DENIES a non-Claude (Copilot) attribution",
               '"permissionDecision": "deny"' in proc.stdout, proc.stdout[:120])
+        destructive = '{"tool_name":"Bash","tool_input":{"command":"DROP TABLE users"}}'
+        first = subprocess.run(
+            ["bash", tmp.name], input=destructive, capture_output=True, text=True
+        ).stdout
+        check("ask-tier command is denied with confirmation instructions",
+              '"permissionDecision": "deny"' in first
+              and "MAUNGS_TOOLBELT_CONFIRMED=1" in first, first[:200])
+        confirmed = (
+            '{"tool_name":"Bash","tool_input":{"command":'
+            '"MAUNGS_TOOLBELT_CONFIRMED=1 DROP TABLE users"}}'
+        )
+        retry = subprocess.run(
+            ["bash", tmp.name], input=confirmed, capture_output=True, text=True
+        ).stdout
+        check("confirmed ask-tier retry is allowed", retry.strip() == "", retry[:120])
     finally:
         os.unlink(tmp.name)
 
@@ -809,18 +927,43 @@ def test_hook_pretooluse_guard_attribution_wholeword():
 
 
 def test_hook_router():
-    print("\n[hook: router emits additionalContext + stdout + anti-autonomy prefix]")
+    print("\n[hook: router emits one valid additionalContext result + anti-autonomy prefix]")
+    import json
     bodies = common.load_hook_bodies(REPO_ROOT)
     out = transforms.transform_hook_body("toolbelt-router.sh", bodies["toolbelt-router.sh"])
     check("additionalContext envelope present", "additionalContext" in out)
-    check("stdout fallback always emitted (printf after jq, no else)",
-          "printf '%s\\n' \"$3\"\n  exit 0" in out)
+    check("stdout plain-text fallback is in the jq else branch",
+          'else\n    printf \'%s\\n\' "$3"' in out)
+    check("legacy duplicate-output envelope removed", "suppressOutput" not in out)
     check("anti-autonomy PREFIX guard survives",
           "do NOT auto-run workflows that commit/push/open PRs without confirmation" in out)
+    router = os.path.join(
+        REPO_ROOT, "plugins", "maungs-agentic-toolbelt", "hooks",
+        "toolbelt-router.sh",
+    )
+    proc = subprocess.run(
+        ["bash", router],
+        input=json.dumps({"prompt": "please review this PR"}),
+        capture_output=True,
+        text=True,
+    )
+    try:
+        parsed = json.loads(proc.stdout)
+        valid = (
+            parsed["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
+            and "review request"
+            in parsed["hookSpecificOutput"]["additionalContext"]
+        )
+    except (ValueError, KeyError, TypeError):
+        valid = False
+    check("live router emits one parseable Codex hook result",
+          proc.returncode == 0 and valid, (proc.stdout + proc.stderr)[:240])
+    check("live router emits no command-substitution errors",
+          proc.stderr == "", proc.stderr[:240])
 
 
 def test_hook_router_skill_suggestions_at_mention():
-    print("\n[hook: router /skill suggestions rewritten to @skill (decision 16 router exception)]")
+    print("\n[hook: router /skill suggestions rewritten to $skill]")
     bodies = common.load_hook_bodies(REPO_ROOT)
     out = transforms.transform_hook_body("toolbelt-router.sh", bodies["toolbelt-router.sh"])
     # No BARE /<skill> suggestion (whitespace/line-start prefixed) survives — those
@@ -832,11 +975,11 @@ def test_hook_router_skill_suggestions_at_mention():
     leftover = bare_slash.findall(out)
     check("no bare /<skill> suggestion left in generated router",
           not leftover, "found bare slash skills: %s" % [s for _, s in leftover][:5])
-    # The @mention forms ARE present (suggestions still surface, Codex-correct).
-    check("router suggests @orchestrator (not /orchestrator)",
-          re.search(r"(^|\s)@orchestrator\b", out) is not None)
-    check("router suggests @agentic-onboard (not /agentic-onboard)",
-          "@agentic-onboard" in out)
+    # The $skill forms ARE present (suggestions still surface, Codex-correct).
+    check("router suggests $orchestrator (not /orchestrator)",
+          "\\$orchestrator" in out)
+    check("router suggests $agentic-onboard (not /agentic-onboard)",
+          "\\$agentic-onboard" in out)
     # Path tokens + non-skill slashes are NOT mangled by the rewrite.
     check("docs/wiki/ path intact (not mangled to docs@wiki)",
           "docs@wiki" not in out and "docs/wiki/" in out)
@@ -855,11 +998,12 @@ def test_hook_lib_telemetry():
 
 
 def test_hook_sessionstart_loader_skill_invocation_at_mention():
-    print("\n[hook: sessionstart-loader skill nudges -> @mention (AC-3: /agentic-onboard + /todo), CLAUDE.md filename + /todos/ path kept]")
+    print("\n[hook: sessionstart-loader skill nudges -> $skill, AGENTS.md-aware]")
     bodies = common.load_hook_bodies(REPO_ROOT)
     out = transforms.transform_hook_body("sessionstart-loader.sh", bodies["sessionstart-loader.sh"])
-    check("agentic-onboard nudge rewritten to @agentic-onboard", "@agentic-onboard" in out)
-    check("todo backlog nudge rewritten to @todo", "@todo" in out)
+    check("agentic-onboard nudge rewritten to $agentic-onboard", "\\$agentic-onboard" in out)
+    check("todo backlog nudge rewritten to $todo", "\\$todo" in out)
+    check("AGENTS.md suppresses the missing-context nudge", "[ ! -f AGENTS.md ]" in out)
     # No BARE/wrapped /<skill> slash-form invocation survives for ANY canonical
     # skill (whitespace/line-start/backtick/paren left boundary): invalid on Codex
     # (no slash layer; violates AC-3). Anchored to the dynamic SKILL_NAMES so a new
@@ -873,27 +1017,21 @@ def test_hook_sessionstart_loader_skill_invocation_at_mention():
     # filename the user looks for — decision 16's filename disposition).
     check("CLAUDE.md filename reference preserved (filename, not invocation)",
           "CLAUDE.md" in out, out[:80])
-    # The /todos/ STORAGE PATH must NOT be mangled to @todos (trailing 's' -> not a
+    # The /todos/ STORAGE PATH must NOT be mangled (trailing 's' -> not a
     # skill invocation; the left-boundary rule leaves the path token intact).
-    check("/todos/ storage path preserved (not rewritten to @todos)",
-          "todos/" in out and "@todos" not in out)
+    check("/todos/ storage path preserved",
+          "todos/" in out)
 
 
 def test_todo_path_survives_documented():
-    print("\n[transforms: @todo backlog path stays under ~/.claude (documented decision — BUG-15)]")
-    # docs/codex.md (the "@todo backlog" subsection) DELIBERATELY keeps the todo
-    # store at ~/.claude/maungs-toolbelt/todos/<slug>.md on Codex too: the writer,
-    # the SessionStart loader, and the router reader all agree on that path, so the
-    # feature works end-to-end. Re-homing it to ~/.codex is a documented follow-up,
-    # NOT a closed item — so there must be NO ~/.claude->~/.codex rewrite of the
-    # todo path. Assert the documented path SURVIVES the skill-body transform.
+    print("\n[transforms: $todo backlog writer and loader use ~/.codex]")
     comps = {c.name: c for c in common.load_skills(REPO_ROOT)}
     todo = comps["todo"]
     out = transforms.transform_body(todo.body, todo.name)
-    check("todo body keeps documented ~/.claude/maungs-toolbelt/todos path",
-          "~/.claude/maungs-toolbelt/todos" in out, out[:160])
-    check("todo body did NOT get a ~/.codex todos rewrite (documented follow-up only)",
-          "~/.codex/maungs-toolbelt/todos" not in out)
+    check("todo body uses ~/.codex/maungs-toolbelt/todos path",
+          "~/.codex/maungs-toolbelt/todos" in out, out[:160])
+    check("todo body contains no ~/.claude todo path",
+          "~/.claude/maungs-toolbelt/todos" not in out)
 
 
 def test_askuserquestion_sentence_initial_capitalized():
@@ -928,8 +1066,9 @@ def test_askuserquestion_sentence_initial_capitalized():
 def test_neutralization_claude_md():
     print("\n[transforms: layer-1 CLAUDE.md neutralization (agent/skill bodies)]")
     out = transforms.neutralize_body("read CLAUDE.md and restart Claude Code")
-    check("CLAUDE.md -> AGENTS.md / CLAUDE.md", "AGENTS.md / CLAUDE.md" in out)
-    check("restart Claude Code -> restart your agent", "restart your agent" in out)
+    check("CLAUDE.md -> AGENTS.md with compatibility note",
+          "AGENTS.md (and CLAUDE.md when present)" in out)
+    check("restart Claude Code -> restart Codex", "restart Codex" in out)
     # Idempotent.
     check("neutralization idempotent", transforms.neutralize_body(out) == out)
 
@@ -950,10 +1089,10 @@ def test_neutralization_claude_md_path_boundary():
     # A STANDALONE CLAUDE.md (whitespace / backtick / open-paren left boundary) STILL
     # rewrites — the fix narrows only the path case, it does not disable the rule.
     rewrites = {
-        "see CLAUDE.md now": "see AGENTS.md / CLAUDE.md now",
-        "`CLAUDE.md`": "`AGENTS.md / CLAUDE.md`",
-        "(CLAUDE.md)": "(AGENTS.md / CLAUDE.md)",
-        "CLAUDE.md at line start": "AGENTS.md / CLAUDE.md at line start",
+        "see CLAUDE.md now": "see AGENTS.md (and CLAUDE.md when present) now",
+        "`CLAUDE.md`": "`AGENTS.md (and CLAUDE.md when present)`",
+        "(CLAUDE.md)": "(AGENTS.md (and CLAUDE.md when present))",
+        "CLAUDE.md at line start": "AGENTS.md (and CLAUDE.md when present) at line start",
     }
     for src, want in rewrites.items():
         out = transforms.neutralize_body(src)
@@ -1082,6 +1221,9 @@ def main():
         test_validate_version_parity,
         test_validate_non_dict_toplevel_rejected,
         test_manifest_discovers_every_generated_skill,
+        test_skill_metadata_schema,
+        test_generated_codex_runtime_portability,
+        test_install_codex_modes,
         test_codex_install_command_is_current,
         test_transforms_claude_mcp_cli,
         test_transforms_mcp_prose_server_agnostic,

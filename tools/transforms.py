@@ -15,7 +15,7 @@ Two layers (see the plan's "Body adaptation" section):
       * the Claude-only ``ToolSearch`` mechanic token -> generic phrasing
       * ``AskUserQuestion`` -> "ask the user in chat and wait" — PRESERVING the
         verbatim wait-for-explicit-confirmation wording on every gate
-      * ``/skill`` -> ``@skill`` via a LEFT-BOUNDARY rule (whitespace/line-start
+      * ``/skill`` -> ``$skill`` via a LEFT-BOUNDARY rule (whitespace/line-start
         only; never a path component, never the right-hand args)
       * strip ``disable-model-invocation`` (handled at frontmatter level)
 
@@ -34,7 +34,7 @@ from typing import List
 from .emit import common
 
 # The canonical skill names — the only ``/name`` tokens the left-boundary rule
-# rewrites to ``@name``. Derived DYNAMICALLY from the canonical ``skills/``
+# rewrites to ``$name``. Derived DYNAMICALLY from the canonical ``skills/``
 # directory (the same single source ``common.load_skills`` enumerates), so a NEW
 # skill — ``dossier-jobs``, ``todo``, or any future one — is picked up automatically
 # with no hand-maintained list to drift out of sync with the emitter. Sorted;
@@ -46,6 +46,7 @@ from .emit import common
 # their fixture, so this REPO_ROOT-derived list matches whatever root the emitter
 # renders — there is no real code path where the two diverge.
 SKILL_NAMES = sorted(comp.name for comp in common.load_skills())
+AGENT_NAMES = sorted(comp.name for comp in common.load_agents())
 
 
 # ---------------------------------------------------------------------------
@@ -59,11 +60,14 @@ def neutralize_body(text: str) -> str:
     re-running does not double-rewrite, because the replacement target already
     contains the source token.
     """
-    # "restart Claude Code" -> "restart your agent" (do this BEFORE the
+    # "restart Claude Code" -> "restart Codex" (do this BEFORE the
     # CLAUDE.md rule so "Claude Code" is consumed first; case-insensitive on the
     # verb phrase but we only target the exact prose form used in the repo).
-    text = text.replace("restart Claude Code", "restart your agent")
-    # CLAUDE.md -> AGENTS.md / CLAUDE.md, but only when not already part of the
+    text = text.replace("restart Claude Code", "restart Codex")
+    text = text.replace("Write a Claude Code handoff", "Write a coding-agent handoff")
+    text = text.replace("Claude Code handoff", "coding-agent handoff")
+    # CLAUDE.md -> AGENTS.md (with CLAUDE.md as an optional compatibility source),
+    # but only when not already part of the
     # combined token (idempotency) and not CLAUDE.local.md (leave that as-is so
     # the combined phrasing reads cleanly). We rewrite the bare "CLAUDE.md"
     # filename token; "CLAUDE.local.md" is left untouched.
@@ -74,8 +78,8 @@ def neutralize_body(text: str) -> str:
     # path token is NOT corrupted into ``docs/AGENTS.md / CLAUDE.md`` (BUG-8); a
     # standalone `` CLAUDE.md`` / `` `CLAUDE.md` `` / ``(CLAUDE.md`` still rewrites.
     text = re.sub(
-        r"(?<!/ )(?<![\w/.~-])CLAUDE\.md\b",
-        "AGENTS.md / CLAUDE.md",
+        r"(?<!AGENTS\.md \(and )(?<![\w/.~-])CLAUDE\.md\b",
+        "AGENTS.md (and CLAUDE.md when present)",
         text,
     )
     return text
@@ -137,7 +141,7 @@ def rewrite_claude_mcp_cli(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Layer 2 — /skill -> @skill (LEFT-BOUNDARY rule)
+# Layer 2 — /skill -> $skill (LEFT-BOUNDARY rule)
 # ---------------------------------------------------------------------------
 
 def _skill_alternation() -> str:
@@ -151,8 +155,8 @@ def _skill_alternation() -> str:
 # lets the rule reach backtick-wrapped (`` `/orchestrator` ``), parenthesized
 # (``(/wiki-generator …)``) AND double-quoted invocations — the latter is the
 # mermaid node-label form ``A["/dossier-jobs [repo]"]`` (a quoted invocation depicted
-# in a flow diagram), so the diagram label is rewritten to ``@dossier-jobs`` too. We
-# rewrite the leading skill TOKEN only (``/orchestrator`` -> ``@orchestrator``) and
+# in a flow diagram), so the diagram label is rewritten to ``$dossier-jobs`` too. We
+# rewrite the leading skill TOKEN only (``/orchestrator`` -> ``$orchestrator``) and
 # leave everything to its right (args, sub-commands, flags, the closing delimiter)
 # intact. The STRICT right boundary — whitespace | end | one of .,;:!? | a closing
 # delimiter `` ` `` / `)` / `]` / `"` — prevents matching a longer slug:
@@ -171,19 +175,400 @@ _SKILL_LEFT_BOUNDARY = re.compile(
 
 
 def rewrite_skill_invocations(text: str) -> str:
-    """Rewrite a bare/wrapped ``/skill`` invocation -> ``@skill`` (left-boundary only).
+    """Rewrite a bare/wrapped ``/skill`` invocation -> ``$skill`` (left-boundary only).
 
-    Rewrites ``/orchestrator`` when preceded by whitespace/line-start OR an opening
-    delimiter (backtick / open-paren) to ``@orchestrator`` — so `` `/orchestrator` ``
-    -> `` `@orchestrator` `` and ``(/wiki-generator …)`` -> ``(@wiki-generator …)`` —
+    Codex CLI and IDE use ``$skill`` for explicit skill invocation. Rewrites
+    ``/orchestrator`` when preceded by whitespace/line-start OR an opening
+    delimiter to ``$orchestrator`` while leaving path components untouched.
     while leaving ``skills/orchestrator/SKILL.md``,
     `` `skills/orchestrator/SKILL.md` ``, ``developer/orchestrator``, and
     ``@playwright/mcp@latest`` untouched (each has a path component, not an opening
     boundary, immediately left of the slash). The trailing args / sub-commands /
     flags / closing backtick to the right are left exactly as-is —
-    ``/orchestrator <topic>`` -> ``@orchestrator <topic>``.
+    ``/orchestrator <topic>`` -> ``$orchestrator <topic>``.
     """
-    return _SKILL_LEFT_BOUNDARY.sub(lambda m: m.group(1) + "@" + m.group(2), text)
+    return _SKILL_LEFT_BOUNDARY.sub(lambda m: m.group(1) + "$" + m.group(2), text)
+
+
+def _agent_alternation() -> str:
+    names = sorted(AGENT_NAMES, key=len, reverse=True)
+    return "|".join(re.escape(n) for n in names)
+
+
+_AGENT_CODE_SPAN = re.compile(
+    r"`@(" + _agent_alternation() + r")([^`]*)`"
+)
+_AGENT_LINE = re.compile(
+    r"^@(" + _agent_alternation() + r")([^\n]*)$",
+    re.MULTILINE,
+)
+_AGENT_WITH_THE = re.compile(
+    r"\bthe\s+@(" + _agent_alternation() + r")(?:\s+agent)?\b",
+)
+_AGENT_WITH_AGENT = re.compile(
+    r"@(" + _agent_alternation() + r")\s+agent\b",
+)
+_AGENT_BARE = re.compile(
+    r"@(" + _agent_alternation() + r")\b"
+)
+
+
+def rewrite_agent_invocations(text: str) -> str:
+    """Rewrite Claude ``@agent`` shorthand into explicit Codex spawn wording.
+
+    Codex custom agents are selected by agent type when a user or conductor asks
+    Codex to spawn them; ``@agent`` is not the custom-agent invocation surface.
+    """
+    text = _AGENT_CODE_SPAN.sub(
+        lambda m: "`spawn %s subagent%s`" % (m.group(1), m.group(2)),
+        text,
+    )
+    text = _AGENT_LINE.sub(
+        lambda m: "spawn %s subagent%s" % (m.group(1), m.group(2)),
+        text,
+    )
+    text = _AGENT_WITH_THE.sub(
+        lambda m: "the %s subagent" % m.group(1),
+        text,
+    )
+    text = _AGENT_WITH_AGENT.sub(
+        lambda m: "%s subagent" % m.group(1),
+        text,
+    )
+    text = _AGENT_BARE.sub(lambda m: "%s subagent" % m.group(1), text)
+    # Canonical prose often wraps ``@agent`` in a code span and then appends the
+    # noun "agent"; after conversion the role is already explicit.
+    text = re.sub(
+        r"(`spawn (?:%s) subagent[^`]*`)\s+agent\b" % _agent_alternation(),
+        r"\1",
+        text,
+    )
+    text = re.sub(
+        r"(# or )((?:%s) subagent)\b" % _agent_alternation(),
+        r"\1spawn \2",
+        text,
+    )
+    return text
+
+
+def rewrite_skill_arguments(text: str) -> str:
+    """Replace Claude command-placeholder syntax unsupported by Codex skills."""
+    return text.replace(
+        "$ARGUMENTS",
+        "the invocation arguments from the user's request",
+    )
+
+
+def rewrite_codex_memories(text: str) -> str:
+    """Replace Claude's project-memory filesystem contract with Codex memories.
+
+    Codex injects enabled memories into the thread and stores generated state
+    under ``~/.codex/memories/``. Generated agents should use the injected
+    context, not assume Claude's project-slug/MEMORY.md layout exists.
+    """
+    text = re.sub(
+        r"\(`~/.claude/projects/<project-slug>/memory/MEMORY\.md`"
+        r"(?: \+ cited entries)?\)",
+        "(Codex-injected memories, when enabled)",
+        text,
+    )
+    text = text.replace(
+        "(`~/.claude/projects/<project-slug>/memory/`)",
+        "(Codex-injected memories, when enabled)",
+    )
+    text = text.replace(
+        "(`~/.claude/projects/<slug>/memory/`)",
+        "(`~/.codex/memories/`)",
+    )
+    text = text.replace(
+        "`~/.claude/memory/MEMORY.md`",
+        "Codex-injected memories",
+    )
+    text = text.replace(
+        "the project's auto-memory `MEMORY.md` "
+        "(Codex-injected memories, when enabled) + cited entries",
+        "Codex-injected memories when enabled",
+    )
+    text = text.replace(
+        "the project's auto-memory index "
+        "(Codex-injected memories, when enabled) + all cited entries",
+        "Codex-injected memories when enabled",
+    )
+    text = text.replace(
+        "load the project's auto-memory index if present "
+        "(Codex-injected memories, when enabled), falling back to "
+        "Codex-injected memories",
+        "use Codex-injected memories when enabled",
+    )
+    text = text.replace(
+        "auto-memory directory exists (Codex-injected memories, when enabled), "
+        "load it + cited entries",
+        "Codex memories are injected, use the relevant entries",
+    )
+    text = text.replace(
+        "Load the project's auto-memory "
+        "(Codex-injected memories, when enabled) at the start if present",
+        "Use Codex-injected memories when enabled",
+    )
+    text = text.replace(
+        "Load the project's auto-memory "
+        "(Codex-injected memories, when enabled) at the start of every review "
+        "if present",
+        "Use Codex-injected memories when enabled at the start of every review",
+    )
+    text = text.replace(
+        "Load the project's auto-memory "
+        "(Codex-injected memories, when enabled) at the start of every invocation",
+        "Use Codex-injected memories when enabled at the start of every invocation",
+    )
+    text = text.replace(
+        "The project's auto-memory directory "
+        "(Codex-injected memories, when enabled)",
+        "Codex-injected memories, when enabled",
+    )
+    text = text.replace(
+        "The project's **auto-memory** "
+        "(Codex-injected memories, when enabled)",
+        "**Codex-injected memories**, when enabled",
+    )
+    text = text.replace(
+        "`MEMORY.md` + cited entries",
+        "relevant durable entries",
+    )
+    text = text.replace(
+        "auto-memory",
+        "memory context",
+    )
+    text = text.replace("Claude maintains", "Codex maintains")
+    return text
+
+
+def rewrite_codex_local_paths(text: str) -> str:
+    """Move toolbelt-owned local state and diagnostics to Codex conventions."""
+    text = text.replace(
+        "~/.claude/maungs-toolbelt/",
+        "~/.codex/maungs-toolbelt/",
+    )
+    text = text.replace(
+        "${HOME}/.claude/maungs-toolbelt/",
+        "${HOME}/.codex/maungs-toolbelt/",
+    )
+    text = text.replace(
+        "$HOME/.claude/maungs-toolbelt/",
+        "$HOME/.codex/maungs-toolbelt/",
+    )
+    text = text.replace(
+        '"${CLAUDE_PLUGIN_ROOT}"/bin/toolbelt-metrics.sh',
+        "the bundled scripts/toolbelt-metrics.sh next to this skill",
+    )
+    text = text.replace(
+        "Newly-added MCP servers do not load until Claude Code restarts",
+        "Newly-added MCP servers may require a new Codex thread",
+    )
+    text = text.replace("restart Codex", "start a new Codex thread")
+    text = text.replace("restarting Claude Code", "starting a new Codex thread")
+    text = text.replace("restart Claude Code", "start a new Codex thread")
+    text = text.replace(
+        "~/.claude/toolbelt-status.json",
+        "~/.codex/toolbelt-status.json",
+    )
+    text = text.replace(
+        "No Claude / Claude Code attribution",
+        "No AI-assistant attribution",
+    )
+    text = text.replace(
+        "Claude / Claude Code attribution",
+        "AI-assistant attribution",
+    )
+    text = text.replace(
+        "the in-session todo list Claude Code shows",
+        "Codex's in-session task tracking",
+    )
+    text = text.replace(
+        "the same scheme Claude Code uses for `~/.claude/projects/<slug>/`",
+        "a stable path-derived scheme shared with the session loader",
+    )
+    text = text.replace(
+        'No `Co-Authored-By: Claude`, no `🤖 Generated with Claude Code`.',
+        "No AI co-author trailers or AI-generated footers.",
+    )
+    text = text.replace(
+        "If a project has its own `$orchestrator` skill "
+        "(e.g., `<project>/.claude/skills/orchestrator/SKILL.md`)",
+        "If a project has its own `$orchestrator` skill "
+        "(e.g., `<project>/.agents/skills/orchestrator/SKILL.md`)",
+    )
+    text = text.replace(".claude/skills/", ".agents/skills/")
+    text = text.replace(
+        "Skills are invoked as `/<name>`; agents as `@<name> <args>`.",
+        "Skills are invoked as `$<name>`; custom agents by asking Codex to "
+        "spawn the named subagent.",
+    )
+    text = text.replace(
+        "enumerate `skills/*/SKILL.md` and `agents/*.md` frontmatter",
+        "enumerate plugin `skills/*/SKILL.md` frontmatter and "
+        "`~/.codex/agents/*.toml` metadata",
+    )
+    text = text.replace(
+        "enumerate `agents/*.md`; read each one's frontmatter `name` + `description` "
+        "(and `tools` list for least-privilege context).",
+        "enumerate `~/.codex/agents/*.toml`; read each file's `name` + "
+        "`description` and sandbox/MCP settings.",
+    )
+    text = text.replace(
+        '`bash "<path>/bin/toolbelt-metrics.sh"`',
+        '`bash "<skill-dir>/scripts/toolbelt-metrics.sh"`',
+    )
+    return text
+
+
+def rewrite_orchestrator_codex(text: str, component_name: str) -> str:
+    """Remove Claude's custom status-file contract and fix Codex reload guidance."""
+    if component_name != "orchestrator":
+        return text
+    text = re.sub(
+        r"## Local statusline status file \(write on every phase — LOCAL only\)\n"
+        r".*?(?=\n## Auto-detection on every invocation)",
+        "## Codex status line\n\n"
+        "Codex provides a built-in `/statusline` command for standard footer "
+        "fields such as model, context, limits, git state, tokens, and session. "
+        "It does not consume the Claude toolbelt's custom pipeline-status file, "
+        "so do not write `~/.codex/toolbelt-status.json`.\n",
+        text,
+        flags=re.DOTALL,
+    )
+    text = re.sub(
+        r"\*\*Critical — newly added MCP servers.*?Do NOT pretend a just-added "
+        r"server is usable in the current (?:session|thread)\.",
+        "**Critical — newly added MCP servers may require a new Codex thread.** "
+        "After adding any server, STOP and tell the user to start a new thread "
+        "and re-run `$orchestrator <arg>`; Step 0 will re-check and pass. Do NOT "
+        "pretend a just-added server is usable in the current thread.",
+        text,
+        flags=re.DOTALL,
+    )
+    return text
+
+
+def rewrite_component_specific_codex(text: str, component_name: str) -> str:
+    """Clean up target-specific semantics that cannot be expressed generically."""
+    if component_name == "agentic-onboard":
+        text = text.replace(
+            "AGENTS.md (and CLAUDE.md when present)",
+            "CLAUDE.md",
+        )
+        text = text.replace(
+            "Every other component — `$orchestrator`, `$wiki-generator`, "
+            "`$bug-catcher` — auto-detects `CLAUDE.md` plus a plan-file "
+            "convention",
+            "Every other component — `$orchestrator`, `$wiki-generator`, "
+            "`$bug-catcher` — auto-detects `AGENTS.md`, reads `CLAUDE.md` when "
+            "present, and uses a plan-file convention",
+        )
+        text = text.replace(
+            "The target project's `CLAUDE.md` may add conventions",
+            "The target project's `AGENTS.md` (and `CLAUDE.md` when present) "
+            "may add conventions",
+        )
+        text = text.replace(
+            "Honor target-project conventions already present in `CLAUDE.md` / "
+            "`CLAUDE.local.md` / equivalent",
+            "Honor target-project conventions already present in `AGENTS.md` / "
+            "`CLAUDE.md` / `CLAUDE.local.md` / equivalent",
+        )
+    elif component_name in {"context-writer", "context-auditor"}:
+        text = text.replace(
+            "AGENTS.md (and CLAUDE.md when present)",
+            "CLAUDE.md",
+        )
+    elif component_name == "handoff":
+        text = text.replace(
+            "write a Claude-Code-handoff and a separate engineer-readable doc",
+            "write a second agent-specific handoff and a separate "
+            "engineer-readable doc",
+        )
+    elif component_name == "toolbelt":
+        text = text.replace(
+            "reading the installed `skills/*/SKILL.md` and `agents/*.md` "
+            "frontmatter",
+            "reading plugin `skills/*/SKILL.md` frontmatter and installed "
+            "`~/.codex/agents/*.toml` metadata",
+        )
+        text = text.replace(
+            "enumerate `skills/*` + `agents/*`",
+            "enumerate plugin `skills/*` + `~/.codex/agents/*.toml`",
+        )
+        text = re.sub(
+            r" Add one line that the live state is also visible on the optional "
+            r"cockpit statusline as `debug ●` \(yellow = recording\) with a "
+            r"per-session `offered▸used` tally\.",
+            "",
+            text,
+        )
+        text = text.replace(
+            "`CONFIGURED — restart required`",
+            "`CONFIGURED — new thread required`",
+        )
+    return text
+
+
+_CODEX_DOSSIER_BODY = """\
+# Codex adapter
+
+This is the Codex version of the scheduled dossier workflow. Codex CLI does not
+expose Claude's `RemoteTrigger` API. Never call or simulate `RemoteTrigger`.
+
+## Inputs
+
+Read the repository, selected jobs (`--bug`, `--security`, `--wiki`), schedule,
+timezone, model, `--max-fixes`, and action flags from the user's request text
+after the skill name. Resolve the repository from the positional argument or the
+current checkout's `origin` remote.
+
+## Supported behavior
+
+1. Build the same three job prompts as the Claude workflow:
+   - **bug**: run `$bug-catcher --global`; keep SEV1 issue-only; draft, never
+     merge, at most `--max-fixes` non-SEV1 fix PRs.
+   - **security**: run the `security-reviewer` subagent for a repository-wide
+     compliance sweep; issue/comment output only.
+   - **wiki**: run `$wiki-generator --update`; produce one rolling proposal PR.
+2. Keep one rolling `[dossier-jobs] Dossier` issue and one marker-delimited
+   comment per job so reruns update rather than duplicate.
+3. Show the exact repository, local and UTC schedule, model, prompts, and outward
+   actions before any creation/update/run action. Wait for explicit confirmation.
+4. If the current Codex surface exposes automation-management tools, use them
+   after confirmation and report the created automation identifiers.
+5. In Codex CLI, where automation creation is unavailable, output a complete
+   copy/paste configuration for three Codex app automations and the exact steps:
+   open Codex app → Automations → New automation → select the repository and
+   local environment → paste the prompt and schedule. Do not claim the
+   automations were created.
+6. `--status`, `--disable`, and `--run-now` operate only when automation tools are
+   available. In CLI-only mode, print the exact Codex app action required.
+
+## Safety
+
+- Reads and preflight are free. Creation, update, disable, run-now, issue writes,
+  and PR creation remain human-gated.
+- Never auto-merge generated PRs.
+- Never use `--dangerously-bypass-approvals-and-sandbox` to make a scheduled CLI
+  job work.
+- If unattended CLI execution would require bypassing approvals, stop and route
+  the user to Codex app Automations instead.
+
+## Output
+
+Return a table for each selected job: action, repository, schedule, model,
+prompt summary, automation id or `MANUAL APP SETUP REQUIRED`, and rollback
+instructions. Clearly distinguish completed actions from generated setup.
+"""
+
+
+def rewrite_dossier_jobs(text: str, component_name: str) -> str:
+    if component_name != "dossier-jobs":
+        return text
+    return _CODEX_DOSSIER_BODY
 
 
 # ---------------------------------------------------------------------------
@@ -363,11 +748,18 @@ GATE_BODIES = {
 
 def transform_body(text: str, component_name: str) -> str:
     """Apply layer-1 + layer-2 to an agent or skill body (Codex path)."""
+    text = rewrite_dossier_jobs(text, component_name)
     text = neutralize_body(text)               # layer 1
     text = rewrite_mcp_prose(text)             # layer 2
     text = neutralize_toolsearch(text)         # layer 2
     text = rewrite_claude_mcp_cli(text)        # layer 2
     text = rewrite_skill_invocations(text)     # layer 2
+    text = rewrite_agent_invocations(text)     # layer 2
+    text = rewrite_skill_arguments(text)       # layer 2
+    text = rewrite_codex_memories(text)         # layer 2
+    text = rewrite_codex_local_paths(text)      # layer 2
+    text = rewrite_orchestrator_codex(text, component_name)
+    text = rewrite_component_specific_codex(text, component_name)
     text = rewrite_askuserquestion(text, component_name in GATE_BODIES)
     return text
 
@@ -378,18 +770,25 @@ def transform_description(text: str, component_name: str) -> str:
     The description is carried into the TOML ``description`` field and the skill
     frontmatter, so it gets the same adaptation as the body.
     """
+    if component_name == "dossier-jobs":
+        text = (
+            "Prepare the bug, security, and wiki scheduled-dossier workflows for "
+            "Codex Automations. Uses automation-management tools when available; "
+            "in Codex CLI it generates complete copy/paste Codex app automation "
+            "configurations without claiming they were created. Invoke with "
+            "`$dossier-jobs [repo] [flags]`."
+        )
+        text = neutralize_body(text)
+        text = rewrite_skill_invocations(text)
+        text = rewrite_agent_invocations(text)
+        text = rewrite_skill_arguments(text)
+        return rewrite_codex_local_paths(text)
     return transform_body(text, component_name)
 
 
 # ---------------------------------------------------------------------------
 # Hook-body transforms (env-var + output-schema + log-path rules)
 # ---------------------------------------------------------------------------
-
-# The Codex hook-root placeholder. The committed template carries this literal;
-# the installer substitutes the real install dir at install time. NEVER an
-# absolute path at build time (determinism + leak-grep).
-HOOK_DIR_PLACEHOLDER = "__TOOLBELT_HOOK_DIR__"
-
 
 def _replace_or_die(body: str, old: str, new: str) -> str:
     """Like ``str.replace`` but FAILS LOUDLY when ``old`` is not present.
@@ -434,86 +833,64 @@ def transform_lib_telemetry(body: str) -> str:
         "(env override → default under ~/.claude).",
         "(env override → default under ~/.codex).",
     )
-    # AC-3 "no slash layer": the comment guidance "View it with `/toolbelt
-    # metrics`." names a slash command that is invalid on Codex (skills are
-    # @mention/model-triggered). Rewrite the backtick-wrapped slash form to the
-    # @mention form, the same way the router-suggestion exception does for the
-    # router hook. _replace_or_die fires if the canonical comment ever moves.
-    body = _replace_or_die(body, "`/toolbelt metrics`", "`@toolbelt metrics`")
+    body = _replace_or_die(body, "`/toolbelt metrics`", "`$toolbelt metrics`")
+    body = body.replace(
+        "(visible under `claude --debug`)",
+        "(visible in the hook diagnostics)",
+    )
+    body = body.replace(
+        "PreToolUse on Task / Skill",
+        "SubagentStart / explicit skill prompt",
+    )
     return body
 
 
 def transform_usage_tracker(body: str) -> str:
-    """Adapt ``usage-tracker.sh`` for Codex.
+    """Render a Codex ``SubagentStart`` invocation tracker.
 
-    * Rewrite the ``CLAUDE_PLUGIN_ROOT`` membership check to a hook-root the
-      installed Codex layout actually has, and the agent membership file to the
-      ``.toml`` form.
-    * Degrade the bare-slug SKILL filesystem fallback to AGENT-ONLY on Codex (the
-      marketplace skill root is a separate, installer-unowned dir — decision 15).
-      The explicit ``maungs-agentic-toolbelt:`` namespace branch is unchanged.
+    Codex does not expose Claude's ``Task`` or ``Skill`` tools to PreToolUse.
+    Custom-agent starts have a first-class hook event; explicit skill mentions
+    are recorded by the UserPromptSubmit router.
     """
-    # Resolve a Codex hook root from the script's own directory (BASH_SOURCE),
-    # the same dir the installer copies the script into. Insert it right after
-    # the TB_DIR resolution that already exists in the canonical body.
-    body = _replace_or_die(
-        body,
-        '. "${TB_DIR}/lib-telemetry.sh" 2>/dev/null || exit 0',
-        '. "${TB_DIR}/lib-telemetry.sh" 2>/dev/null || exit 0\n'
-        '# Codex hook root: this script\'s own install dir (installer-owned).\n'
-        'TB_HOOK_ROOT="${TB_DIR}"',
-    )
-    # Replace the Claude env-var-keyed membership block with a Codex hook-root
-    # block: agent membership checks the installed `.toml`; the skill bare-slug
-    # filesystem fallback is dropped (agent-only on Codex).
-    old_block = (
-        'if [ "$is_ours" = "0" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then\n'
-        '  case "$kind" in\n'
-        '    agent) [ -f "${CLAUDE_PLUGIN_ROOT}/agents/${slug}.md" ] && is_ours=1 ;;\n'
-        '    skill) [ -d "${CLAUDE_PLUGIN_ROOT}/skills/${slug}" ]    && is_ours=1 ;;\n'
-        '  esac\n'
-        'fi'
-    )
-    new_block = (
-        '# Codex: agents + hooks live under the installer-owned hook root, but\n'
-        '# skills install via the SEPARATE marketplace plugin dir the installer\n'
-        '# does not own — so the bare-slug filesystem fallback is AGENT-ONLY here.\n'
-        '# The explicit "maungs-agentic-toolbelt:" namespace branch above still\n'
-        '# counts a skill; only the bare-slug skill filesystem fallback is dropped\n'
-        '# on Codex (telemetry is opt-in / best-effort, so a missed bare-slug\n'
-        '# skill event is non-fatal).\n'
-        'if [ "$is_ours" = "0" ] && [ -n "${TB_HOOK_ROOT:-}" ]; then\n'
-        '  case "$kind" in\n'
-        '    agent) [ -f "${TB_HOOK_ROOT}/agents/${slug}.toml" ] && is_ours=1 ;;\n'
-        '  esac\n'
-        'fi'
-    )
-    body = _replace_or_die(body, old_block, new_block)
-    # Update the header comment that referenced ~/.claude for the log dir.
-    body = _replace_or_die(
-        body,
-        "#   - Read-only except for the append-only log under ~/.claude (see lib-telemetry).",
-        "#   - Read-only except for the append-only log under ~/.codex (see lib-telemetry).",
-    )
-    # AC-3 "no slash layer": the comment "so `/toolbelt metrics` can show what
-    # gets used" names a slash command invalid on Codex — rewrite to the @mention
-    # form (router-suggestion exception). _replace_or_die fires if it ever moves.
-    body = _replace_or_die(body, "`/toolbelt metrics`", "`@toolbelt metrics`")
-    return body
+    names = "|".join(AGENT_NAMES)
+    script = """#!/usr/bin/env bash
+#
+# usage-tracker.sh — SubagentStart telemetry for Maungs-agentic-toolbelt.
+# Records invocations of this toolbelt's installed custom subagents.
+
+TB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+. "${TB_DIR}/lib-telemetry.sh" 2>/dev/null || exit 0
+tb_debug_on || exit 0
+command -v jq >/dev/null 2>&1 || exit 0
+
+input="$(cat 2>/dev/null)"; [ -n "$input" ] || exit 0
+event="$(printf '%s' "$input" | jq -r '.hook_event_name // empty' 2>/dev/null)"
+[ "$event" = "SubagentStart" ] || exit 0
+raw="$(printf '%s' "$input" | jq -r '.agent_type // empty' 2>/dev/null)"
+case "$raw" in
+  __AGENT_CASES__) ;;
+  *) exit 0 ;;
+esac
+
+session="$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)"
+cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"
+rec="$(jq -nc --arg ts "$(tb_now)" --arg component "$raw" \
+  --arg session "$session" --arg cwd "$cwd" \
+  '{ts:$ts,event:"invoked",kind:"agent",component:$component,raw:$component,session:$session,cwd:$cwd}' 2>/dev/null)"
+tb_append "$rec"
+exit 0
+"""
+    return script.replace("__AGENT_CASES__", names)
 
 
 def transform_pretooluse_guard(body: str) -> str:
     """Adapt ``pretooluse-guard.sh`` for Codex.
 
-    * Emit the deny/ask decision in BOTH the canonical ``hookSpecificOutput``
-      envelope and a flat ``{decision,reason}`` shape, so an unrecognized Codex
-      PreToolUse schema still surfaces a ``deny``/``ask`` to the user rather than
-      no-opping. Accuracy note (decision 12): the guard runs its rules ONLY when
-      jq is present — the canonical top-of-file ``command -v jq … || exit 0``
-      ALLOWS (matching the canonical Claude guard) on a jq-less host, so the
-      deny/ask helpers are never reached there. Because the helpers are reached
-      ONLY with jq present, each emits the jq line DIRECTLY (no jq-less branch to
-      under-escape). Install jq for full guard coverage.
+    * Emit only Codex's supported ``hookSpecificOutput.permissionDecision`` form.
+    * Codex PreToolUse cannot return ``ask``. Emulate the Claude ask tier by
+      denying the first attempt with an instruction to ask the user, then allowing
+      a confirmed retry prefixed with ``MAUNGS_TOOLBELT_CONFIRMED=1``. Hard-deny
+      rules still run on confirmed retries.
     * Broaden the attribution denylist (rule 5) to be MODEL-AGNOSTIC — deny any
       AI/assistant co-author trailer or "Generated with <any AI tool>" line, not
       just the literal "Claude" string.
@@ -590,13 +967,22 @@ def transform_pretooluse_guard(body: str) -> str:
         'deny "Toolbelt cardinal rule: no AI attribution in commits/PRs (no \'Co-Authored-By: Claude\' / \'Generated with Claude Code\'). Remove it from the commit message. (MAUNGS_TOOLBELT_GUARD=off to override.)"',
         'deny "Toolbelt cardinal rule: no AI/assistant attribution in commits/PRs (no \'Co-Authored-By:\' naming any AI/assistant/model, no \'Generated with/by <any AI tool>\', no robot marker). Remove it from the commit message. (MAUNGS_TOOLBELT_GUARD=off to override.)"',
     )
-    # Make the deny/ask emit Codex's PreToolUse form. The canonical helpers emit
-    # only the hookSpecificOutput envelope; on Codex we ALSO emit a flat
-    # {decision,reason} shape so an unrecognized schema still surfaces a decision.
-    # The helpers are reached ONLY with jq present (the top-of-file
-    # `command -v jq … || exit 0` allows on a jq-less host, matching the canonical
-    # Claude guard), so the jq line is emitted DIRECTLY — there is no jq-less
-    # branch to under-escape. See the docstring + decision 12.
+    body = _replace_or_die(
+        body,
+        '[ -z "$cmd" ] && exit 0',
+        '[ -z "$cmd" ] && exit 0\n\n'
+        '# Codex has no PreToolUse "ask" decision. After the hook blocks an\n'
+        '# ask-tier command and the user explicitly confirms it, retry exactly\n'
+        '# once with this environment prefix. The prefix is stripped only for\n'
+        '# guard analysis; the shell still receives the original command.\n'
+        'TB_CONFIRMED=0\n'
+        'case "$cmd" in\n'
+        '  MAUNGS_TOOLBELT_CONFIRMED=1[[:space:]]*)\n'
+        '    TB_CONFIRMED=1\n'
+        '    cmd="${cmd#MAUNGS_TOOLBELT_CONFIRMED=1}"\n'
+        '    cmd="${cmd# }" ;;\n'
+        'esac',
+    )
     old_deny = (
         'deny() {\n'
         '  jq -n --arg r "$1" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}\'\n'
@@ -605,11 +991,7 @@ def transform_pretooluse_guard(body: str) -> str:
     )
     new_deny = (
         'deny() {\n'
-        '  # Codex PreToolUse: emit the structured decision (both the canonical\n'
-        '  # envelope and a flat {decision,reason}). Reached ONLY with jq present;\n'
-        '  # a jq-less host already exited 0 (ALLOW) at the top-of-file jq guard,\n'
-        '  # matching the canonical Claude guard. Install jq for full coverage.\n'
-        '  jq -n --arg r "$1" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r},decision:"deny",reason:$r}\'\n'
+        '  jq -n --arg r "$1" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}\'\n'
         '  exit 0\n'
         '}'
     )
@@ -622,10 +1004,11 @@ def transform_pretooluse_guard(body: str) -> str:
     )
     new_ask = (
         'ask() {\n'
-        '  # Codex PreToolUse "ask" — emit structured + flat. Reached ONLY with jq\n'
-        '  # present; a jq-less host already exited 0 (ALLOW) at the top-of-file jq\n'
-        '  # guard, matching the canonical Claude guard. Install jq for coverage.\n'
-        '  jq -n --arg r "$1" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r},decision:"ask",reason:$r}\'\n'
+        '  [ "$TB_CONFIRMED" = "1" ] && exit 0\n'
+        '  r="$1 Ask the user in chat and wait for explicit confirmation. After\n'
+        'confirmation, retry the exact command once with the prefix\n'
+        'MAUNGS_TOOLBELT_CONFIRMED=1."\n'
+        '  jq -n --arg r "$r" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}\'\n'
         '  exit 0\n'
         '}'
     )
@@ -636,29 +1019,38 @@ def transform_pretooluse_guard(body: str) -> str:
 def transform_toolbelt_router(body: str) -> str:
     """Adapt ``toolbelt-router.sh`` for Codex.
 
-    Emit BOTH the JSON ``additionalContext`` shape AND the plain-stdout fallback
-    (the canonical body already has the stdout branch) so the suggestion surfaces
-    whichever channel Codex consumes. Keep the anti-autonomy PREFIX guard ("do
-    NOT auto-run ... without confirmation") verbatim.
-
-    The router is the ONE hook whose stdout/additionalContext SUGGESTS skill
-    invocations to the user (``- /orchestrator``, ``- /agentic-onboard``, …). On
-    Codex there is no slash layer — skills are ``@mention``/model-triggered — so a
-    ``/skill`` suggestion is invalid and contradicts docs/codex.md. Apply the SAME
-    left-boundary ``/skill`` -> ``@skill`` rewrite the agent/skill BODIES get
-    (decision 16's router-suggestion exception) so the emitted suggestion prose
-    offers ``@orchestrator`` etc. The left-boundary rule (whitespace/line-start to
-    the left, anchored to the canonical skill names) leaves any ``skills/<name>/...``
-    path token intact; the guard/loader/tracker hooks emit no skill suggestions, so
-    this is scoped to the router only.
+    Emit one valid Codex ``additionalContext`` JSON object when jq is present,
+    with plain text as the jq-less fallback. Also record explicit ``$skill``
+    mentions because Codex has no Skill invocation hook event.
     """
-    # Router-suggestion exception to decision 16: rewrite the /skill suggestion
-    # tokens in the router body so Codex sees @mention-form skill offers.
     body = rewrite_skill_invocations(body)
-    # Make emit() print BOTH channels on Codex: the structured additionalContext
-    # JSON AND the stdout fallback. The canonical body emits one OR the other;
-    # the Codex form emits both (JSON when jq is present, then ALWAYS the stdout
-    # line) so neither channel is lost.
+    body = rewrite_agent_invocations(body)
+    body = rewrite_codex_local_paths(body)
+    body = body.replace("so Claude can", "so Codex can")
+    body = body.replace("Claude (and the user)", "Codex (and the user)")
+    body = body.replace("what Claude actually sees", "what Codex actually sees")
+    body = body.replace("surface it to Claude", "surface it to Codex")
+    for name in SKILL_NAMES:
+        body = body.replace("$" + name, "\\$" + name)
+    explicit_block = """
+# Codex has no Skill hook event. Count explicit $skill mentions at prompt submit.
+if [ "$HAVE_JQ" = "1" ] && command -v tb_debug_on >/dev/null 2>&1 && tb_debug_on; then
+  for slug in __SKILL_NAMES__; do
+    case "$prompt" in
+      *'$'"$slug"*|*'@maungs-agentic-toolbelt:'"$slug"*)
+        tb_append "$(jq -nc --arg ts "$(tb_now)" --arg component "$slug" \
+          --arg session "$TB_SESSION" --arg cwd "$TB_CWD" \
+          '{ts:$ts,event:"invoked",kind:"skill",component:$component,raw:$component,session:$session,cwd:$cwd}' 2>/dev/null)"
+        ;;
+    esac
+  done
+fi
+""".replace("__SKILL_NAMES__", " ".join(SKILL_NAMES))
+    body = _replace_or_die(
+        body,
+        "# lowercase for matching\np=",
+        explicit_block + "\n# lowercase for matching\np=",
+    )
     old_emit_tail = (
         '  if [ "$HAVE_JQ" = "1" ]; then\n'
         '    jq -n --arg c "$3" \'{suppressOutput:true,hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}\'\n'
@@ -668,13 +1060,12 @@ def transform_toolbelt_router(body: str) -> str:
         '  exit 0'
     )
     new_emit_tail = (
-        '  # Codex: emit BOTH the structured additionalContext envelope AND the\n'
-        '  # plain-stdout fallback, so the suggestion surfaces whichever channel\n'
-        '  # Codex consumes (additionalContext consumption on Codex is unverified).\n'
+        '  # Codex: stdout must be either one JSON object or plain text, not both.\n'
         '  if [ "$HAVE_JQ" = "1" ]; then\n'
-        '    jq -n --arg c "$3" \'{suppressOutput:false,hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}\'\n'
+        '    jq -n --arg c "$3" \'{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}\'\n'
+        '  else\n'
+        '    printf \'%s\\n\' "$3"\n'
         '  fi\n'
-        '  printf \'%s\\n\' "$3"\n'
         '  exit 0'
     )
     body = _replace_or_die(body, old_emit_tail, new_emit_tail)
@@ -695,7 +1086,7 @@ def transform_sessionstart_loader(body: str) -> str:
     the ``/todo`` nudges main added (the private-backlog resurfacing — "Open todos:
     N … /todo to view") are non-functional slash forms on Codex (no slash layer —
     skills are ``@mention``/model-triggered), so each is rewritten to its
-    ``@mention`` form via the SAME left-boundary skill-name rule the
+    ``$skill`` form via the SAME left-boundary skill-name rule the
     router-suggestion exception uses (decision 16). Applying the general rule
     (anchored to the canonical skill names) rather than per-skill ``_replace_or_die``
     means any FUTURE skill the loader surfaces is handled with no edit here, and
@@ -709,7 +1100,21 @@ def transform_sessionstart_loader(body: str) -> str:
     assert "run /agentic-onboard to generate" in body, (
         "transform expected the sessionstart /agentic-onboard nudge line"
     )
-    return rewrite_skill_invocations(body)
+    body = rewrite_skill_invocations(body)
+    body = rewrite_codex_local_paths(body)
+    for name in SKILL_NAMES:
+        body = body.replace("$" + name, "\\$" + name)
+    body = _replace_or_die(
+        body,
+        "if [ ! -f CLAUDE.md ] && [ ! -f CLAUDE.local.md ]; then\n"
+        '  add "- No CLAUDE.md found — run \\$agentic-onboard to generate agent context for this repo."\n'
+        "fi",
+        "if [ ! -f AGENTS.md ] && [ ! -f CLAUDE.md ] && [ ! -f CLAUDE.local.md ]; then\n"
+        '  add "- No AGENTS.md or CLAUDE.md found — run \\$agentic-onboard to generate agent context for this repo."\n'
+        "fi",
+    )
+    body = body.replace("so Claude\n# begins warm", "so Codex\n# begins warm")
+    return body
 
 
 # Per-hook transform dispatch (keyed by canonical filename). The placeholder

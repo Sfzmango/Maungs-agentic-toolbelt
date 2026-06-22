@@ -50,8 +50,12 @@ REGENERATE_MSG = (
 # .codex-plugin/ manifest dir is DELIBERATELY excluded (it is source, not generated).
 _CODEX_OWNED_ROOTS = (
     "codex-agents",
+    # Legacy root retained as owned so the next write prunes the superseded
+    # standalone hook artifacts after hooks move into the plugin bundle.
     "codex-hooks",
     "plugins/maungs-agentic-toolbelt/skills",
+    "plugins/maungs-agentic-toolbelt/hooks",
+    "plugins/maungs-agentic-toolbelt/bin",
 )
 
 

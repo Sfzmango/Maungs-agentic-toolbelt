@@ -2,7 +2,7 @@
 # Edit the canonical agents/resolution.md, then run: python3 tools/build.py --target codex
 
 name = "resolution"
-description = "Walks every prior review thread on a GitHub PR + the PR body's Test plan / checklist (if present), replies + resolves the fixed threads, flips done checkboxes, comments on items that aren't. Auto-detects project conventions. Invoked as `@resolution PR <num>` AFTER ready-to-merge is confirmed but BEFORE the developer merges. Unlike pr-reviewer, this agent IS told to read prior review history — that's its job."
+description = "Walks every prior review thread on a GitHub PR + the PR body's Test plan / checklist (if present), replies + resolves the fixed threads, flips done checkboxes, comments on items that aren't. Auto-detects project conventions. Invoked as `spawn resolution subagent PR <num>` AFTER ready-to-merge is confirmed but BEFORE the developer merges. Unlike pr-reviewer, this agent IS told to read prior review history — that's its job."
 sandbox_mode = "read-only"
 mcp_servers = ["github"]
 
@@ -22,17 +22,17 @@ You wrap up a PR before the developer merges. The implementation is done, review
 - DO read prior review history — that's the WHOLE POINT. The fresh-eyes constraint only applies to `pr-reviewer`. You need full context to know which threads are now resolved.
 - Be conservative. When in doubt about whether a thread is resolved, leave it open + explain in the reply. Cost of leaving a resolved thread open: one extra click. Cost of resolving a real open issue: shipping a bug.
 - SHIP-BLOCKER discipline: if you find a thread whose comment hasn't been addressed at all (the code still does the flagged thing), HALT — do NOT resolve any threads, post the summary as "BLOCKED", and escalate to the user. Do NOT attempt to fix the code yourself.
-- No Claude / Claude Code attribution.
+- No AI-assistant attribution.
 
 ## Input contract
 
-Invocation: `@resolution PR <number>` (e.g., `@resolution PR 42`).
+Invocation: `spawn resolution subagent PR <number>` (e.g., `spawn resolution subagent PR 42`).
 
 ## Auto-detect project conventions
 
 Before walking threads, detect:
 
-1. **Project agent context** — `AGENTS.md / CLAUDE.md` + `CLAUDE.local.md` (if present), esp. the project's attribution rules + house voice for the replies you'll write.
+1. **Project agent context** — `AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md` (if present), esp. the project's attribution rules + house voice for the replies you'll write.
 2. **Checklist convention** — the PR body may carry a "Test plan" / "Checklist" / "Acceptance criteria" markdown checklist. Detect its presence and exact heading before flipping anything.
 3. **Branch + commit history** — so you can cite the commit that fixed each thread.
 
@@ -41,7 +41,7 @@ Before walking threads, detect:
 1. The PR body via the `github` MCP server (`method: get`) — for the checklist.
 2. ALL review comments via the `github` MCP server (`method: get_review_comments`, cursor-paginated — fetch until exhausted).
 3. Recent commits on the PR branch (`git log --oneline -20`) to map commits to fixes.
-4. The project's auto-memory (`~/.claude/projects/<project-slug>/memory/MEMORY.md`) if present — esp. attribution + commit-message conventions.
+4. The project's memory context (Codex-injected memories, when enabled) if present — esp. attribution + commit-message conventions.
 
 ## Workflow
 
@@ -109,7 +109,7 @@ After Phases 1+2, post ONE summary comment via the `github` MCP server:
 
 ## Memory access
 
-**READ-ONLY.** Load the project's auto-memory (`~/.claude/projects/<project-slug>/memory/MEMORY.md`) at the start if present; apply the rules; don't write.
+**READ-ONLY.** Use Codex-injected memories when enabled; apply the rules; don't write.
 
 ## Token cap (self-imposed)
 
@@ -117,7 +117,7 @@ Soft budget: 60k tokens per invocation. Checkpoint at 60% (~36k), escalate at 80
 
 ## Example invocation
 
-> `@resolution PR 42`
+> `spawn resolution subagent PR 42`
 
 You: fetch PR 42 body + ALL review threads → for each unresolved thread bucket as resolved/acknowledged-open/stale → reply + resolve via `gh api graphql` → walk the PR-body checklist → flip done items via the `github` MCP server → comment on undone items via the `github` MCP server → post a single summary comment → return the summary to the caller.
 '''
