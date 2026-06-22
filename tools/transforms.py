@@ -69,9 +69,12 @@ def neutralize_body(text: str) -> str:
     # filename token; "CLAUDE.local.md" is left untouched.
     # Use a regex with a negative lookahead so "CLAUDE.md" inside the already
     # combined "AGENTS.md / CLAUDE.md" is not re-expanded, and "CLAUDE.local.md"
-    # is excluded.
+    # is excluded. The SECOND lookbehind ``(?<![\w/.~-])`` rejects a path-prefixed
+    # form (``docs/CLAUDE.md``, ``~/.claude/CLAUDE.md``, ``a/b/CLAUDE.md``) so a
+    # path token is NOT corrupted into ``docs/AGENTS.md / CLAUDE.md`` (BUG-8); a
+    # standalone `` CLAUDE.md`` / `` `CLAUDE.md` `` / ``(CLAUDE.md`` still rewrites.
     text = re.sub(
-        r"(?<!/ )CLAUDE\.md\b",
+        r"(?<!/ )(?<![\w/.~-])CLAUDE\.md\b",
         "AGENTS.md / CLAUDE.md",
         text,
     )
@@ -303,8 +306,44 @@ def rewrite_askuserquestion(text: str, is_gate_body: bool) -> str:
     text = text.replace("call AskUserQuestion", phrase)
 
     # 3) Bare-token fallback (e.g. a leading "`AskUserQuestion`:" prompt line).
-    text = text.replace("`AskUserQuestion`", phrase)
-    text = text.replace("AskUserQuestion", phrase)
+    #    A sentence-INITIAL bare token must keep a capital (BUG-7) — an
+    #    unconditional lowercase replace would drop the capital at a sentence /
+    #    list-item start ("3. `AskUserQuestion`:" -> "3. ask the user…"). Use a
+    #    boundary-aware sub that capitalizes `phrase` when the token is
+    #    sentence-initial (start-of-string, start-of-line, or after ". " / "? " /
+    #    "! " or a list-number like "3. "), else emits `phrase` verbatim —
+    #    mirroring the capital handling already done for the Call/call forms above.
+    #    The backticked form is rewritten before the bare form so the longer match
+    #    wins. The leading boundary is CONSUMED in group(1) and re-emitted so the
+    #    "sentence-initial" decision works without a variable-width lookbehind.
+    cap_phrase = phrase[0].upper() + phrase[1:]
+    _initial_prefix = r"(^|\n|[.?!] |\d\. )"
+
+    def _make_repl():
+        def _repl(m):
+            prefix = m.group(1)
+            # group(1) is None when the optional prefix did not match (mid-sentence
+            # token -> lowercase). It is a (possibly EMPTY, from the ``^`` anchor)
+            # string when the token is sentence-initial -> capitalize. The empty
+            # string is falsy, so test ``is not None`` explicitly.
+            if prefix is None:
+                return phrase
+            return prefix + cap_phrase
+        return _repl
+
+    # Backticked form first, then the bare form. The prefix is captured only when
+    # the token is sentence-initial; otherwise it is None and the lowercase
+    # ``phrase`` is emitted.
+    text = re.sub(
+        r"(?:" + _initial_prefix + r")?`AskUserQuestion`",
+        _make_repl(),
+        text,
+    )
+    text = re.sub(
+        r"(?:" + _initial_prefix + r")?AskUserQuestion",
+        _make_repl(),
+        text,
+    )
     return text
 
 
@@ -472,10 +511,9 @@ def transform_pretooluse_guard(body: str) -> str:
       no-opping. Accuracy note (decision 12): the guard runs its rules ONLY when
       jq is present — the canonical top-of-file ``command -v jq … || exit 0``
       ALLOWS (matching the canonical Claude guard) on a jq-less host, so the
-      deny/ask helpers are never reached there. With jq present, an unrecognized
-      schema degrades to ``ask``; without jq, the guard allows. Install jq for
-      full guard coverage. (The ``else`` branch in each helper is defensive shape
-      only reachable if that top-of-file jq guard were ever removed.)
+      deny/ask helpers are never reached there. Because the helpers are reached
+      ONLY with jq present, each emits the jq line DIRECTLY (no jq-less branch to
+      under-escape). Install jq for full guard coverage.
     * Broaden the attribution denylist (rule 5) to be MODEL-AGNOSTIC — deny any
       AI/assistant co-author trailer or "Generated with <any AI tool>" line, not
       just the literal "Claude" string.
@@ -557,8 +595,8 @@ def transform_pretooluse_guard(body: str) -> str:
     # {decision,reason} shape so an unrecognized schema still surfaces a decision.
     # The helpers are reached ONLY with jq present (the top-of-file
     # `command -v jq … || exit 0` allows on a jq-less host, matching the canonical
-    # Claude guard) — so the no-jq `else` branch is defensive shape, not the
-    # documented jq-less behavior, which is ALLOW. See the docstring + decision 12.
+    # Claude guard), so the jq line is emitted DIRECTLY — there is no jq-less
+    # branch to under-escape. See the docstring + decision 12.
     old_deny = (
         'deny() {\n'
         '  jq -n --arg r "$1" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}\'\n'
@@ -571,11 +609,7 @@ def transform_pretooluse_guard(body: str) -> str:
         '  # envelope and a flat {decision,reason}). Reached ONLY with jq present;\n'
         '  # a jq-less host already exited 0 (ALLOW) at the top-of-file jq guard,\n'
         '  # matching the canonical Claude guard. Install jq for full coverage.\n'
-        '  if command -v jq >/dev/null 2>&1; then\n'
-        '    jq -n --arg r "$1" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r},decision:"deny",reason:$r}\'\n'
-        '  else\n'
-        '    printf \'{"decision":"ask","reason":%s}\\n\' "\\"${1//\\"/\\\\\\"}\\""\n'
-        '  fi\n'
+        '  jq -n --arg r "$1" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r},decision:"deny",reason:$r}\'\n'
         '  exit 0\n'
         '}'
     )
@@ -591,11 +625,7 @@ def transform_pretooluse_guard(body: str) -> str:
         '  # Codex PreToolUse "ask" — emit structured + flat. Reached ONLY with jq\n'
         '  # present; a jq-less host already exited 0 (ALLOW) at the top-of-file jq\n'
         '  # guard, matching the canonical Claude guard. Install jq for coverage.\n'
-        '  if command -v jq >/dev/null 2>&1; then\n'
-        '    jq -n --arg r "$1" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r},decision:"ask",reason:$r}\'\n'
-        '  else\n'
-        '    printf \'{"decision":"ask","reason":%s}\\n\' "\\"${1//\\"/\\\\\\"}\\""\n'
-        '  fi\n'
+        '  jq -n --arg r "$1" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r},decision:"ask",reason:$r}\'\n'
         '  exit 0\n'
         '}'
     )

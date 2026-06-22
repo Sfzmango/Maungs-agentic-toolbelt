@@ -210,11 +210,7 @@ deny() {
   # envelope and a flat {decision,reason}). Reached ONLY with jq present;
   # a jq-less host already exited 0 (ALLOW) at the top-of-file jq guard,
   # matching the canonical Claude guard. Install jq for full coverage.
-  if command -v jq >/dev/null 2>&1; then
-    jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r},decision:"deny",reason:$r}'
-  else
-    printf '{"decision":"ask","reason":%s}\n' "\"${1//\"/\\\"}\""
-  fi
+  jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r},decision:"deny",reason:$r}'
   exit 0
 }
 has() { printf '%s' "$scan" | grep -qE -- "$1"; }
@@ -236,11 +232,7 @@ ask() {
   # Codex PreToolUse "ask" — emit structured + flat. Reached ONLY with jq
   # present; a jq-less host already exited 0 (ALLOW) at the top-of-file jq
   # guard, matching the canonical Claude guard. Install jq for coverage.
-  if command -v jq >/dev/null 2>&1; then
-    jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r},decision:"ask",reason:$r}'
-  else
-    printf '{"decision":"ask","reason":%s}\n' "\"${1//\"/\\\"}\""
-  fi
+  jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r},decision:"ask",reason:$r}'
   exit 0
 }
 

@@ -110,11 +110,11 @@ All must be green. If any fails, fix it before proceeding — do NOT continue to
 1. `git status` + `git diff --stat`
 2. Show the proposed commit message in a fenced code block
 3. Show the target branch (the issue branch, NOT the default branch)
-4. ask the user in chat and wait for an explicit “yes” / confirmation before proceeding (never interpret silence as approval): "Commit these changes to `<branch>` with the message shown above?"
+4. Ask the user in chat and wait for an explicit “yes” / confirmation before proceeding (never interpret silence as approval): "Commit these changes to `<branch>` with the message shown above?"
 5. After explicit "Yes — commit": `git add <explicit paths>` (NOT `.` or `-A`) + `git commit` (or `git commit --amend --no-edit` if this is a fix-loop iteration; see Phase 5)
 6. The pre-commit hook runs the full suite. If it fails: surface VERBATIM. One retry permitted for a transient flake. Same failure twice → escalate.
 7. After commit: `git log -1 --stat`
-8. ask the user in chat and wait for an explicit “yes” / confirmation before proceeding (never interpret silence as approval): "Push commit `<short-sha>` to `origin <branch>`?"
+8. Ask the user in chat and wait for an explicit “yes” / confirmation before proceeding (never interpret silence as approval): "Push commit `<short-sha>` to `origin <branch>`?"
 9. After explicit "Yes — push": `git push <args>` (or `git push --force-with-lease` for amends). The pre-push hook runs the suite again.
 
 ### Phase 5 — Fix loop (when adversarial review returns SHIP WITH FIXES / DO NOT SHIP)

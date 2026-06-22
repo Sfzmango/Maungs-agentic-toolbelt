@@ -58,7 +58,7 @@ Goal: take a cold checkout to a runnable pipeline. Detect what's missing, **auto
 1. **git** — `git rev-parse --is-inside-work-tree` (inside a repo?) and `git config user.email` (identity set?).
 2. **gh CLI** — `command -v gh` (installed?) and `gh auth status` (authenticated? which account?). For issue/PR work the active account must be able to access the target repo.
 3. **MCP servers** — `codex mcp list`. Look for:
-   - a **github** server → provides the the `github` MCP server tools the issue/PR phases need (**required** for issue-ID inputs; optional for free-text topics).
+   - a **github** server → provides the `github` MCP server tools the issue/PR phases need (**required** for issue-ID inputs; optional for free-text topics).
    - a **playwright** server → provides the `playwright` MCP server for `@developer`'s live UI verification (**optional**).
    You can also tell directly from your own available toolset whether the `github` MCP server / the `playwright` MCP server are live in this session.
 4. **AGENTS.md / CLAUDE.md** — from auto-detection above. Absent ⇒ recommend scaffolding one (the highest-leverage thing for agent quality).
@@ -139,7 +139,7 @@ Wait for return. Capture: verdict (SHIP / SHIP WITH FIXES / DO NOT SHIP), FAIL c
 
 ### Step 11 — Human review gate
 
-Orchestrator owns this gate (human-only decision). Show PR URL + verdict. ask the user in chat and wait for an explicit “yes” / confirmation before proceeding (never interpret silence as approval):
+Orchestrator owns this gate (human-only decision). Show PR URL + verdict. Ask the user in chat and wait for an explicit “yes” / confirmation before proceeding (never interpret silence as approval):
 - "Ship as-is" → ready-to-merge sub-gate
 - "Apply punch list, then ship" → loop to Step 7-9 (fix iteration via @developer)
 - "I'll write feedback in chat" → wait

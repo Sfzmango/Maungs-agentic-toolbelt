@@ -11,7 +11,7 @@ This repo is a project-agnostic, human-gated multi-agent workflow **for** Claude
 The "product" is **Markdown prompt definitions**: `agents/*.md` and `skills/<name>/SKILL.md`, each with YAML frontmatter. Supporting code:
 
 - **Bash** — `hooks/*.sh`, `install.sh`, `bin/toolbelt-metrics.sh`, `statusline/toolbelt-statusline.sh`.
-- **Python 3, stdlib only** (no pytest, no third-party deps) — `tests/test_router.py`, `tests/translator_eval/eval.py`.
+- **Python 3, stdlib only** (no pytest, no third-party deps) — the `tools/` generator (`build.py`, `emit/common.py`, `emit/target_claude.py`, `emit/target_codex.py`, `transforms.py`, `validate_codex.py`) and the test scripts `tests/test_router.py`, `tests/translator_eval/eval.py`, `tests/test_pretooluse_guard.py`, `tests/test_codex_build.py`.
 - **JSON** — `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `hooks/hooks.json`.
 
 There is **no package manager and no build system** — there is no `package.json`, `Gemfile`, `pyproject.toml`, `go.mod`, `Cargo.toml`, or equivalent in the repo.
@@ -42,7 +42,7 @@ Top-level layout (roles below; for the full component inventory and the end-to-e
 - **`agents/`** — 16 subagent definitions (`*.md`, flat directory; frontmatter `name`/`description`/`tools`). The specialized workers invoked as `@name`.
 - **`skills/`** — 11 skill conductors (`<name>/SKILL.md`, foldered; frontmatter `name`/`description`/`disable-model-invocation`). Model-invocable and slash-invoked orchestrators. Includes `overnight` (stands up overnight cloud routines via `RemoteTrigger`) and `todo` (a private, never-committed per-project backlog).
 - **`hooks/`** — `toolbelt-router.sh` (UserPromptSubmit suggester), `pretooluse-guard.sh` (PreToolUse/Bash deny+ask guard), `usage-tracker.sh` (PreToolUse on Task/Skill, opt-in telemetry), `sessionstart-loader.sh` (SessionStart snapshot), `lib-telemetry.sh` (shared lib), `hooks.json` (registration).
-- **`docs/`** — `architecture.md`, `components.md`, `design-philosophy.md`, `getting-started.md`, `scheduling.md`, `wiki-generator.md`.
+- **`docs/`** — `architecture.md`, `codex.md`, `components.md`, `design-philosophy.md`, `faq.md`, `getting-started.md`, `scheduling.md`, `wiki-generator.md`.
 - **`tests/`** — `test_router.py` (router: 16 intents, 100+ cases), `translator_eval/` (`eval.py` + 10 problems, each with `reference/` solutions across ~11 languages and `spec.json` I/O vectors), and `test_codex_build.py` (the Codex generator + gate-semantics tests).
 - **`tools/`** — the model-agnostic **generator** (pure Python 3 stdlib): `build.py` (entrypoint, `--target codex|claude|all [--check]`), `emit/common.py` (frontmatter parser + `Component` + deterministic IO), `emit/target_claude.py` (validate-only — writes nothing), `emit/target_codex.py` + `transforms.py` (the Codex emitter + body-adaptation rules), `validate_codex.py` (manifest/marketplace validator). It renders the canonical `agents/*.md` + `skills/*/SKILL.md` + `hooks/` into the **derived** Codex artifacts under `codex-agents/`, `codex-hooks/`, and `plugins/maungs-agentic-toolbelt/skills/`. **Codex artifacts are GENERATED, never hand-edited** — edit canonical, then run `python3 tools/build.py --target codex`; CI's drift guard fails on any diff. See `docs/codex.md`.
 - **`examples/`** — sample outputs per component (e.g. `sample-plan.md`, `sample-pr-review.md`, `sample-onboarding/`, `sample-wiki/`).
@@ -68,7 +68,7 @@ Top-level layout (roles below; for the full component inventory and the end-to-e
 ## Testing + how to verify a change
 
 - **Framework:** plain Python 3 stdlib (no pytest). Tests live in `tests/`.
-- **The two suites:** `python3 tests/test_router.py` (router routing) and `python3 tests/translator_eval/eval.py` (translator reference solutions vs. I/O vectors). CI runs both on push and PR.
+- **The four CI-run python suites:** `python3 tests/test_router.py` (router routing), `python3 tests/translator_eval/eval.py` (translator reference solutions vs. I/O vectors), `python3 tests/test_pretooluse_guard.py` (guard deny/ask/allow precision), and `python3 tests/test_codex_build.py` (the Codex generator + gate semantics; also exercises `tools/build.py` + `tools/validate_codex.py`). CI runs all four on push and PR.
 - **How to verify a change before you push** (the quality bar — meet it before claiming a change is done):
   1. **For a routing change:** run `python3 tests/test_router.py` and ensure it exits 0.
   2. **For a translator/eval change:** run `python3 tests/translator_eval/eval.py` and ensure it exits 0.

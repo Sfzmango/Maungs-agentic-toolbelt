@@ -59,7 +59,7 @@ Goal: take a cold checkout to a runnable pipeline. Detect what's missing, **auto
 1. **git** — `git rev-parse --is-inside-work-tree` (inside a repo?) and `git config user.email` (identity set?).
 2. **gh CLI** — `command -v gh` (installed?) and `gh auth status` (authenticated? which account?). For issue/PR work the active account must be able to access the target repo.
 3. **MCP servers** — `claude mcp list`. Look for:
-   - a **github** server → provides the `mcp__github__*` tools the issue/PR phases need (**required** for issue-ID inputs; optional for free-text topics).
+   - a **github** server → provides `mcp__github__*` tools the issue/PR phases need (**required** for issue-ID inputs; optional for free-text topics).
    - a **playwright** server → provides `mcp__playwright__*` for `@developer`'s live UI verification (**optional**).
    You can also tell directly from your own available toolset whether `mcp__github__*` / `mcp__playwright__*` are live in this session.
 4. **CLAUDE.md** — from auto-detection above. Absent ⇒ recommend scaffolding one (the highest-leverage thing for agent quality).

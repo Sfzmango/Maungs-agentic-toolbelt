@@ -81,12 +81,17 @@ instruction, so the human gates survive.
 ### Install jq for full `PreToolUse` guard coverage
 
 The `PreToolUse` guard (`pretooluse-guard.sh`) needs **jq** to parse the event
-and decide deny/ask. With jq present, an unrecognized PreToolUse schema degrades
-to **ask** (a human prompt). **Without jq the guard allows** — it exits early at
-the top-of-file `command -v jq … || exit 0`, exactly as the canonical Claude
-guard does. This is intentional (no noisy "ask on every command" fallback), so
-**install jq for full guard coverage**. The installer already warns when jq is
-absent (it also needs jq — or python3 — to merge `hooks.json` safely).
+and decide deny/ask. With jq present, the guard acts **only on Bash events** (the
+early `[ "$tool" = "Bash" ] || exit 0` allows non-Bash or unrecognized events
+through): it **DENIES** the banned commands, **ASKS** on the recognized risky
+ones, and **ALLOWS** everything else — i.e. it **fails open**, never "asks on
+every command." **Without jq the guard allows entirely** — it exits early at the
+top-of-file `command -v jq … || exit 0`, exactly as the canonical Claude guard
+does. So **install jq for full guard coverage**. The installer already warns when
+jq is absent: the `hooks.json` **merge is jq-only**, so without jq the installer
+prints the generated hooks block for you to merge by hand — and python3 is used
+**only** to substitute the `__TOOLBELT_HOOK_DIR__` placeholder safely in that
+print path, never to merge.
 
 ## How the artifacts are generated
 
@@ -114,6 +119,11 @@ freshly-generated and committed Codex artifacts, so a canonical `.md` edit that
 isn't regenerated turns CI red with a "regenerate" message. **Edit canonical,
 then regenerate** — never hand-edit a Codex artifact.
 
+The hand-maintained Codex manifest version
+(`plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json`) **tracks the Claude
+plugin version** (`.claude-plugin/plugin.json`) — a divergence is now caught by
+`tools/validate_codex.py`, so the two version strings cannot silently drift apart.
+
 ## Known divergence: telemetry writer vs. readers
 
 Telemetry is opt-in and off by default. On Codex the generated `lib-telemetry.sh`
@@ -138,6 +148,25 @@ writer and the loader/router readers all agree on that path, the feature works
 end-to-end (a Codex-only machine just gets a `~/.claude/maungs-toolbelt/todos/`
 directory). Re-homing it to `~/.codex` is the same kind of follow-up as the
 telemetry readers above — documented, not claimed closed.
+
+## Known divergence: MCP grants are server-granularity on Codex
+
+On Claude, a canonical agent's `tools:` allowlist can grant **specific** MCP
+tools (e.g. only the read tools of the GitHub MCP server). On Codex there is no
+per-tool MCP allowlist: the emitter enumerates the distinct `mcp__<server>__`
+prefixes and grants the **whole server**. So a Claude read-only `mcp__github__*`
+subset collapses to a grant of the **entire GitHub MCP server** on Codex.
+
+Practically, the read-mostly reviewers — `@pr-reviewer`, `@security-reviewer`,
+`@resolution`, `@bug-catcher-rick` — effectively gain the full GitHub MCP server
+(including its write tools) on Codex, even though their canonical grants are
+read-leaning. The agents' own prompts still keep them to human-gated, read-first
+behavior, but the **platform** grant is broader than on Claude.
+
+Mitigation: provision a **least-privilege / read-mostly GitHub MCP token** (or a
+separate restricted GitHub MCP server) for these agents, so the server-granularity
+grant can't be used to write beyond what each agent is meant to do. This is a
+Codex platform constraint, not a generator choice — documented, not claimed away.
 
 ## Adding another target (cursor / aider / …)
 

@@ -11,8 +11,9 @@ Usage:
   --target claude  run the VALIDATE-ONLY Claude emitter (writes nothing)
   --target all     do both
   --check          regenerate into memory and EXIT NON-ZERO on any diff against
-                   the committed tree (the exact mode CI runs); writes nothing.
-                   For --target claude, --check is implied (it never writes).
+                   the committed tree (the in-memory determinism / staleness
+                   differ used by the tests); writes nothing. For --target
+                   claude, --check is implied (it never writes).
 
 The Codex drift guard: ``--target codex`` (no --check) writes the artifacts;
 CI then fails if ``git diff`` is non-empty. ``--target codex --check`` is the
@@ -42,10 +43,38 @@ REGENERATE_MSG = (
     "'python3 tools/build.py --target codex' and commit the result."
 )
 
+# The generator OWNS exactly these output roots (repo-relative). A derived file
+# under one of them with no canonical source is a STRAY/orphan — the --check path
+# reports it (rc=1) and the write path prunes it, so a renamed/removed canonical
+# component can never leave a dead artifact behind. The hand-maintained
+# .codex-plugin/ manifest dir is DELIBERATELY excluded (it is source, not generated).
+_CODEX_OWNED_ROOTS = (
+    "codex-agents",
+    "codex-hooks",
+    "plugins/maungs-agentic-toolbelt/skills",
+)
+
+
+def _existing_codex_artifacts(root: str) -> set:
+    """Repo-relative set of every file under the generator's owned roots."""
+    existing = set()
+    for owned in _CODEX_OWNED_ROOTS:
+        base = os.path.join(root, owned)
+        if not os.path.isdir(base):
+            continue
+        for dirpath, _dirnames, filenames in os.walk(base):
+            for fn in filenames:
+                rel = os.path.relpath(os.path.join(dirpath, fn), root)
+                existing.add(rel.replace(os.sep, "/"))
+    return existing
+
 
 def _emit_codex(root: str, check: bool) -> int:
     """Emit (or --check) the Codex artifacts. Returns a process exit code."""
     artifacts = target_codex.build_artifacts(root)
+    generated = set(artifacts.keys())
+    existing = _existing_codex_artifacts(root)
+    strays = sorted(existing - generated)
 
     if check:
         diffs = []
@@ -54,10 +83,12 @@ def _emit_codex(root: str, check: bool) -> int:
             if not os.path.isfile(path):
                 diffs.append("MISSING: %s (would be generated)" % rel)
                 continue
-            existing = common.read_text(path)
-            existing = common.finalize_emitted(existing)
-            if existing != content:
+            existing_text = common.read_text(path)
+            existing_text = common.finalize_emitted(existing_text)
+            if existing_text != content:
                 diffs.append("DRIFT:   %s" % rel)
+        for rel in strays:
+            diffs.append("STRAY:   %s (no canonical source)" % rel)
         if diffs:
             print(REGENERATE_MSG, file=sys.stderr)
             for d in diffs:
@@ -71,6 +102,11 @@ def _emit_codex(root: str, check: bool) -> int:
         path = os.path.join(root, rel)
         common.write_text(path, content)
         written += 1
+    # Prune any derived artifact under an owned root that no longer has a
+    # canonical source (scoped to the three owned roots — safe).
+    for rel in strays:
+        os.remove(os.path.join(root, rel))
+        print("  pruned: %s" % rel)
     print("Codex emit: wrote %d artifacts." % written)
     return 0
 

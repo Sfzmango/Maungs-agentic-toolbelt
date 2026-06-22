@@ -77,6 +77,9 @@ def copy_repo_subset(dst):
         "codex-hooks",
         os.path.join("plugins"),
         ".agents",
+        # The Claude plugin manifest — validate_codex reads its version for the
+        # Codex/Claude version-parity check (BUG-23), so a temp copy needs it too.
+        ".claude-plugin",
     ):
         src = os.path.join(REPO_ROOT, sub)
         if os.path.exists(src):
@@ -119,6 +122,66 @@ def test_drift_negative_generated_ahead():
             fh.write("\n# HAND_EDITED_GENERATED_ARTIFACT\n")
         rc, out = run_build(["--target", "codex", "--check"], cwd=tmp)
         check("generated-ahead --check exits non-zero", rc != 0, out.strip()[:200])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_stray_artifact_detected_and_pruned():
+    print("\n[orphan/stray: a derived file with no canonical source is reported (--check) + pruned (write) (BUG-1/6)]")
+    tmp = tempfile.mkdtemp()
+    try:
+        copy_repo_subset(tmp)
+        # Drop a stray artifact under each owned root with NO canonical source.
+        strays = [
+            os.path.join("codex-agents", "ghost-agent.toml"),
+            os.path.join("codex-hooks", "ghost-hook.sh"),
+            os.path.join("plugins", "maungs-agentic-toolbelt", "skills",
+                         "ghost-skill", "SKILL.md"),
+        ]
+        for rel in strays:
+            p = os.path.join(tmp, rel)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w", encoding="utf-8") as fh:
+                fh.write("# orphan with no canonical source\n")
+        # --check must FAIL and name every stray.
+        rc, out = run_build(["--target", "codex", "--check"], cwd=tmp)
+        check("stray --check exits non-zero", rc != 0, out.strip()[:200])
+        check("stray --check reports STRAY for each orphan",
+              all("STRAY" in out and os.path.basename(s).split(".")[0] in out for s in strays),
+              out.strip()[:300])
+        # The write path must PRUNE them (and the files must be gone after).
+        rc2, out2 = run_build(["--target", "codex"], cwd=tmp)
+        check("write path exits 0", rc2 == 0, out2.strip()[:200])
+        check("write path reports pruned", "pruned:" in out2, out2.strip()[:300])
+        for rel in strays:
+            check("stray pruned from disk: %s" % rel,
+                  not os.path.isfile(os.path.join(tmp, rel)))
+        # The hand-maintained .codex-plugin/ manifest dir is NOT an owned root, so a
+        # file there is NEVER pruned (it is source, not generated).
+        manifest = os.path.join(tmp, "plugins", "maungs-agentic-toolbelt",
+                                ".codex-plugin", "plugin.json")
+        check(".codex-plugin/plugin.json untouched by prune (it is source)",
+              os.path.isfile(manifest))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_orphan_after_canonical_removed():
+    print("\n[orphan: removing a canonical agent leaves a derived TOML that --check flags + write prunes (BUG-1/6)]")
+    tmp = tempfile.mkdtemp()
+    try:
+        copy_repo_subset(tmp)
+        # Remove a canonical agent; its generated TOML is now an orphan.
+        os.remove(os.path.join(tmp, "agents", "developer.md"))
+        orphan = os.path.join(tmp, "codex-agents", "developer.toml")
+        check("orphan TOML present before reconcile", os.path.isfile(orphan))
+        rc, out = run_build(["--target", "codex", "--check"], cwd=tmp)
+        check("orphan-after-removal --check exits non-zero", rc != 0, out.strip()[:200])
+        check("orphan-after-removal reports STRAY developer.toml",
+              "STRAY" in out and "developer.toml" in out, out.strip()[:200])
+        rc2, _ = run_build(["--target", "codex"], cwd=tmp)
+        check("write path exits 0 after pruning orphan", rc2 == 0)
+        check("orphan developer.toml pruned from disk", not os.path.isfile(orphan))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -216,6 +279,86 @@ def test_validate_codex():
         text=True,
     )
     check("validate_codex exits 0", proc.returncode == 0, (proc.stdout + proc.stderr).strip())
+
+
+def _run_validate(cwd):
+    proc = subprocess.run(
+        [sys.executable, os.path.join("tools", "validate_codex.py")],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+    )
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+def test_validate_duplicate_skills_rejected():
+    print("\n[validate_codex: duplicate 'skills' entries rejected (BUG-11)]")
+    import json
+    tmp = tempfile.mkdtemp()
+    try:
+        copy_repo_subset(tmp)
+        manifest = os.path.join(tmp, "plugins", "maungs-agentic-toolbelt",
+                                ".codex-plugin", "plugin.json")
+        with open(manifest, encoding="utf-8") as fh:
+            obj = json.load(fh)
+        # Duplicate the first skills entry.
+        obj["skills"] = obj["skills"] + [obj["skills"][0]]
+        with open(manifest, "w", encoding="utf-8") as fh:
+            json.dump(obj, fh, indent=2)
+        rc, out = _run_validate(tmp)
+        check("duplicate-skills validate exits non-zero", rc != 0, out.strip()[:200])
+        check("duplicate-skills reported", "duplicate entries" in out, out.strip()[:200])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_validate_version_parity():
+    print("\n[validate_codex: manifest version == .claude-plugin version (parity, BUG-23)]")
+    import json
+    base = os.path.join(REPO_ROOT, "plugins", "maungs-agentic-toolbelt")
+    with open(os.path.join(base, ".codex-plugin", "plugin.json"), encoding="utf-8") as fh:
+        codex_version = json.load(fh).get("version")
+    with open(os.path.join(REPO_ROOT, ".claude-plugin", "plugin.json"), encoding="utf-8") as fh:
+        claude_version = json.load(fh).get("version")
+    check("codex manifest version equals claude plugin version",
+          codex_version == claude_version, "codex=%s claude=%s" % (codex_version, claude_version))
+    # A drifted version is caught by the validator.
+    tmp = tempfile.mkdtemp()
+    try:
+        copy_repo_subset(tmp)
+        manifest = os.path.join(tmp, "plugins", "maungs-agentic-toolbelt",
+                                ".codex-plugin", "plugin.json")
+        with open(manifest, encoding="utf-8") as fh:
+            obj = json.load(fh)
+        obj["version"] = "9.9.9"
+        with open(manifest, "w", encoding="utf-8") as fh:
+            json.dump(obj, fh, indent=2)
+        rc, out = _run_validate(tmp)
+        check("drifted-version validate exits non-zero", rc != 0, out.strip()[:200])
+        check("version-parity mismatch reported", "keep parity" in out, out.strip()[:200])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_validate_non_dict_toplevel_rejected():
+    print("\n[validate_codex: non-dict / falsy-valid JSON top-level rejected (BUG-9/10)]")
+    import json
+    tmp = tempfile.mkdtemp()
+    try:
+        copy_repo_subset(tmp)
+        manifest = os.path.join(tmp, "plugins", "maungs-agentic-toolbelt",
+                                ".codex-plugin", "plugin.json")
+        # A VALID-but-falsy JSON top-level (empty list) must be rejected, not
+        # silently skipped (the old `if not obj: return` swallowed it).
+        with open(manifest, "w", encoding="utf-8") as fh:
+            json.dump([], fh)
+        rc, out = _run_validate(tmp)
+        check("falsy-valid (empty-list) top-level validate exits non-zero",
+              rc != 0, out.strip()[:200])
+        check("non-dict top-level reported",
+              "top-level must be a JSON object" in out, out.strip()[:200])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_manifest_lists_every_generated_skill():
@@ -341,6 +484,28 @@ def test_generated_tree_no_slash_skill_invocation():
     check("backtick `@orchestrator` present in emitted tree", "`@orchestrator`" in joined)
 
 
+def test_generated_tree_no_slash_skill_invocation_independent():
+    print("\n[AC-3 (independent detector): no /<skill> survives — left-delimiter-agnostic (BUG-13)]")
+    # A SECOND detector that does NOT reuse the transform's own boundary class, so
+    # a bug shared between the transform and the primary test cannot hide. This one
+    # is left-delimiter-AGNOSTIC: it flags a `/<skill>` UNLESS it is part of a path
+    # (a preceding word char / slash / dot / dash / '@'), with the same strict right
+    # boundary. If the transform and this both agree the tree is clean, AC-3 holds.
+    artifacts = target_codex.build_artifacts(REPO_ROOT)
+    names = "|".join(re.escape(n) for n in transforms.SKILL_NAMES)
+    extra = re.compile(
+        r'(?<![\w/.\-@])/(' + names + r')(?=[\s`.,;:!?)\]"]|$)',
+        re.MULTILINE,
+    )
+    offenders = []
+    for rel, content in artifacts.items():
+        if rel.startswith("codex-agents/") or rel.startswith("codex-hooks/") or "/skills/" in rel:
+            for m in extra.finditer(content):
+                offenders.append("%s: %s" % (rel, m.group(0).strip()))
+    check("independent AC-3 detector finds no /<skill> offender",
+          not offenders, "found: %s" % offenders[:5])
+
+
 def test_transforms_skill_with_arguments():
     print("\n[transforms: /skill with trailing args rewrites token only]")
     cases = {
@@ -411,6 +576,16 @@ def test_mcp_servers_enumeration():
     check("github+playwright -> both servers sorted", both == ["github", "playwright"], str(both))
 
 
+def test_component_count_floors():
+    print("\n[counts: load_agents/load_skills enumerate the expected component count (BUG-14)]")
+    # Floors that fail loud if a component is silently dropped (or the enumeration
+    # regresses). 16 agents + 11 skills = 27 components (CI-load-bearing total).
+    check("load_agents enumerates 16 agents", len(common.load_agents(REPO_ROOT)) == 16,
+          str(len(common.load_agents(REPO_ROOT))))
+    check("load_skills enumerates 11 skills", len(common.load_skills(REPO_ROOT)) == 11,
+          str(len(common.load_skills(REPO_ROOT))))
+
+
 def test_sandbox_mode_derivation():
     print("\n[emitter: sandbox_mode from tools allowlist]")
     comps = {c.name: c for c in common.load_agents(REPO_ROOT)}
@@ -418,6 +593,59 @@ def test_sandbox_mode_derivation():
           common.derive_sandbox_mode(comps["developer"].tools) == "workspace-write")
     check("pr-reviewer (no Edit/Write) -> read-only",
           common.derive_sandbox_mode(comps["pr-reviewer"].tools) == "read-only")
+
+
+def test_control_char_escaper():
+    print("\n[emitter: shared control-char escaper (BUG-4/5)]")
+    # NUL and BEL (and other sub-0x20 / 0x7f chars) become \uXXXX; backslash +
+    # quote escape first; named controls use their short escapes. Valid in BOTH a
+    # TOML basic string and a YAML double-quoted scalar.
+    esc = target_codex.escape_controls
+    check("NUL -> \\u0000", esc("a\x00b") == "a\\u0000b", esc("a\x00b"))
+    check("BEL (\\x07) -> \\u0007", esc("a\x07b") == "a\\u0007b", esc("a\x07b"))
+    check("DEL (\\x7f) -> \\u007f", esc("a\x7fb") == "a\\u007fb", esc("a\x7fb"))
+    check("backslash escaped", esc("a\\b") == "a\\\\b", esc("a\\b"))
+    check("double-quote escaped", esc('a"b') == 'a\\"b', esc('a"b'))
+    check("newline -> \\n (named)", esc("a\nb") == "a\\nb", esc("a\nb"))
+    check("tab -> \\t (named)", esc("a\tb") == "a\\tb", esc("a\tb"))
+    check("carriage-return -> \\r (named)", esc("a\rb") == "a\\rb", esc("a\rb"))
+    # toml_string + the openai.yaml summary both route through the escaper.
+    check("toml_string wraps escaped value in quotes",
+          target_codex.toml_string("x\x07y") == '"x\\u0007y"',
+          target_codex.toml_string("x\x07y"))
+
+
+def test_generated_tomls_parse():
+    print("\n[emitter: every generated codex-agents/*.toml parses (tomllib) (BUG-4)]")
+    try:
+        import tomllib  # noqa: F401
+    except ImportError:
+        check("tomllib unavailable — skipping TOML parse check (informational)", True)
+        return
+    import tomllib
+    artifacts = target_codex.build_artifacts(REPO_ROOT)
+    bad = []
+    for rel, content in artifacts.items():
+        if not rel.endswith(".toml"):
+            continue
+        try:
+            tomllib.loads(content)
+        except tomllib.TOMLDecodeError as exc:
+            bad.append("%s: %s" % (rel, exc))
+    check("all generated codex-agents/*.toml parse with tomllib", not bad, str(bad[:2]))
+    # A control char in a description field still produces a PARSEABLE TOML (the
+    # escaper, not a raw byte, lands in the basic string).
+    comp = common.load_agents(REPO_ROOT)[0]
+    comp.frontmatter = dict(comp.frontmatter)
+    comp.frontmatter["description"] = "danger\x07bell and \x00nul"
+    toml_txt = target_codex.render_agent_toml(comp)
+    try:
+        parsed = tomllib.loads(toml_txt)
+        ok = parsed.get("description") == "danger\x07bell and \x00nul"
+    except tomllib.TOMLDecodeError as exc:
+        ok = False
+        toml_txt = str(exc)
+    check("a control-char description round-trips through a parseable TOML", ok, toml_txt[:160])
 
 
 def test_agent_no_triple_quote():
@@ -429,6 +657,43 @@ def test_agent_no_triple_quote():
         except ValueError as exc:
             bad.append("%s: %s" % (comp.name, exc))
     check("all 16 agent bodies render without a ''' clash", not bad, str(bad[:2]))
+
+
+def test_hook_completeness_every_canonical_hook_emitted():
+    print("\n[hook: EVERY canonical hooks/*.sh body appears in the generated codex-hooks/ set (BUG-2)]")
+    # load_hook_bodies is filesystem-derived, and the emitter iterates it — so a
+    # newly added canonical hook is emitted automatically (no hand-maintained list).
+    canonical = sorted(
+        fn for fn in os.listdir(os.path.join(REPO_ROOT, "hooks")) if fn.endswith(".sh")
+    )
+    artifacts = target_codex.build_artifacts(REPO_ROOT)
+    generated = sorted(
+        rel[len("codex-hooks/"):]
+        for rel in artifacts
+        if rel.startswith("codex-hooks/") and rel.endswith(".sh")
+    )
+    check("every canonical hooks/*.sh has a generated codex-hooks/*.sh",
+          canonical == generated, "canonical=%s generated=%s" % (canonical, generated))
+    # The hook list flows through common.load_hook_bodies (the single source).
+    check("load_hook_bodies keys == canonical hooks/*.sh",
+          sorted(common.load_hook_bodies(REPO_ROOT)) == canonical)
+
+
+def test_hook_completeness_new_hook_picked_up():
+    print("\n[hook: a NEW canonical hook is emitted with no generator edit (BUG-2 dynamic)]")
+    tmp = tempfile.mkdtemp()
+    try:
+        copy_repo_subset(tmp)
+        # Add a brand-new canonical hook with no per-hook transform registered.
+        new_hook = os.path.join(tmp, "hooks", "new-experiment.sh")
+        with open(new_hook, "w", encoding="utf-8") as fh:
+            fh.write("#!/usr/bin/env bash\necho hi\n")
+        artifacts = target_codex.build_artifacts(tmp)
+        check("new canonical hook auto-emitted to codex-hooks/",
+              "codex-hooks/new-experiment.sh" in artifacts,
+              str([k for k in artifacts if k.startswith("codex-hooks/")]))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_hook_usage_tracker():
@@ -446,7 +711,16 @@ def test_hook_pretooluse_guard():
     out = transforms.transform_hook_body("pretooluse-guard.sh", bodies["pretooluse-guard.sh"])
     check("attribution branch broadened beyond Claude (matches copilot/codex/gpt)",
           "copilot" in out and "codex" in out and "gpt" in out)
-    check("fails open to 'ask' on no-jq", 'decision":"ask"' in out, out[:120])
+    # The guard emits BOTH the canonical hookSpecificOutput envelope AND a flat
+    # {decision,reason} shape from the SAME jq call (BUG-22: the dead, under-escaped
+    # jq-less else-branch was removed — the helpers are reached only with jq present,
+    # and a jq-less host already ALLOWED at the top-of-file jq guard). Assert the
+    # flat shape is present in both helpers' jq filters.
+    check("deny() emits flat {decision:\"deny\",reason}", 'decision:"deny",reason:$r' in out, out[:120])
+    check("ask() emits flat {decision:\"ask\",reason}", 'decision:"ask",reason:$r' in out, out[:120])
+    # The removed jq-less printf fallback must NOT survive (it under-escaped JSON).
+    check("dead jq-less printf fallback removed",
+          '{"decision":"ask","reason":%s}' not in out)
     # Functional: a non-Claude Co-Authored-By trailer is denied.
     tmp = tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False)
     tmp.write(out)
@@ -574,6 +848,52 @@ def test_hook_sessionstart_loader_skill_invocation_at_mention():
           "todos/" in out and "@todos" not in out)
 
 
+def test_todo_path_survives_documented():
+    print("\n[transforms: @todo backlog path stays under ~/.claude (documented decision — BUG-15)]")
+    # docs/codex.md (the "@todo backlog" subsection) DELIBERATELY keeps the todo
+    # store at ~/.claude/maungs-toolbelt/todos/<slug>.md on Codex too: the writer,
+    # the SessionStart loader, and the router reader all agree on that path, so the
+    # feature works end-to-end. Re-homing it to ~/.codex is a documented follow-up,
+    # NOT a closed item — so there must be NO ~/.claude->~/.codex rewrite of the
+    # todo path. Assert the documented path SURVIVES the skill-body transform.
+    comps = {c.name: c for c in common.load_skills(REPO_ROOT)}
+    todo = comps["todo"]
+    out = transforms.transform_body(todo.body, todo.name)
+    check("todo body keeps documented ~/.claude/maungs-toolbelt/todos path",
+          "~/.claude/maungs-toolbelt/todos" in out, out[:160])
+    check("todo body did NOT get a ~/.codex todos rewrite (documented follow-up only)",
+          "~/.codex/maungs-toolbelt/todos" not in out)
+
+
+def test_askuserquestion_sentence_initial_capitalized():
+    print("\n[transforms: sentence-initial bare AskUserQuestion is capitalized (BUG-7)]")
+    # A bare token at a sentence / list-item start must keep a capital — the old
+    # unconditional lowercase replace dropped it ("3. `AskUserQuestion`:" -> "3. ask").
+    def gate(text):
+        return transforms.rewrite_askuserquestion(text, is_gate_body=True)
+    # List-item start (the dominant developer/architect form: "4. `AskUserQuestion`:").
+    out = gate("4. `AskUserQuestion`: \"Commit?\"")
+    check("list-initial `AskUserQuestion` -> 'Ask the user…'",
+          "4. Ask the user" in out, out[:120])
+    # Start-of-string.
+    out = gate("`AskUserQuestion`: pick one")
+    check("start-of-string `AskUserQuestion` -> capitalized", out.startswith("Ask the user"), out[:60])
+    # After a sentence end ('. ').
+    out = gate("Do the thing. AskUserQuestion next")
+    check("after '. ' AskUserQuestion -> 'Ask the user'", "thing. Ask the user" in out, out[:120])
+    # MID-sentence token stays lowercase (it is not sentence-initial).
+    out = gate("then `AskUserQuestion` for approval")
+    check("mid-sentence `AskUserQuestion` stays lowercase",
+          "then ask the user" in out, out[:120])
+    # The gate's load-bearing wait wording still survives the bare-token expansion.
+    check("sentence-initial gate token still carries the wait wording",
+          _WAIT_RE.search(gate("`AskUserQuestion`: go")) is not None)
+    # Newline start.
+    out = gate("line one\n`AskUserQuestion`: y")
+    check("newline-initial `AskUserQuestion` -> capitalized",
+          "\nAsk the user" in out, out[:120])
+
+
 def test_neutralization_claude_md():
     print("\n[transforms: layer-1 CLAUDE.md neutralization (agent/skill bodies)]")
     out = transforms.neutralize_body("read CLAUDE.md and restart Claude Code")
@@ -581,6 +901,35 @@ def test_neutralization_claude_md():
     check("restart Claude Code -> restart your agent", "restart your agent" in out)
     # Idempotent.
     check("neutralization idempotent", transforms.neutralize_body(out) == out)
+
+
+def test_neutralization_claude_md_path_boundary():
+    print("\n[transforms: layer-1 CLAUDE.md path-prefixed forms are NOT corrupted (BUG-8)]")
+    # A path-prefixed CLAUDE.md (docs/CLAUDE.md, ~/.claude/CLAUDE.md, a/b/CLAUDE.md)
+    # must stay BYTE-FOR-BYTE — the old rule produced "docs/AGENTS.md / CLAUDE.md".
+    unchanged = [
+        "docs/CLAUDE.md",
+        "~/.claude/CLAUDE.md",
+        "a/b/CLAUDE.md",
+        "the CLAUDE.local.md combined form",
+    ]
+    for src in unchanged:
+        out = transforms.neutralize_body(src)
+        check("path-prefixed '%s' left byte-for-byte" % src, out == src, out)
+    # A STANDALONE CLAUDE.md (whitespace / backtick / open-paren left boundary) STILL
+    # rewrites — the fix narrows only the path case, it does not disable the rule.
+    rewrites = {
+        "see CLAUDE.md now": "see AGENTS.md / CLAUDE.md now",
+        "`CLAUDE.md`": "`AGENTS.md / CLAUDE.md`",
+        "(CLAUDE.md)": "(AGENTS.md / CLAUDE.md)",
+        "CLAUDE.md at line start": "AGENTS.md / CLAUDE.md at line start",
+    }
+    for src, want in rewrites.items():
+        out = transforms.neutralize_body(src)
+        check("standalone '%s' still rewrites" % src, out == want, out)
+    # Idempotency preserved for the standalone rewrite.
+    once = transforms.neutralize_body("see CLAUDE.md now")
+    check("path-boundary rule idempotent", transforms.neutralize_body(once) == once)
 
 
 # ---------------------------------------------------------------------------
@@ -600,14 +949,30 @@ def _emitted_skill_body(name):
     return transforms.transform_body(comps[name].body, name)
 
 
+def _line_containing(body, anchor):
+    """Return the single line of `body` that contains `anchor` (or '' if none)."""
+    for line in body.split("\n"):
+        if anchor in line:
+            return line
+    return ""
+
+
 def test_gate_developer():
     print("\n[gate: developer commit/push points still block]")
     body = _emitted_agent_body("developer")
     check("AskUserQuestion literal gone from developer", "AskUserQuestion" not in body)
-    # The commit gate line and push gate line each carry a wait imperative.
-    check("commit-gate line carries wait imperative",
-          'Commit these changes' in body and _WAIT_RE.search(body) is not None)
-    check("push-gate line carries wait imperative", 'Push commit' in body)
+    # LINE-LOCAL (BUG-16): the wait imperative must sit on the SAME line as each
+    # gate anchor — the emitted body puts the wait phrase BEFORE the anchor on the
+    # line, so assert against the enclosing line, not anywhere in the body (a body-
+    # wide search masks a regression where the wait wording drifts off a gate).
+    commit_line = _line_containing(body, "Commit these changes")
+    push_line = _line_containing(body, "Push commit")
+    check("commit-gate line present", commit_line != "")
+    check("commit-gate line carries wait imperative (same line)",
+          _WAIT_RE.search(commit_line) is not None, commit_line[:160])
+    check("push-gate line present", push_line != "")
+    check("push-gate line carries wait imperative (same line)",
+          _WAIT_RE.search(push_line) is not None, push_line[:160])
     # count: at least the two numbered gate steps carry the wait phrase
     check("multiple wait-for-confirmation instructions present",
           len(_WAIT_RE.findall(body)) >= 2, str(len(_WAIT_RE.findall(body))))
@@ -623,9 +988,17 @@ def test_gate_architect_plan_approval():
     window = body[idx: idx + 400]
     check("plan-approval gate carries wait/block instruction",
           _WAIT_RE.search(window) is not None, window[:160])
-    # commit gate + push gate still block
-    check("architect commit gate wait imperative", "Wait for an explicit \"yes commit.\"" in body or "yes commit" in body)
-    check("architect push gate wait imperative", "yes push" in body)
+    # commit gate + push gate still block — LINE-LOCAL (BUG-16): assert the
+    # "yes commit." / "yes push." imperative sits on its own gate line (the masking
+    # `or 'yes commit'` body-wide disjunct is dropped so a drift can't hide).
+    commit_line = _line_containing(body, "Commit gate")
+    push_line = _line_containing(body, "Push gate")
+    check("architect commit gate present", commit_line != "")
+    check("architect commit gate wait imperative (same line)",
+          'Wait for an explicit "yes commit."' in commit_line, commit_line[:160])
+    check("architect push gate present", push_line != "")
+    check("architect push gate wait imperative (same line)",
+          'Wait for an explicit "yes push."' in push_line, push_line[:160])
 
 
 def test_gate_orchestrator_merge():
@@ -666,11 +1039,16 @@ def main():
         test_committed_drift,
         test_drift_negative_canonical_ahead,
         test_drift_negative_generated_ahead,
+        test_stray_artifact_detected_and_pruned,
+        test_orphan_after_canonical_removed,
         test_determinism_two_runs,
         test_determinism_no_host_path_or_timestamp,
         test_determinism_shuffled_readdir,
         test_determinism_newline_normalization,
         test_validate_codex,
+        test_validate_duplicate_skills_rejected,
+        test_validate_version_parity,
+        test_validate_non_dict_toplevel_rejected,
         test_manifest_lists_every_generated_skill,
         test_transforms_claude_mcp_cli,
         test_transforms_mcp_prose_server_agnostic,
@@ -678,12 +1056,18 @@ def main():
         test_transforms_skill_left_boundary,
         test_transforms_skill_backtick_and_paren_boundary,
         test_generated_tree_no_slash_skill_invocation,
+        test_generated_tree_no_slash_skill_invocation_independent,
         test_transforms_skill_with_arguments,
         test_transforms_dynamic_skill_names_new_skills,
         test_parser_both_tools_serializations,
+        test_component_count_floors,
         test_mcp_servers_enumeration,
         test_sandbox_mode_derivation,
+        test_control_char_escaper,
+        test_generated_tomls_parse,
         test_agent_no_triple_quote,
+        test_hook_completeness_every_canonical_hook_emitted,
+        test_hook_completeness_new_hook_picked_up,
         test_hook_usage_tracker,
         test_hook_pretooluse_guard,
         test_hook_pretooluse_guard_attribution_wholeword,
@@ -691,7 +1075,10 @@ def main():
         test_hook_router_skill_suggestions_at_mention,
         test_hook_lib_telemetry,
         test_hook_sessionstart_loader_skill_invocation_at_mention,
+        test_askuserquestion_sentence_initial_capitalized,
+        test_todo_path_survives_documented,
         test_neutralization_claude_md,
+        test_neutralization_claude_md_path_boundary,
         test_gate_developer,
         test_gate_architect_plan_approval,
         test_gate_orchestrator_merge,

@@ -37,6 +37,15 @@ MARKETPLACE_REL = ".agents/plugins/marketplace.json"
 PINNED_SOURCE = "plugins/maungs-agentic-toolbelt/"
 
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
+# Broadened component-count denylist (BUG-12): case-insensitive, singular/plural
+# forms of agent(s)/subagent(s)/skill(s)/component(s) preceded by a number.
+_COUNT_RX = re.compile(r"(?i)\b\d+\s+(agents?|subagents?|skills?|components?)\b")
+
+# Sentinel returned by ``_load_json`` to signal a LOAD FAILURE (missing file or
+# invalid JSON) distinctly from a valid-but-falsy top-level value (``{}``, ``[]``,
+# ``0``, ``""``). BUG-9/10: a falsy-but-valid JSON document must not be silently
+# skipped — only a true load failure short-circuits validation.
+_LOAD_FAILED = object()
 
 MANIFEST_ALLOWED = {
     "name",
@@ -65,16 +74,22 @@ MARKETPLACE_PLUGIN_ALLOWED = {
 MARKETPLACE_PLUGIN_REQUIRED = {"name", "source"}
 
 
-def _load_json(path: str, problems: list) -> dict:
+def _load_json(path: str, problems: list):
+    """Load JSON, appending a problem and returning ``_LOAD_FAILED`` on failure.
+
+    Returns the parsed value on success (which MAY be falsy — ``{}``, ``[]``,
+    ``0``, ``""`` — and the caller must distinguish those from a load failure via
+    the ``_LOAD_FAILED`` sentinel, NOT a falsy check).
+    """
     if not os.path.isfile(path):
         problems.append("missing file: %s" % os.path.relpath(path, REPO_ROOT))
-        return {}
+        return _LOAD_FAILED
     try:
         with open(path, "r", encoding="utf-8") as fh:
             return json.load(fh)
     except (ValueError, OSError) as exc:
         problems.append("%s: invalid JSON (%s)" % (os.path.relpath(path, REPO_ROOT), exc))
-        return {}
+        return _LOAD_FAILED
 
 
 def _check_keys(obj, allowed, required, label, problems):
@@ -95,13 +110,33 @@ def validate_manifest(problems: list) -> None:
     """
     path = os.path.join(REPO_ROOT, MANIFEST_REL)
     obj = _load_json(path, problems)
-    if not obj:
+    if obj is _LOAD_FAILED:
+        return
+    if not isinstance(obj, dict):
+        problems.append("manifest: top-level must be a JSON object")
         return
     _check_keys(obj, MANIFEST_ALLOWED, MANIFEST_REQUIRED, "manifest", problems)
 
     version = obj.get("version", "")
     if not _SEMVER.match(str(version)):
         problems.append("manifest: version '%s' is not strict semver X.Y.Z" % version)
+
+    # Version PARITY (BUG-23): the Codex manifest version must track the Claude
+    # plugin version. Read .claude-plugin/plugin.json WITHOUT polluting `problems`
+    # for that file (a missing/unreadable Claude manifest just skips the parity
+    # check — that file has its own CI gate).
+    claude_version = None
+    try:
+        claude_path = os.path.join(REPO_ROOT, ".claude-plugin", "plugin.json")
+        with open(claude_path, "r", encoding="utf-8") as fh:
+            claude_version = json.load(fh).get("version")
+    except (ValueError, OSError, AttributeError):
+        claude_version = None
+    if version and claude_version is not None and str(version) != str(claude_version):
+        problems.append(
+            "manifest: version '%s' must match .claude-plugin/plugin.json version "
+            "'%s' (keep parity)" % (version, claude_version)
+        )
 
     # Manifest forbids agents + hooks (Codex platform constraint) — skills only.
     for forbidden in ("agents", "hooks"):
@@ -110,7 +145,7 @@ def validate_manifest(problems: list) -> None:
 
     # No numeric component count anywhere (decision 14).
     blob = json.dumps(obj)
-    if re.search(r"\b\d+ (agents|subagents)\b|\b\d+ skills\b|\b\d+ components\b", blob):
+    if _COUNT_RX.search(blob):
         problems.append("manifest: carries a numeric component count (must not — decision 14)")
 
     # Manifest base dir = the dir TWO levels up from the manifest file.
@@ -139,6 +174,8 @@ def validate_manifest(problems: list) -> None:
             for name in sorted(os.listdir(skills_dir)):
                 if os.path.isfile(os.path.join(skills_dir, name, "SKILL.md")):
                     generated.add("skills/%s/SKILL.md" % name)
+        if len(skills) != len(set(skills)):
+            problems.append("manifest: 'skills' contains duplicate entries")
         referenced = set(skills)
         for missing in sorted(generated - referenced):
             problems.append(
@@ -159,7 +196,10 @@ def validate_marketplace(problems: list) -> None:
     """
     path = os.path.join(REPO_ROOT, MARKETPLACE_REL)
     obj = _load_json(path, problems)
-    if not obj:
+    if obj is _LOAD_FAILED:
+        return
+    if not isinstance(obj, dict):
+        problems.append("marketplace: top-level must be a JSON object")
         return
     _check_keys(obj, MARKETPLACE_ALLOWED, MARKETPLACE_REQUIRED, "marketplace", problems)
 
@@ -169,11 +209,14 @@ def validate_marketplace(problems: list) -> None:
         return
 
     blob = json.dumps(obj)
-    if re.search(r"\b\d+ (agents|subagents)\b|\b\d+ skills\b|\b\d+ components\b", blob):
+    if _COUNT_RX.search(blob):
         problems.append("marketplace: carries a numeric component count (must not — decision 14)")
 
     found_pinned = False
     for entry in plugins:
+        if not isinstance(entry, dict):
+            problems.append("marketplace: plugin entry must be a JSON object")
+            continue
         _check_keys(
             entry,
             MARKETPLACE_PLUGIN_ALLOWED,

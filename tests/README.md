@@ -1,8 +1,9 @@
 # tests
 
-Structured tests for the toolbelt's deterministic pieces (the hooks). Agents and
-skills are model-driven and aren't unit-tested here; the hooks are plain scripts
-and *are*.
+Structured tests for the toolbelt's deterministic pieces — the hooks (the router
+and the `PreToolUse` guard) and the **model-agnostic Codex generator** (`tools/`).
+Agents and skills are model-driven and aren't unit-tested here; the hooks are
+plain scripts and the generator is pure Python, so both *are* tested.
 
 ## `test_router.py` — prompt-router routing test
 
@@ -84,3 +85,33 @@ Append to the corpus in `test_pretooluse_guard.py` via `add(block, [(command, ex
 Build any banned token from runtime fragments (see the fragment constants at the top of the
 file) — never write a literal. When you change the guard, run this test: a green run means the
 security invariant (block B) holds and no false-positive crept back in.
+
+## `test_codex_build.py` — Codex generator + gate-semantics test
+
+Exercises the model-agnostic generator (`tools/build.py`, `tools/emit/*`,
+`tools/transforms.py`, `tools/validate_codex.py`) end-to-end and asserts the Codex
+artifacts are correct **and the human gates survive the transform**. It runs 177 checks
+over a repo-copy build (it never mutates the real tree), covering:
+
+```bash
+python3 tests/test_codex_build.py        # prints per-check ok/FAIL lines + a TOTAL; exits 1 on failure
+```
+
+- **Determinism + drift.** The build is byte-stable across runs, and `--check` (the
+  in-memory staleness differ) flags MISSING / DRIFT / STRAY artifacts — including pruning
+  a derived file whose canonical source was removed (the orphan/stray contract).
+- **Generation completeness.** `load_agents`/`load_skills` enumerate the full inventory,
+  every canonical `hooks/*.sh` body lands in `codex-hooks/`, and every generated
+  `codex-agents/*.toml` parses (control-char escaping is valid TOML).
+- **Gate semantics survive the body transform.** The developer commit/push wait-gates,
+  the `AskUserQuestion → "ask the user in chat and wait"` rewrite (capitalization at
+  sentence start), and the `CLAUDE.md → AGENTS.md / CLAUDE.md` rewrite (which must leave
+  `docs/CLAUDE.md` and `~/.claude/CLAUDE.md` byte-for-byte) are all asserted.
+- **No bare `/skill` invocations** remain in the generated tree (a transform-independent
+  detector).
+- **Validator contract.** `validate_codex.py` rejects duplicate skills entries, non-object
+  manifests, and a manifest version that diverges from `.claude-plugin/plugin.json`.
+
+When you change the generator, a canonical body, or a transform, run this test (and
+re-run `python3 tools/build.py --target codex` so the committed artifacts match) — a green
+run plus a clean drift guard means the Codex port is in sync.

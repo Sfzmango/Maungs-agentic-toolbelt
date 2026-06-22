@@ -34,11 +34,11 @@ Verify: `ls ~/.codex/agents` shows the agents, `@mention` one in a Codex thread,
 
 | Target | Status | Components | Install |
 |--------|--------|-----------|---------|
-| **Claude Code** | shipped | agents + skills + hooks | `./install.sh` or the `maung-tools` plugin |
+| **Claude Code** | shipped | agents + skills (+ hooks via plugin) | `./install.sh` or the `maung-tools` plugin |
 | **OpenAI Codex CLI** | shipped | skills (marketplace) + agents & hooks (installer) | `./install-codex.sh` + `codex plugin install` |
 | cursor / aider / … | future | — | accommodated by the generator seam (add an emitter + a row); not built yet |
 
-Codex artifacts are **generated** from the canonical `agents/*.md` + `skills/*/SKILL.md` by `tools/build.py` — never hand-authored. See **[`docs/codex.md`](docs/codex.md)** and **[`docs/architecture.md`](docs/architecture.md)**.
+Codex artifacts are **generated** from the canonical `agents/*.md` + `skills/*/SKILL.md` + `hooks/` by `tools/build.py` — never hand-authored. See **[`docs/codex.md`](docs/codex.md)** and **[`docs/architecture.md`](docs/architecture.md)**.
 
 > **Zero to running.** The agents use a **GitHub MCP** server (issue/PR tools) and, optionally, a **Playwright MCP** server (`@developer`'s browser checks). These do not need to be wired up by hand — running `/orchestrator` performs an environment **preflight** that detects what's missing, offers to add the MCP servers (behind a confirmation gate), and guides the user through anything that requires manual action (`gh auth login`, restarting Claude Code). Full walkthrough: **[`docs/getting-started.md`](docs/getting-started.md)**.
 

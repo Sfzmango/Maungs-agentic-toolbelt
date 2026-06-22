@@ -202,13 +202,19 @@ def parse_frontmatter(fm_block: str) -> "tuple[Dict[str, str], List[str]]":
 # Component loading
 # ---------------------------------------------------------------------------
 
-def load_component(path: str, kind: str) -> Component:
-    """Load one canonical component file into a ``Component``."""
+def load_component(path: str, kind: str, root: Optional[str] = None) -> Component:
+    """Load one canonical component file into a ``Component``.
+
+    ``source_path`` is computed relative to ``root`` (defaulting to ``REPO_ROOT``)
+    so a temp-root build reports a stable repo-relative path instead of leaking the
+    host fixture dir — behavior-preserving at HEAD (the callers pass their resolved
+    root), and a host-path-leak footgun removed.
+    """
     raw = read_text(path)
     fm_block, body = split_frontmatter(raw)
     scalars, tools = parse_frontmatter(fm_block)
     name = scalars.get("name", "")
-    rel = os.path.relpath(path, REPO_ROOT)
+    rel = os.path.relpath(path, root or REPO_ROOT)
     return Component(
         kind=kind,
         name=name,
@@ -228,7 +234,7 @@ def load_agents(root: Optional[str] = None) -> List[Component]:
     for fn in sorted(os.listdir(agents_dir)):
         if not fn.endswith(".md"):
             continue
-        out.append(load_component(os.path.join(agents_dir, fn), "agent"))
+        out.append(load_component(os.path.join(agents_dir, fn), "agent", root))
     return out
 
 
@@ -240,28 +246,24 @@ def load_skills(root: Optional[str] = None) -> List[Component]:
     for name in sorted(os.listdir(skills_dir)):
         skill_md = os.path.join(skills_dir, name, "SKILL.md")
         if os.path.isfile(skill_md):
-            out.append(load_component(skill_md, "skill"))
+            out.append(load_component(skill_md, "skill", root))
     return out
 
 
 def load_hook_bodies(root: Optional[str] = None) -> Dict[str, str]:
-    """Load the five canonical hook ``.sh`` bodies, sorted by filename.
+    """Load every canonical hook ``.sh`` body, sorted by filename.
 
     Returns a dict keyed by filename (e.g. ``"pretooluse-guard.sh"``) -> the
-    normalized body text. Includes ``lib-telemetry.sh`` (sourced, not registered)
-    because the generated hooks source it.
+    normalized body text. FILESYSTEM-DERIVED (BUG-2): every ``hooks/*.sh`` is
+    picked up, so a NEW canonical hook is emitted automatically — there is no
+    hand-maintained list to drift. Includes ``lib-telemetry.sh`` (sourced, not
+    registered) because the generated hooks source it.
     """
     root = root or REPO_ROOT
     hooks_dir = os.path.join(root, "hooks")
-    wanted = [
-        "lib-telemetry.sh",
-        "pretooluse-guard.sh",
-        "sessionstart-loader.sh",
-        "toolbelt-router.sh",
-        "usage-tracker.sh",
-    ]
+    wanted = sorted(fn for fn in os.listdir(hooks_dir) if fn.endswith(".sh"))
     out: Dict[str, str] = {}
-    for fn in sorted(wanted):
+    for fn in wanted:
         path = os.path.join(hooks_dir, fn)
         out[fn] = read_text(path)
     return out

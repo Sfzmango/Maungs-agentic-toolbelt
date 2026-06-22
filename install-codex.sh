@@ -34,7 +34,7 @@ WITH_SKILLS="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target)  TARGET="${2%/}/.codex"; shift 2 ;;
+    --target)  [[ $# -ge 2 ]] || { echo "Missing DIR for --target" >&2; exit 1; }; TARGET="${2%/}/.codex"; shift 2 ;;
     --dry-run) DRY_RUN="true"; shift ;;
     --skills)  WITH_SKILLS="true"; shift ;;
     -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -62,13 +62,23 @@ if [[ ! -d "$AGENTS_SRC" || ! -d "$HOOKS_SRC" ]]; then
   exit 1
 fi
 
+# nullglob so an EMPTY codex-agents/ or codex-hooks/ expands to nothing (not a
+# literal `*.toml`/`*.sh` that `cp` would choke on and abort under `set -e`).
+shopt -s nullglob
+AGENT_FILES=("$AGENTS_SRC"/*.toml)
+HOOK_FILES=("$HOOKS_SRC"/*.sh)
+if [[ ${#AGENT_FILES[@]} -eq 0 || ${#HOOK_FILES[@]} -eq 0 ]]; then
+  echo "Generated artifacts not found. Run: python3 tools/build.py --target codex" >&2
+  exit 1
+fi
+
 echo "Installing Maungs-agentic-toolbelt (Codex) into ${TARGET/#$HOME/~}"
 if [[ "$DRY_RUN" == "true" ]]; then echo "  (dry-run — nothing will change)"; fi
 
 # 1) Agents -> ~/.codex/agents/
 echo "Agents:"
 run mkdir -p "$TARGET/agents"
-for f in "$AGENTS_SRC"/*.toml; do
+for f in "${AGENT_FILES[@]}"; do
   name="$(basename "$f")"
   run cp "$f" "$TARGET/agents/$name"
   info "agent: agents/$name"
@@ -78,7 +88,7 @@ done
 echo "Hooks:"
 HOOK_DIR="$TARGET/hooks"
 run mkdir -p "$HOOK_DIR"
-for f in "$HOOKS_SRC"/*.sh; do
+for f in "${HOOK_FILES[@]}"; do
   name="$(basename "$f")"
   run cp "$f" "$HOOK_DIR/$name"
   run chmod +x "$HOOK_DIR/$name"
@@ -139,20 +149,19 @@ if command -v jq >/dev/null 2>&1; then
     if [[ -f "$DST_HOOKS_JSON" ]]; then
       # Deep-merge, IDEMPOTENTLY: keep existing top-level keys (notify, mcp_servers,
       # …) and the user's OWN hook groups, but for each event we register, first
-      # DROP any prior toolbelt group (identified by a command referencing our hook
-      # dir "$hd") before appending the fresh ones — so re-running the installer
-      # (e.g. after a `git pull`) REPLACES our entries instead of STACKING duplicate
-      # toolbelt hooks, while never clobbering a user's own hooks.
-      merged="$(jq -s --arg hd "$HOOK_DIR" '
+      # DROP any prior entry whose command EQUALS one we are adding before appending
+      # the fresh ones — so re-running the installer (e.g. after a `git pull`)
+      # REPLACES the toolbelt's own entries instead of STACKING duplicates, while
+      # PRESERVING a user's own hook that merely lives under the same hook dir (a
+      # substring-on-dir match would have wrongly dropped that). Dedup is by exact
+      # command equality against the commands we are installing.
+      merged="$(jq -s '
         .[0] as $cur | .[1] as $new |
         $cur * {hooks: (
           ($cur.hooks // {}) as $ch | ($new.hooks // {}) as $nh |
           reduce ($nh | keys[]) as $k ($ch;
-            .[$k] = (
-              [ ($ch[$k] // [])[] | select([.. | strings | contains($hd)] | any | not) ]
-              + $nh[$k]
-            )
-          )
+            ([ $nh[$k][] | .hooks[]?.command ]) as $newcmds |
+            .[$k] = ( [ ($ch[$k] // [])[] | select([.hooks[]?.command] | any(. as $c | $newcmds | index($c)) | not) ] + $nh[$k] ))
         )}
       ' "$DST_HOOKS_JSON" <(printf '%s' "$SUBBED"))"
       printf '%s\n' "$merged" > "$DST_HOOKS_JSON"
@@ -182,6 +191,10 @@ if [[ "$WITH_SKILLS" == "true" ]]; then
     run mkdir -p "$TARGET/skills"
     for d in "$SKILLS_SRC"/*/; do
       name="$(basename "$d")"
+      # rm-then-copy so the copy is IDEMPOTENT: a plain `cp -R` over an existing
+      # skill dir would NEST or leave stale files dropped across versions. The
+      # `run` wrapper keeps --dry-run honest (it only prints the rm + cp).
+      run rm -rf "$TARGET/skills/$name"
       run cp -R "${d%/}" "$TARGET/skills/$name"
       info "skill: skills/$name"
     done
