@@ -29,6 +29,29 @@ gh auth status          # confirm the ACTIVE account is the one that can access 
 
 If you have several GitHub accounts, make sure the **active** one has access to the repos you'll work on (`gh auth switch` to change it).
 
+### GitHub token permission baseline
+
+The toolbelt reaches GitHub through a token (the `gh`-stored credential the GitHub MCP server reuses on Claude Code, and the GitHub MCP server's own token on the Codex CLI). Grant that token **least privilege** — only what the issue/PR agents actually use:
+
+- **Issues** read+write — `@product-owner` drafts/refines issues; the dossier routines file tracking issues.
+- **Pull requests** read+write+review — `@architect` opens the PR; `@developer` updates it; `@pr-reviewer` / `@security-reviewer` post inline review comments.
+- **Repository contents** read+write — branches and commits for the PR.
+- **Metadata** read — required baseline for any repository access.
+- **Workflows** read+write — **only** if a change edits files under `.github/workflows/`.
+
+Two equivalent ways to grant this:
+
+| Token type | Grant |
+|---|---|
+| **Classic PAT** | the `repo` scope (covers contents + issues + PRs); add `workflow` only if you edit CI files. |
+| **Fine-grained PAT** (preferred — narrower) | repository permissions: **Contents** RW, **Pull requests** RW, **Issues** RW, **Metadata** RO; add **Workflows** RW only if you edit CI files. |
+
+A fine-grained PAT scoped to just the repos you work on is the tighter default. Whichever you use, **merge safety should come from the repo's branch protection, not from withholding token scopes** — the agents are human-gated and never auto-merge, but branch protection (required reviews + green CI) is the control that actually blocks a bad merge.
+
+Inspect what your current token can do with `gh auth status` — for a `gh`-stored classic token it prints a `Token scopes:` line (e.g. `'repo', 'workflow'`). (Fine-grained PATs carry per-permission grants rather than classic scopes, so no scope line is shown; check them in the GitHub PAT settings page. An env-var `GITHUB_TOKEN` also shows no scope line.)
+
+**On the Codex CLI** the same issue/PR/contents/review access applies, but the GitHub MCP server is granted at **whole-server** granularity rather than Claude's per-tool allowlist — so the **token scopes are the real least-privilege control** there, and the points above are not optional refinements but the primary boundary. As on Claude Code, merge safety must come from branch protection, not from token scopes.
+
 ## 3. Add the MCP servers
 
 You can let `/orchestrator` do this for you (it proposes the exact command and runs it after you approve), or do it by hand:

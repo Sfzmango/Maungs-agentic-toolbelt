@@ -58,6 +58,7 @@ Goal: take a cold checkout to a runnable pipeline. Detect what's missing, **auto
 
 1. **git** — `git rev-parse --is-inside-work-tree` (inside a repo?) and `git config user.email` (identity set?).
 2. **gh CLI** — `command -v gh` (installed?) and `gh auth status` (authenticated? which account?). For issue/PR work the active account must be able to access the target repo.
+   - **Token permission baseline** — from the same `gh auth status`, surface the token's scopes (the `Token scopes:` line, e.g. `'repo', 'workflow'`; a fine-grained PAT or env-var `GITHUB_TOKEN` shows none). The issue/PR agents need issues RW, pull requests RW+review, contents RW, and metadata RO (plus workflows RW only when editing CI files). If the scope line is present and covers `repo` (or a fine-grained equivalent), report `OK`; if it's clearly too narrow (e.g. missing `repo`), report `ACTION NEEDED` and point the user at the **GitHub token permission baseline** section in `docs/getting-started.md`; if scopes can't be read (fine-grained PAT / `GITHUB_TOKEN`), report `OK — verify manually` with the same pointer. Never print the token value (no `--show-token`).
 3. **MCP servers** — `claude mcp list`. Look for:
    - a **github** server → provides `mcp__github__*` tools the issue/PR phases need (**required** for issue-ID inputs; optional for free-text topics).
    - a **playwright** server → provides `mcp__playwright__*` for `@developer`'s live UI verification (**optional**).
@@ -90,7 +91,7 @@ gh auth login
 
 **Proceed rule:** enter Step 1 only when the **required** dependencies are green. For an issue-ID input with no GitHub MCP, halt here with the remediation (same posture as Step 2). For a free-text topic, GitHub MCP is not required — proceed, noting which optional capabilities are off.
 
-**Output a short preflight report** before proceeding — one line per dependency (`OK` / `WILL FIX` / `ACTION NEEDED`) with the exact command or instruction for each gap. Point the user at `docs/getting-started.md` for the full manual walkthrough.
+**Output a short preflight report** before proceeding — one line per dependency (`OK` / `WILL FIX` / `ACTION NEEDED`) with the exact command or instruction for each gap. Include a **token baseline** line (from the `gh auth status` scope check above) alongside the gh/MCP/CLAUDE.md lines. Point the user at `docs/getting-started.md` for the full manual walkthrough, including its **GitHub token permission baseline** section.
 
 ## The 13 steps
 
