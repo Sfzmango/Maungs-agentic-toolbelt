@@ -57,6 +57,8 @@ place() { # place <src> <dst>
   info "${MODE}: ${dst/#$HOME/~}"
 }
 
+[ -f "$SCRIPT_DIR/bin/toolbelt-banner.sh" ] && bash "$SCRIPT_DIR/bin/toolbelt-banner.sh" 2>/dev/null
+
 echo "Installing Maungs-agentic-toolbelt into ${TARGET/#$HOME/~}  (mode: $MODE)"
 
 echo "Agents:"

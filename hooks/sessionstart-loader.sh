@@ -11,7 +11,8 @@
 # block a session). Disable with:  export MAUNGS_TOOLBELT_LOADER=off
 
 [ "${MAUNGS_TOOLBELT_LOADER:-on}" = "off" ] && exit 0
-cat >/dev/null 2>&1   # drain the event JSON on stdin (not needed)
+event="$(cat 2>/dev/null)"   # capture the SessionStart event JSON (for its source)
+TB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"   # resolve before any cd
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0   # only in a repo
 root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
@@ -46,6 +47,14 @@ if command -v gh >/dev/null 2>&1; then
   prs="$(gh pr list --limit 3 --json number,title -q '.[] | "    #\(.number) \(.title)"' 2>/dev/null)"
   [ -n "$prs" ] && add "- Open PRs:
 ${prs}"
+fi
+
+# On a fresh launch (startup only), greet with the rotating hero banner first.
+# Runs with no TTY here, so the banner prints plain (no escape codes in context).
+# Fail-safe: if the banner script isn't found, the snapshot prints as usual.
+if printf '%s' "$event" | grep -q '"source"[[:space:]]*:[[:space:]]*"startup"'; then
+  _b="${TB_DIR}/../bin/toolbelt-banner.sh"   # hooks/ and bin/ are siblings in the plugin
+  [ -f "$_b" ] && { bash "$_b" 2>/dev/null; printf '\n'; }
 fi
 
 printf '%s' "$out"

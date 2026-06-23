@@ -87,6 +87,8 @@ else
   warn "python3 validator unavailable — generated Codex schema checks were skipped"
 fi
 
+[ -f "$SCRIPT_DIR/bin/toolbelt-banner.sh" ] && bash "$SCRIPT_DIR/bin/toolbelt-banner.sh" 2>/dev/null
+
 echo "Installing Maungs-agentic-toolbelt (Codex) into ${TARGET/#$HOME/~}"
 if [[ "$DRY_RUN" == "true" ]]; then echo "  (dry-run — nothing will change)"; fi
 
