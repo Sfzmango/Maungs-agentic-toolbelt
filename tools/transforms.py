@@ -954,9 +954,14 @@ def transform_pretooluse_guard(body: str) -> str:
         '# the model-agnostic rule below needs both (see rule 5).\n'
         'hasrawi() { printf \'%s\' "$cmd" | grep -qiE -- "$1"; }',
     )
+    # The canonical guard already names several AI assistants (a $AI_NAMES list)
+    # and matches case-insensitively. The Codex rule broadens that further (more
+    # tools + AI-assistant phrase forms) and routes through `hasrawi`; anchor on
+    # the canonical two-line block (the $AI_NAMES assignment + the inline grep).
     old_attr = (
-        "if hasraw 'git([[:space:]]|.)*commit' && hasraw "
-        "'Co-Authored-By:[[:space:]]*Claude|Generated with[[:space:]].*Claude|🤖'; then"
+        "AI_NAMES='Claude|Codex|Copilot|GPT|Grok|Gemini|DeepSeek|Mistral|Llama|Anthropic|OpenAI'\n"
+        "if hasraw 'git([[:space:]]|.)*commit' && printf '%s' \"$cmd\" | grep -qiE -- "
+        "\"Co-Authored-By:[[:space:]]*($AI_NAMES)|Generated with[[:space:]].*($AI_NAMES)|🤖\"; then"
     )
     new_attr = (
         "if hasraw 'git([[:space:]]|.)*commit' && hasrawi '" + _attr_pattern + "'; then"
@@ -964,7 +969,7 @@ def transform_pretooluse_guard(body: str) -> str:
     body = _replace_or_die(body, old_attr, new_attr)
     body = _replace_or_die(
         body,
-        'deny "Toolbelt cardinal rule: no AI attribution in commits/PRs (no \'Co-Authored-By: Claude\' / \'Generated with Claude Code\'). Remove it from the commit message. (MAUNGS_TOOLBELT_GUARD=off to override.)"',
+        'deny "Toolbelt cardinal rule: no AI attribution in commits/PRs (no \'Co-Authored-By: <AI>\' / \'Generated with <AI>\'). Remove it from the commit message. (MAUNGS_TOOLBELT_GUARD=off to override.)"',
         'deny "Toolbelt cardinal rule: no AI/assistant attribution in commits/PRs (no \'Co-Authored-By:\' naming any AI/assistant/model, no \'Generated with/by <any AI tool>\', no robot marker). Remove it from the commit message. (MAUNGS_TOOLBELT_GUARD=off to override.)"',
     )
     body = _replace_or_die(

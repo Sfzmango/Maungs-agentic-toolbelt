@@ -55,6 +55,15 @@ LEASE     = "--force-" + "with-" + "lease"     # the permitted force-with-lease
 # AI-attribution trailer, assembled so the literal never appears in source:
 AI_TRAILER = "Co-" + "Authored-" + "By: " + "Claude"
 AI_GEN     = "Generated with " + "Claude" + " Code"
+# --- gap-batch fragments (t7): bundled add -A, short -n bypass, +refspec force,
+#     non-Claude AI attribution. Assembled so no literal banned token appears. ---
+ADD_AV     = "git add " + DASH + "Av"          # bundled bulk add (-Av == -A -v)
+ADD_VA     = "git add " + DASH + "vA"          # bundled bulk add (-vA == -v -A)
+NO_VERIFY_N = DASH + "n"                        # short hook-bypass on a commit
+PLUS_MAIN  = "+" + "main"                       # +-prefixed refspec (force form)
+# non-Claude AI attribution, assembled so no literal trailer appears in source:
+AI_TRAILER_CODEX = "Co-" + "Authored-" + "By: " + "Codex"
+AI_GEN_COPILOT   = "Generated with " + "Copilot"
 
 
 def decision(command):
@@ -191,6 +200,31 @@ add("F", [
     (PUSH + " origin main\nrm " + FLAG_F + " /tmp/x", "allow"),
 ])
 
+# === H. Gap-batch (t7): bundled add -A · short -n bypass · +refspec force ·
+#        non-Claude AI attribution — each a denied example + a benign control ===
+add("H", [
+    # 1) bundled bulk-add short flag (-Av / -vA) must DENY; -p (no A) must allow
+    (ADD_AV, "deny"),
+    (ADD_VA, "deny"),
+    ("git add " + DASH + "p src/app.py", "allow"),      # patch mode, no A -> allow
+    ("git add " + "--" + "patch", "allow"),
+    # 2) short -n hook-bypass on a commit must DENY; quoted mention must allow
+    ("git commit " + NO_VERIFY_N + ' -m "tidy"', "deny"),
+    ("git commit -nm " + '"tidy"', "deny"),             # bundled -n + -m
+    ('git commit -m "note: ' + NO_VERIFY_N + ' is banned"', "allow"),  # token quoted
+    ("git commit -m " + '"msg"', "allow"),              # plain commit, no -n
+    # 3) +<refspec> force push must DENY; lease form must still allow
+    (PUSH + " origin " + PLUS_MAIN, "deny"),
+    (PUSH + " origin +main:main", "deny"),
+    (PUSH + " origin +HEAD:main", "deny"),
+    (PUSH + " origin main", "allow"),                   # ordinary push, no +
+    (PUSH + " " + LEASE + " origin main", "allow"),     # lease has no +refspec
+    # 4) non-Claude AI attribution on a real commit must DENY; benign body allows
+    ('git commit -m "subject" --trailer "' + AI_TRAILER_CODEX + '"', "deny"),
+    ("git commit -m 'subject' --trailer '" + AI_GEN_COPILOT + "'", "deny"),
+    ('git commit -m "subject" --trailer "Reviewed-by: a teammate"', "allow"),
+])
+
 # === G. Fail-OPEN contract intact (guard never wedges the workflow) ==========
 # Non-Bash tool: the guard only inspects Bash; anything else passes (allow).
 NON_BASH_ALLOWS = True  # verified below outside the (command, decision) loop
@@ -262,6 +296,7 @@ block_titles = {
     "D": "chaining/subst/here-doc fail-closed",
     "E": "ask-tier preserved",
     "F": "cross-segment force-flag -> allow",
+    "H": "gap-batch: bundled add -A / short -n / +refspec / non-Claude AI attribution",
 }
 for k in sorted(bycat):
     n, g = bycat[k]

@@ -225,14 +225,18 @@ ask() {
 
 # Force-push rule helper — evaluates per TOP-LEVEL command segment of `scan`.
 # Splits `scan` on &&, ||, ;, |, and newlines, then denies iff a SINGLE segment
-# contains all of: git…push, a force flag (--force / -f), and NO force-with-lease.
+# contains all of: git…push, a force signal (--force / -f / a +<refspec>), and
+# NO force-with-lease. The +<refspec> form (e.g. `git push origin +main`,
+# `+main:main`, `+HEAD:main`) is a force push too; --force-with-lease carries no
+# leading-+ refspec, so it is never matched by the +<refspec> branch.
 # Fail-CLOSED: if `scan` still carries a substitution/backtick/here-doc construct
 # (e.g. the raw fallback ran), do NOT split — fall back to whole-string matching
 # so a force flag inside such a construct still denies.
+FORCE_SIGNAL='(--force([[:space:]=;|&)<>]|$)|[[:space:]]-f([[:space:]=;|&)<>]|$)|[[:space:]]\+[A-Za-z0-9_./~^@{}-]+(:|[[:space:]]|$))'
 force_push_denies() {
   # whole-string force-push signal first (cheap pre-filter)
   printf '%s' "$scan" | grep -qE -- 'git([[:space:]]|.)*push' || return 1
-  printf '%s' "$scan" | grep -qE -- '(--force([[:space:]=;|&)<>]|$)|[[:space:]]-f([[:space:]=;|&)<>]|$))' || return 1
+  printf '%s' "$scan" | grep -qE -- "$FORCE_SIGNAL" || return 1
 
   # If the scan string contains constructs whose boundaries we cannot trust to
   # split on (command substitution / backticks / here-doc), fall back to today's
@@ -254,7 +258,7 @@ force_push_denies() {
   local seg
   while IFS= read -r seg; do
     printf '%s' "$seg" | grep -qE -- 'git([[:space:]]|.)*push' || continue
-    printf '%s' "$seg" | grep -qE -- '(--force([[:space:]=;|&)<>]|$)|[[:space:]]-f([[:space:]=;|&)<>]|$))' || continue
+    printf '%s' "$seg" | grep -qE -- "$FORCE_SIGNAL" || continue
     printf '%s' "$seg" | grep -qE -- '--force-with-lease([[:space:]=]|$)' && continue
     return 0   # this segment is a real force-push without lease
   # Join shell line-continuations (a trailing backslash + newline is ONE command,
@@ -270,8 +274,10 @@ force_push_denies() {
   return 1
 }
 
-# 1) bulk git add
-if has 'git[[:space:]]+add[[:space:]]+(-A\b|--all\b|\.([[:space:]]|$)|-- \.)'; then
+# 1) bulk git add — the short-flag branch matches a SINGLE-dash cluster that
+#    contains 'A' (so -A, -Av, -vA all deny) but not --all (handled by its own
+#    branch) and not an A-less cluster like -p/--patch.
+if has 'git[[:space:]]+add[[:space:]]+(-[a-zA-Z]*A[a-zA-Z]*\b|--all\b|\.([[:space:]]|$)|-- \.)'; then
   deny "Toolbelt cardinal rule: do not 'git add -A/--all/.'. Stage the specific paths you changed instead (e.g. 'git add path/to/file'). Disable the guard with MAUNGS_TOOLBELT_GUARD=off if you really need this."
 fi
 
@@ -280,9 +286,16 @@ if force_push_denies; then
   deny "Toolbelt cardinal rule: no 'git push --force'. Use '--force-with-lease', which refuses to clobber commits you haven't seen. (MAUNGS_TOOLBELT_GUARD=off to override.)"
 fi
 
-# 3) hook-bypass
+# 3) hook-bypass — the long --no-verify form, OR the short -n form on a commit.
+#    For the short form, match a single-dash cluster containing 'n' with NO 'm'
+#    before the n in that cluster (so -n / -nm / -vn deny, but -mn — where -m
+#    takes n as its message value — does NOT). Scans the neutralized `scan`, so
+#    `git commit -m "note: -n"` (token inside a quoted arg) does not trip.
 if has '--no-verify\b'; then
   deny "Toolbelt cardinal rule: never bypass the pre-commit/pre-push hooks with --no-verify. Fix what the hook flags instead. (MAUNGS_TOOLBELT_GUARD=off to override.)"
+fi
+if has 'git([[:space:]]|.)*commit' && has '[[:space:]]-[a-ln-z]*n[a-zA-Z]*([[:space:]=]|$)'; then
+  deny "Toolbelt cardinal rule: never bypass the pre-commit/pre-push hooks with --no-verify (or its short -n form). Fix what the hook flags instead. (MAUNGS_TOOLBELT_GUARD=off to override.)"
 fi
 
 # 4) catastrophic recursive delete — matched against the RAW command with quote
@@ -303,9 +316,12 @@ if rmhas 'rm[[:space:]]+-[a-zA-Z]*[rR][a-zA-Z]*[fF]|rm[[:space:]]+-[a-zA-Z]*[fF]
 fi
 
 # 5) AI attribution in a commit (scans RAW $cmd — the attribution lives in the
-#    quoted commit message itself; see hasraw above)
-if hasraw 'git([[:space:]]|.)*commit' && hasraw 'Co-Authored-By:[[:space:]]*Claude|Generated with[[:space:]].*Claude|🤖'; then
-  deny "Toolbelt cardinal rule: no AI attribution in commits/PRs (no 'Co-Authored-By: Claude' / 'Generated with Claude Code'). Remove it from the commit message. (MAUNGS_TOOLBELT_GUARD=off to override.)"
+#    quoted commit message itself; see hasraw above). The name set covers the
+#    common AI assistants (not just Claude), matched case-insensitively, in both
+#    the Co-Authored-By: trailer and the "Generated with …" footer; 🤖 kept.
+AI_NAMES='Claude|Codex|Copilot|GPT|Grok|Gemini|DeepSeek|Mistral|Llama|Anthropic|OpenAI'
+if hasraw 'git([[:space:]]|.)*commit' && printf '%s' "$cmd" | grep -qiE -- "Co-Authored-By:[[:space:]]*($AI_NAMES)|Generated with[[:space:]].*($AI_NAMES)|🤖"; then
+  deny "Toolbelt cardinal rule: no AI attribution in commits/PRs (no 'Co-Authored-By: <AI>' / 'Generated with <AI>'). Remove it from the commit message. (MAUNGS_TOOLBELT_GUARD=off to override.)"
 fi
 
 # ============================================================================

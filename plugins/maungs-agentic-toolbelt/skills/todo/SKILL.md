@@ -76,7 +76,7 @@ Parse the first token as a verb; if it isn't a known verb, treat the **entire** 
 
 ## HOW OTHER COMPONENTS USE THE BACKLOG
 
-The `SessionStart` loader hook reads this same file (via the canonical slug above) and adds a one-line `📋 N open todos — $todo to view` to the project snapshot, so a tabled item resurfaces at the start of the next session. The prompt-router suggests `$todo` when a prompt sounds like tabling work ("remind me later…", "add this to my backlog"). `$toolbelt` lists `$todo` under Utility. None of these *act* on an item — they only surface the list; you decide what to do with it.
+The `SessionStart` loader hook reads this same file (via the canonical slug above) and adds a one-line `- Open todos: N (private backlog — $todo to view)` to the project snapshot, so a tabled item resurfaces at the start of the next session. The prompt-router suggests `$todo` when a prompt sounds like tabling work ("remind me later…", "add this to my backlog"). `$toolbelt` lists `$todo` under Utility. None of these *act* on an item — they only surface the list; you decide what to do with it.
 
 ## RELATION TO AUTO-MEMORY
 
