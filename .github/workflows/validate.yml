@@ -396,3 +396,35 @@ jobs:
             echo "| 12 | Codex generator tests | ❌ FAIL | ${detail:-see log} |" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $rc
+
+      - name: 13 · plugin.json version bumps on every PR (repo rule)
+        if: always()
+        run: |
+          # Repo rule: every PR strictly increases .claude-plugin/plugin.json
+          # version (installs are cached by it, so a shipped change that does not
+          # bump never reaches users). This gate is specific to developing THIS
+          # repo — it is NOT imposed on host projects the toolbelt operates on.
+          # The comparator unit test runs on every push; the live base-vs-head
+          # gate runs only on PRs (push events have no base branch to diff).
+          echo "::group::Version-bump rule (unit test always; base-vs-head gate on PRs)"
+          rc=0
+          python3 tests/test_version_bump.py || rc=$?
+          if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF" || rc=$?
+            base_ver="$(git show "FETCH_HEAD:.claude-plugin/plugin.json" \
+                        | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')"
+            head_ver="$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')"
+            echo "base=$base_ver  head=$head_ver"
+            python3 tools/check_version_bump.py "$base_ver" "$head_ver" || rc=$?
+          else
+            echo "not a pull_request event — base-vs-head gate skipped (unit test still ran)"
+          fi
+          echo "::endgroup::"
+          if [ "$rc" -eq 0 ]; then
+            echo "Version-bump rule: ✅ PASS"
+            echo "| 13 | Version bump (every PR) | ✅ PASS | plugin.json version increases per PR |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Version-bump rule: ❌ FAIL"
+            echo "| 13 | Version bump (every PR) | ❌ FAIL | bump .claude-plugin/plugin.json (keep Codex manifest in parity) |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc

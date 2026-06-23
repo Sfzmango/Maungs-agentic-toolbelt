@@ -88,6 +88,25 @@ until every in-repo description matches the real counts (derived at CI time from
   default CI token), so `validate` only *warns* with the exact command to run:
   `gh repo edit <owner>/<repo> --description "…"`.
 
+## Bumping the version (every PR)
+
+Claude Code caches installed plugins by `version`, so a shipped change that does
+not bump it never reaches installs. The rule for **this** repo is therefore:
+**every PR strictly increases the version — no exceptions.** CI (`validate`
+check 13) fails any PR whose `.claude-plugin/plugin.json` `version` is not greater
+than the base branch's.
+
+- Bump `.claude-plugin/plugin.json` `version` **and** keep
+  `plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json` in **parity**
+  (strict semver `MAJOR.MINOR.PATCH`; `validate_codex` enforces parity). Patch
+  for fixes/docs, minor for a new component/feature.
+- If two PRs are open at once, the second to rebase re-bumps past the first
+  (the gate compares against the *current* base, so an un-rebumped PR fails — by
+  design).
+- This is a rule for developing the toolbelt itself, **not** a behavior it
+  imposes on host projects it operates on. A future opt-in flag may offer
+  auto-bump to consumers; until then it stays repo-local.
+
 ## House-style checklist
 
 - [ ] Least-privilege tools (read-only unless it must write)
@@ -97,3 +116,4 @@ until every in-repo description matches the real counts (derived at CI time from
 - [ ] Token budget with checkpoints
 - [ ] Fresh-eyes reviewers never read prior reviews of the same artifact
 - [ ] Counts + descriptions updated (CI `validate` enforces the in-repo ones; update the GitHub About too)
+- [ ] Version bumped — `.claude-plugin/plugin.json` strictly increased + Codex manifest in parity (CI `validate` check 13)
