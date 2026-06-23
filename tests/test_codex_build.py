@@ -24,6 +24,7 @@ Covers (per docs/plans/6_codex-port.md "Test plan"):
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -430,6 +431,20 @@ def test_manifest_discovers_every_generated_skill():
           os.path.isfile(os.path.join(base, "hooks", "hooks.json")))
 
 
+def test_generated_skills_are_marked_derived():
+    print("\n[skills: generated Codex SKILL.md files declare canonical ownership]")
+    artifacts = target_codex.build_artifacts(REPO_ROOT)
+    for comp in common.load_skills(REPO_ROOT):
+        rel = "plugins/maungs-agentic-toolbelt/skills/%s/SKILL.md" % comp.name
+        body = artifacts[rel]
+        check("%s is marked DO NOT EDIT" % comp.name,
+              "DO NOT EDIT BY HAND" in body)
+        check("%s points to its canonical skill" % comp.name,
+              "skills/%s/SKILL.md" % comp.name in body)
+        check("%s points to the generator command" % comp.name,
+              "python3 tools/build.py --target codex" in body)
+
+
 def test_skill_metadata_schema():
     print("\n[skills: every agents/openai.yaml uses the current Codex schema]")
     import json
@@ -645,8 +660,14 @@ def test_generated_codex_runtime_portability():
     artifacts = target_codex.build_artifacts(REPO_ROOT)
     joined = "\n".join(artifacts.values())
     check("$ARGUMENTS placeholder removed from Codex skills", "$ARGUMENTS" not in joined)
-    check("Claude project-memory paths removed", "~/.claude/projects/" not in joined)
+    check("Claude project-memory paths removed", ".claude/projects/" not in joined)
+    check("Claude plugin install state removed", ".claude/plugins/" not in joined)
     check("Claude plugin-root variable removed", "CLAUDE_PLUGIN_ROOT" not in joined)
+    generated_hooks = "\n".join(
+        value for rel, value in artifacts.items()
+        if rel.startswith("plugins/maungs-agentic-toolbelt/hooks/")
+    )
+    check("Claude hook gate mechanic removed", "AskUserQuestion" not in generated_hooks)
     check("legacy codex-hooks root is no longer emitted",
           not any(rel.startswith("codex-hooks/") for rel in artifacts))
     known_agents = "|".join(re.escape(name) for name in transforms.AGENT_NAMES)
@@ -677,6 +698,10 @@ def test_generated_codex_runtime_portability():
     check("Codex dossier adapter never calls RemoteTrigger",
           "Never call or simulate `RemoteTrigger`" in dossier
           and "MANUAL APP SETUP REQUIRED" in dossier)
+    check("Codex dossier security job respects PR-scoped agent contract",
+          "generic repository-wide compliance sweep" in dossier
+          and "input contract is PR-scoped" in dossier
+          and "run the `security-reviewer` subagent for a repository-wide" not in dossier)
 
 
 def test_install_codex_modes():
@@ -1125,24 +1150,16 @@ def test_hook_pretooluse_guard_attribution_wholeword():
         return '"permissionDecision": "deny"' in proc.stdout
 
     try:
-        # (b) false-ALLOW fix: an AI tool NOT in first position is now DENIED.
         check("DENIES 'Co-Authored-By: GitHub Copilot' (not first position)",
               run_commit("Co-Authored-By: GitHub Copilot <x@github.com>"))
-        # Baseline: the literal Claude trailer still DENIED.
         check("DENIES 'Co-Authored-By: Claude'",
               run_commit("Co-Authored-By: Claude <noreply@anthropic.com>"))
-        # (a) false-DENY fix: a human whose NAME starts with an AI token is ALLOWED.
         check("ALLOWS human 'Co-Authored-By: Aishwarya Patel' (name starts 'Ai')",
               not run_commit("Co-Authored-By: Aishwarya Patel <a@x.com>"))
-        # And another ordinary human name beginning with an AI-token prefix.
         check("ALLOWS human 'Co-Authored-By: Gemma Liu' (name starts 'Gem')",
               not run_commit("Co-Authored-By: Gemma Liu <g@x.com>"))
-        # name-scoped match ([^<]*): an AI token appearing ONLY in the email DOMAIN
-        # (the name is a real human) is ALLOWED — a real attribution trailer carries
-        # the tool in the NAME, not merely the address.
         check("ALLOWS 'Co-Authored-By: Jane Smith <jane@openai.com>' (token only in email)",
               not run_commit("Co-Authored-By: Jane Smith <jane@openai.com>"))
-        # ...but the AI tool IN THE NAME is still DENIED even with a benign email.
         check("DENIES 'Co-Authored-By: Claude <user@gmail.com>' (tool in name)",
               run_commit("Co-Authored-By: Claude <user@gmail.com>"))
     finally:
@@ -1150,13 +1167,14 @@ def test_hook_pretooluse_guard_attribution_wholeword():
 
 
 def test_hook_router():
-    print("\n[hook: router emits one valid additionalContext result + anti-autonomy prefix]")
-    import json
+    print("\n[hook: router emits one valid additionalContext JSON result]")
     bodies = common.load_hook_bodies(REPO_ROOT)
     out = transforms.transform_hook_body("toolbelt-router.sh", bodies["toolbelt-router.sh"])
     check("additionalContext envelope present", "additionalContext" in out)
-    check("stdout plain-text fallback is in the jq else branch",
-          'else\n    printf \'%s\\n\' "$3"' in out)
+    check("jq-less router fallback emits JSON through Python",
+          "python3 -c 'import json, sys" in out)
+    check("router never emits raw suggestion text as hook stdout",
+          'printf \'%s\\n\' "$3"' not in out)
     check("legacy duplicate-output envelope removed", "suppressOutput" not in out)
     check("anti-autonomy PREFIX guard survives",
           "do NOT auto-run workflows that commit/push/open PRs without confirmation" in out)
@@ -1183,6 +1201,34 @@ def test_hook_router():
           proc.returncode == 0 and valid, (proc.stdout + proc.stderr)[:240])
     check("live router emits no command-substitution errors",
           proc.stderr == "", proc.stderr[:240])
+
+    no_jq_env = os.environ.copy()
+    no_jq_env["PATH"] = "/usr/bin:/bin"
+    proc = subprocess.run(
+        ["bash", router],
+        input=json.dumps({
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "this test keeps failing",
+            "cwd": REPO_ROOT,
+            "session_id": "router-no-jq-test",
+        }),
+        cwd=REPO_ROOT,
+        env=no_jq_env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    try:
+        no_jq_payload = json.loads(proc.stdout)
+    except ValueError as exc:
+        no_jq_payload = {}
+        check("jq-less router stdout is valid JSON", False, str(exc))
+    else:
+        check("jq-less router stdout is valid JSON", True)
+    check("jq-less router preserves additionalContext",
+          "bug/defect" in no_jq_payload.get(
+              "hookSpecificOutput", {}
+          ).get("additionalContext", ""))
 
 
 def test_hook_router_skill_suggestions_at_mention():
@@ -1221,7 +1267,7 @@ def test_hook_lib_telemetry():
 
 
 def test_hook_sessionstart_loader_skill_invocation_at_mention():
-    print("\n[hook: sessionstart-loader skill nudges -> $skill, AGENTS.md-aware]")
+    print("\n[hook: sessionstart-loader emits valid Codex JSON + portable context]")
     bodies = common.load_hook_bodies(REPO_ROOT)
     out = transforms.transform_hook_body("sessionstart-loader.sh", bodies["sessionstart-loader.sh"])
     check("agentic-onboard nudge rewritten to $agentic-onboard", "\\$agentic-onboard" in out)
@@ -1244,6 +1290,72 @@ def test_hook_sessionstart_loader_skill_invocation_at_mention():
     # skill invocation; the left-boundary rule leaves the path token intact).
     check("/todos/ storage path preserved",
           "todos/" in out)
+    check("update preflight reads the bundled Codex manifest",
+          '${TB_DIR}/../.codex-plugin/plugin.json' in out)
+    check("update preflight checks the published Codex manifest",
+          "plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json" in out)
+    check("update preflight uses Codex marketplace commands",
+          "codex plugin marketplace upgrade maung-tools" in out
+          and "codex plugin add maungs-agentic-toolbelt@maung-tools" in out)
+    check("update preflight refreshes separately-installed custom agents",
+          "./install-codex.sh" in out)
+    check("update preflight uses Codex gate and reload wording",
+          "[for Codex]" in out
+          and "ask the user in chat" in out
+          and "start a NEW Codex thread" in out)
+    check("update preflight contains no Claude runtime state or commands",
+          ".claude/plugins/" not in out
+          and "${HOME}/.claude/maungs-toolbelt" not in out
+          and "AskUserQuestion" not in out
+          and "/plugin install" not in out)
+    check("SessionStart banner is captured instead of printed as raw stdout",
+          '_banner="$(bash "$_b" 2>/dev/null)"' in out
+          and 'out="${_banner}' in out)
+    check("SessionStart emits Codex additionalContext JSON",
+          'hookEventName:"SessionStart",additionalContext:$c' in out)
+
+    hook = os.path.join(
+        REPO_ROOT,
+        "plugins",
+        "maungs-agentic-toolbelt",
+        "hooks",
+        "sessionstart-loader.sh",
+    )
+    env = os.environ.copy()
+    env["MAUNGS_TOOLBELT_UPDATE_CHECK"] = "off"
+    # Exclude Homebrew paths so gh cannot make a network call during this
+    # execution-level contract test. The Python fallback remains available on
+    # normal CI images when jq is absent.
+    env["PATH"] = "/usr/bin:/bin"
+    proc = subprocess.run(
+        ["bash", hook],
+        input=json.dumps({
+            "hook_event_name": "SessionStart",
+            "source": "startup",
+            "cwd": REPO_ROOT,
+        }),
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    check("SessionStart hook exits successfully", proc.returncode == 0, proc.stderr)
+    try:
+        payload = json.loads(proc.stdout)
+    except ValueError as exc:
+        payload = {}
+        check("SessionStart stdout is exactly one JSON document", False, str(exc))
+    else:
+        check("SessionStart stdout is exactly one JSON document", True)
+    specific = payload.get("hookSpecificOutput", {})
+    check("SessionStart JSON names the correct event",
+          specific.get("hookEventName") == "SessionStart")
+    context = specific.get("additionalContext", "")
+    check("SessionStart JSON carries the project snapshot",
+          "[Maungs-agentic-toolbelt] Project snapshot" in context)
+    check("SessionStart JSON carries the startup banner without raw prefix output",
+          "M A U N G ' S   A G E N T I C   T O O L B E L T" in context)
 
 
 def test_todo_path_survives_documented():
@@ -1313,9 +1425,12 @@ def test_neutralization_claude_md_path_boundary():
     # rewrites — the fix narrows only the path case, it does not disable the rule.
     rewrites = {
         "see CLAUDE.md now": "see AGENTS.md (and CLAUDE.md when present) now",
-        "`CLAUDE.md`": "`AGENTS.md (and CLAUDE.md when present)`",
+        "`CLAUDE.md`": "`AGENTS.md` (and `CLAUDE.md` when present)",
         "(CLAUDE.md)": "(AGENTS.md (and CLAUDE.md when present))",
         "CLAUDE.md at line start": "AGENTS.md (and CLAUDE.md when present) at line start",
+        "`CLAUDE.md` / `AGENTS.md`": "`AGENTS.md` (and `CLAUDE.md` when present)",
+        "CLAUDE.md / AGENTS.md": "AGENTS.md (and CLAUDE.md when present)",
+        "is there a `CLAUDE.md`?": "is there `AGENTS.md` (and `CLAUDE.md` when present)?",
     }
     for src, want in rewrites.items():
         out = transforms.neutralize_body(src)
@@ -1323,6 +1438,22 @@ def test_neutralization_claude_md_path_boundary():
     # Idempotency preserved for the standalone rewrite.
     once = transforms.neutralize_body("see CLAUDE.md now")
     check("path-boundary rule idempotent", transforms.neutralize_body(once) == once)
+
+
+def test_codex_memory_path_variants():
+    print("\n[transforms: Claude memory path variants -> Codex memories]")
+    src = (
+        "Read `~/.claude/projects/<project-slug>/memory/MEMORY.md` and "
+        "`.claude/projects/**/memory/MEMORY.md` before reviewing."
+    )
+    out = transforms.rewrite_codex_memories(src)
+    check("home-prefixed Claude memory path removed", "~/.claude/projects/" not in out)
+    check("repo-relative Claude memory path removed", ".claude/projects/" not in out)
+    check("Codex memory guidance emitted", "Codex-injected memories" in out)
+    mentor = _emitted_agent_body("security-mentor")
+    check("security mentor memory guidance is grammatical",
+          "Use Codex-injected memories when enabled" in mentor
+          and "memory directory exists (Codex-injected memories" not in mentor)
 
 
 # ---------------------------------------------------------------------------
@@ -1445,6 +1576,7 @@ def main():
         test_validate_version_parity,
         test_validate_non_dict_toplevel_rejected,
         test_manifest_discovers_every_generated_skill,
+        test_generated_skills_are_marked_derived,
         test_skill_metadata_schema,
         test_frontmatter_yaml_safety,
         test_validate_invalid_yaml_rejected,
@@ -1481,6 +1613,7 @@ def main():
         test_todo_path_survives_documented,
         test_neutralization_claude_md,
         test_neutralization_claude_md_path_boundary,
+        test_codex_memory_path_variants,
         test_gate_developer,
         test_gate_architect_plan_approval,
         test_gate_orchestrator_merge,

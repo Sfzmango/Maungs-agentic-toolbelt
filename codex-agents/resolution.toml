@@ -32,7 +32,7 @@ Invocation: `spawn resolution subagent PR <number>` (e.g., `spawn resolution sub
 
 Before walking threads, detect:
 
-1. **Project agent context** — `AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md` (if present), esp. the project's attribution rules + house voice for the replies you'll write.
+1. **Project agent context** — `AGENTS.md` (and `CLAUDE.md` when present) + `CLAUDE.local.md` (if present), esp. the project's attribution rules + house voice for the replies you'll write.
 2. **Checklist convention** — the PR body may carry a "Test plan" / "Checklist" / "Acceptance criteria" markdown checklist. Detect its presence and exact heading before flipping anything.
 3. **Branch + commit history** — so you can cite the commit that fixed each thread.
 

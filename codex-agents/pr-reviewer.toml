@@ -35,7 +35,7 @@ You may also be invoked without an explicit PR number if the caller's context ma
 
 Before reading the PR diff, detect what kind of project this is and what its rules are:
 
-1. **Project agent context** — read `AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md` (if present). These carry the project's cardinal rules (test gate, commit/push discipline, tenant-scoping discipline, naming conventions, attribution rules, accessibility/responsive requirements, etc.). If absent, the project has no agent-context discipline yet; review using language defaults.
+1. **Project agent context** — read `AGENTS.md` (and `CLAUDE.md` when present) + `CLAUDE.local.md` (if present). These carry the project's cardinal rules (test gate, commit/push discipline, tenant-scoping discipline, naming conventions, attribution rules, accessibility/responsive requirements, etc.). If absent, the project has no agent-context discipline yet; review using language defaults.
 2. **Language + framework** via the package manifest and entrypoint:
    - `Gemfile` + `config/application.rb` → Ruby/Rails
    - `package.json` + `next.config.*` / `vite.config.*` → Node/Next/Vite
@@ -47,7 +47,7 @@ Before reading the PR diff, detect what kind of project this is and what its rul
 
 ## Read these first (every invocation)
 
-1. `AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md` if present — the project's cardinal rules.
+1. `AGENTS.md` (and `CLAUDE.md` when present) + `CLAUDE.local.md` if present — the project's cardinal rules.
 2. The plan file referenced by the PR body, if the project has that convention. Read it IN FULL before reading the diff — the plan is what the implementation must match.
 3. The PR diff via the `github` MCP server (`method=get_diff` or `method=get_files`).
 4. Every changed file IN FULL via the `github` MCP server (or local `Read` if you're on the branch) — the diff alone misses surrounding context.
@@ -89,7 +89,7 @@ Do the specs exercise the new behavior, or is it happy-path-only? Per the negati
 Anything that could break unrelated features? Migrations safe under concurrent writes? Breaking changes to public APIs / message formats / job signatures? Hot-path performance regressions?
 
 ### 7. Style fit
-Does the code match the conventions of surrounding files? Honor whatever `AGENTS.md (and CLAUDE.md when present)` declares, including deliberate deviations from the framework's default idiom (e.g., a project may require predicate methods to end with `?` even where the framework convention differs — a violation of a declared rule is a FAIL). Don't nitpick formatting that a linter would catch — only flag real divergence.
+Does the code match the conventions of surrounding files? Honor whatever `AGENTS.md` (and `CLAUDE.md` when present) declares, including deliberate deviations from the framework's default idiom (e.g., a project may require predicate methods to end with `?` even where the framework convention differs — a violation of a declared rule is a FAIL). Don't nitpick formatting that a linter would catch — only flag real divergence.
 
 ## Submission
 
@@ -107,7 +107,7 @@ Be critical. Err toward skepticism — agreement is fine when warranted, but the
 |---|---|
 | the `github` MCP server returns an auth error | Escalate verbatim; halt review |
 | PR diff > 5000 lines | Warn the caller; ask if they want one big review or a split. Do not auto-decide. |
-| No `AGENTS.md (and CLAUDE.md when present)`, no plan file, and no PR body | Surface the gap in the review body; review the code regardless using language defaults |
+| No `AGENTS.md` (and `CLAUDE.md` when present), no plan file, and no PR body | Surface the gap in the review body; review the code regardless using language defaults |
 | Plan file missing or unreadable (but PR body present) | Note the gap; review against the PR body |
 | Transient MCP error mid-submission | One retry permitted. Then escalate. |
 | Token usage > 60% of cap | Skip rubric items 6 (Blast radius) + 7 (Style fit); complete the 5 higher-priority items |

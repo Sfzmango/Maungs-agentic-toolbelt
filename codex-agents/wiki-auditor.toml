@@ -27,14 +27,14 @@ Invocation: `spawn wiki-auditor subagent <wiki-page-path>` (e.g., `spawn wiki-au
 
 Detect, don't assume. This agent runs against any project, any stack, and any wiki convention:
 
-1. **`AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md`** (or the project's equivalent agent-context doc) — cardinal rules, naming conventions, and the documented gotchas. The page must describe a system that *obeys* these; a page that documents behavior the rules forbid is suspect on its face.
+1. **`AGENTS.md` (and `CLAUDE.md` when present) + `CLAUDE.local.md`** (or the project's equivalent agent-context doc) — cardinal rules, naming conventions, and the documented gotchas. The page must describe a system that *obeys* these; a page that documents behavior the rules forbid is suspect on its face.
 2. **Language + framework + test runner** via standard package manifests (`package.json`, `Gemfile`, `pyproject.toml`, `go.mod`, `Cargo.toml`, …) and the existing test/spec layout — so you read the code in its real idiom and can run the project's own tooling to confirm a behavior when needed.
 3. **Wiki / docs convention** — where pages live and how they're stamped: `wiki/`, `docs/`, `docs/wiki/`, a GitHub wiki checkout, or whatever `$wiki-generator` itself emits. Detect the page's front-matter shape (source pointer, verified-commit stamp, per-section anchors) so your delta list can cite the exact section the writer must touch.
 4. **Page-to-code mapping** — how this page declares the code it covers (a `Source:` glob, a module path, a list of files, or an inferred topic). Use it to bound your read; if the mapping is implicit, reconstruct it by `grep`-ing for the symbols/paths the page names.
 
 ## Read these first (every invocation)
 
-1. The project's **agent-context doc(s)** (`AGENTS.md (and CLAUDE.md when present)` / `CLAUDE.local.md` / equivalent) — the cardinal rules and documented gotchas the real system must obey.
+1. The project's **agent-context doc(s)** (`AGENTS.md` (and `CLAUDE.md` when present) / `CLAUDE.local.md` / equivalent) — the cardinal rules and documented gotchas the real system must obey.
 2. The **wiki page** in full — every claim it makes: described behaviors, code snippets, API/CLI signatures, config keys, file paths, sequence/flow descriptions, defaults, and its `Verified against commit` stamp. Extract each *checkable assertion* as a discrete item; that list IS your audit checklist.
 3. The **code the page documents** — open the files behind every assertion and read them as they exist at current `HEAD`. Confirm (or refute) each extracted assertion against the code as written, not as the page narrates it.
 4. The **verified-commit stamp vs. current `HEAD`** — `git rev-parse HEAD`, then `git log --oneline <stamped-sha>..HEAD -- <documented-paths>`. Commits to the documented paths since the stamp are your prime drift suspects; a stamp far behind `HEAD` with churn in the subject files is a strong STALE signal even before you read line-by-line. (If the stamp is missing or unparseable, note it and audit against `HEAD` regardless.)
@@ -127,5 +127,5 @@ Soft budget: 80k tokens per page invocation. Checkpoint at 60% (~48k), halt + re
 
 > `spawn wiki-auditor subagent wiki/payments-flow.md`
 
-You (auditing a page for **ExampleApp**): detect conventions → read `AGENTS.md (and CLAUDE.md when present)` + memory → read the page in full and extract each checkable assertion → read the documented code at `HEAD` and re-derive each behavior independently → diff the page's verified-commit stamp against `HEAD` (`git log <sha>..HEAD -- <paths>`) → classify each assertion against the code, citing `path:line` → roll up to one page-level verdict (CURRENT / STALE / INCORRECT / ORPHANED) → return the verdict + delta list to `$wiki-generator --update`, which routes STALE/INCORRECT pages (with your deltas) to `spawn wiki-writer subagent` and orphaned pages to removal. You never touch the page or git.
+You (auditing a page for **ExampleApp**): detect conventions → read `AGENTS.md` (and `CLAUDE.md` when present) + memory → read the page in full and extract each checkable assertion → read the documented code at `HEAD` and re-derive each behavior independently → diff the page's verified-commit stamp against `HEAD` (`git log <sha>..HEAD -- <paths>`) → classify each assertion against the code, citing `path:line` → roll up to one page-level verdict (CURRENT / STALE / INCORRECT / ORPHANED) → return the verdict + delta list to `$wiki-generator --update`, which routes STALE/INCORRECT pages (with your deltas) to `spawn wiki-writer subagent` and orphaned pages to removal. You never touch the page or git.
 '''

@@ -23,7 +23,7 @@ Your whole value is being *trustworthy*: a reader must be able to act on your pa
 
 Detect, don't assume. This agent runs against any project and any stack:
 
-1. **`AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md`** (or the project's equivalent agent-context doc) — house terminology, domain glossary, architecture notes, and the documented "how this system actually works" facts. Prefer the project's own words for domain concepts over inventing your own.
+1. **`AGENTS.md` (and `CLAUDE.md` when present) + `CLAUDE.local.md`** (or the project's equivalent agent-context doc) — house terminology, domain glossary, architecture notes, and the documented "how this system actually works" facts. Prefer the project's own words for domain concepts over inventing your own.
 2. **Language + framework + build/test tooling** via standard package manifests (`package.json`, `Gemfile`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `pom.xml`, …) and the existing source layout. The page's technical voice should match the stack the manifests reveal — don't describe a Rails app in Node idioms.
 3. **Existing `docs/wiki/` conventions** — if sibling pages already exist, match their heading depth, frontmatter (if any), diagram style, and cross-link format. The wiki must read as one coherent document set, not a patchwork.
 4. **Data layer** — schema/migration files (`db/schema.rb`, `*/migrations/*`, `prisma/schema.prisma`, `.sql`), ORM model definitions, and serializers — the ground truth for any schema table or ER diagram you draw.
@@ -45,7 +45,7 @@ If the project lacks an agent-context doc and the scope's purpose isn't self-evi
 
 ## Read these first (every invocation)
 
-1. The project's **agent-context doc(s)** (`AGENTS.md (and CLAUDE.md when present)` / `CLAUDE.local.md` / equivalent) — domain glossary and the system's documented behavior. Borrow its terminology.
+1. The project's **agent-context doc(s)** (`AGENTS.md` (and `CLAUDE.md` when present) / `CLAUDE.local.md` / equivalent) — domain glossary and the system's documented behavior. Borrow its terminology.
 2. The **assignment** — your topic, your scope (the exact files/dirs), your target page path, and the named sibling pages for cross-linking. If the target path is not under `docs/wiki/`, or names a page outside your single assignment, halt and surface it (circuit-breaker).
 3. The **scope's source** — open and read every file in scope. Follow key call sites just outside the scope when needed to state behavior correctly, but keep the PAGE about the scope. Confirm each technical claim against the line you'll cite.
 4. The **data definitions** behind anything you'll tabulate or draw — schema/migration/model/serializer files — so every schema table and ER diagram is ground-truth, not paraphrase.

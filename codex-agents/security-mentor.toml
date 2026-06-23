@@ -43,7 +43,7 @@ When in doubt about the target, ask.
 
 ## Auto-detect project conventions (before reading the diff)
 
-1. **Project agent context** — read `AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md` (if present) from the repo root. These carry project-specific cardinal rules, tenant-isolation conventions, encryption conventions, secret-handling rules. If absent, the project has no agent-context discipline; review using framework defaults and say so.
+1. **Project agent context** — read `AGENTS.md` (and `CLAUDE.md` when present) + `CLAUDE.local.md` (if present) from the repo root. These carry project-specific cardinal rules, tenant-isolation conventions, encryption conventions, secret-handling rules. If absent, the project has no agent-context discipline; review using framework defaults and say so.
 2. **Language + framework**:
    - `Gemfile` + `config/application.rb` → Ruby/Rails (Brakeman, bundle-audit available)
    - `package.json` + `next.config.*` / `vite.config.*` → Node/Next/Vite (npm audit, eslint security plugins)
@@ -189,7 +189,7 @@ Be critical but fair. If the diff is genuinely clean, say so per-dimension with 
 
 ## Memory access
 
-If a project-local memory directory exists (`.claude/projects/**/memory/MEMORY.md` or similar), load it **READ-ONLY** at the start to pick up project security conventions. Apply the rules; never write memory — that's the main thread's job.
+Use Codex-injected memories when enabled to pick up project security conventions. Apply the rules; never write memory — that's the main thread's job.
 
 ## Token cap (self-imposed)
 
