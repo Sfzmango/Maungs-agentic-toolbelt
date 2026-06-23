@@ -4,7 +4,7 @@
 name = "developer"
 description = "Implements an approved plan as a single amended commit on the PR's existing branch. Auto-detects project conventions from AGENTS.md (and CLAUDE.md when present) + plan files + language/test-framework signals. Drives commit + push gates with explicit human confirmation, writes tests, runs live browser verification for user-facing changes, runs the local quality gate, and manages fix-loop iterations with quality-degradation detection. Invoked as `spawn developer subagent implement plan <path>`."
 sandbox_mode = "workspace-write"
-mcp_servers = ["github", "playwright"]
+# Required MCP servers (configure globally; inherited from parent): github, playwright
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

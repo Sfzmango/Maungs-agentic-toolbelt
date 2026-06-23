@@ -106,85 +106,46 @@ This custom statusline is Claude-specific. Codex provides `/statusline` for its 
 
 ## Skills
 
-**`/agentic-onboard`** — *`/agentic-onboard`* (lean) or *`/agentic-onboard --deep --target all`*. The on-ramp: scans an existing repo and generates the agent-context files the rest of the toolbelt depends on — `CLAUDE.md` + `AGENTS.md` (cross-agent) + a concise architecture map. It detects whether the repo is **cold** (no context) or **stale** (drifted, via `@context-auditor`) and diffs before writing; `--deep` also builds the full `docs/wiki`. Writes the working tree only — never commits.
-
-**`/orchestrator`** — *`/orchestrator <issue-id>`* (or a topic; `--experiment` for a local dry run). The conductor: it runs a full issue→merge cycle by delegating each phase to the agents below and never writes code itself. It auto-detects the project's conventions and enforces the universal rules — a 3-commit PR structure, a full local quality gate, explicit per-commit/per-push confirmation, and a hard halt if review quality degrades.
-
-**`/bug-catcher`** — *`/bug-catcher <symptom>`* (or `--global` to sweep the whole codebase). A diagnose-and-prove conductor that never fixes code itself. It runs a bounded debate between `@bug-catcher-rick` and `@bug-catcher-adversary`, assigns a severity, and hands a verified fix plan to `/orchestrator` or `/chore`.
-
-**`/chore`** — *`/chore <short description>`* (also `--concurrently`, `--concurrently --bypass`). A lightweight path for small single-concern changes (docs, config, a typo, a dependency bump) that skip the full pipeline but keep the same safety rails: quality gate, per-commit/per-push confirmation, and a summary-only PR. It re-routes to `/orchestrator` if the task turns out to be bigger than a chore. **`--concurrently`** runs the whole chore in an isolated git worktree off the freshly-fetched default branch, so it ships safely *alongside* another session or agent editing the same checkout — the shared `HEAD`, index, and uncommitted work are never touched; **`--bypass`** (with `--concurrently`) admin-merges the moment CI is green. Neither flag ever skips CI, the chore-scope gate, or the no-`--no-verify`/no-`-A`/no-`--force` rules.
+| Skill | Use it for | Invocation |
+|---|---|---|
+| **`/agentic-onboard`** | Prepare a cold repo for agents or refresh stale `CLAUDE.md`, `AGENTS.md`, and architecture context. | `/agentic-onboard` · `/agentic-onboard --deep --target all` |
+| **`/orchestrator`** | Run the human-gated issue-to-merge development cycle through planning, implementation, review, and resolution. | `/orchestrator <issue-id-or-topic>` · add `--experiment` for a local dry run |
+| **`/bug-catcher`** | Diagnose one bug adversarially, or sweep the repository, then hand off a verified fix plan. | `/bug-catcher <symptom>` · `/bug-catcher --global` |
+| **`/chore`** | Ship a small docs, config, tooling, typo, or dependency change without the full orchestrator pipeline. | `/chore <description>` · add `--concurrently` or `--concurrently --bypass` |
+| **`/handoff`** | Produce a self-contained continuation brief for a specific issue or topic. | `/handoff <issue-id-or-topic>` |
+| **`/todo`** | Maintain a private, local, per-project backlog that never enters the repository. | `/todo` · `/todo <text>` · `/todo done <id>` · `/todo drop <id>` |
+| **`/wiki-generator`** | Build, incrementally update, or human-gate publication of a code-grounded technical wiki. | `/wiki-generator` · `/wiki-generator --update` · `/wiki-generator --publish` |
+| **`/migration-planner`** | Analyze a proposed data or schema migration for loss, locking, rollout, rollback, and blast-radius risks. | `/migration-planner <change-or-file>` |
+| **`/release-notes`** | Generate grouped release notes, a SemVer recommendation, and migration/env deployment checks. | `/release-notes [<range> \| PR <n>] [--format deploy-comment]` |
+| **`/dossier-jobs`** | Configure scheduled cloud bug, security, and wiki routines that report into one tracking issue. | `/dossier-jobs [repo] [--bug --security --wiki] [--status --disable --run-now]` |
+| **`/toolbelt`** | List components, recommend the right workflow, or inspect the toolbelt environment. | `/toolbelt` · `/toolbelt <goal>` · `/toolbelt status` |
 
 > **Spotlight — concurrency-safe chores.** `/chore --concurrently` is what lets the toolbelt run *in parallel with itself*: while `/orchestrator` is mid-build on one branch, you can land a docs or config fix on another — no `HEAD` collision, no stash dance, no waiting. The chore does its work in a throwaway worktree based on `origin/<default-branch>`, opens its own PR, then tears the worktree down (keeping the branch); with `--bypass` it even admin-merges once CI is green, loudly and auditably. Walkthrough: [`examples/sample-concurrent-chore/`](examples/sample-concurrent-chore/).
 
-**`/handoff`** — *`/handoff <issue-id-or-topic>`*. Drafts one self-contained brief so a zero-context agent (or future self) can resume a specific piece of work cold. It auto-gathers git/PR/issue/deploy state and gates on an approved outline before writing — and is never produced proactively, because a stale handoff followed confidently is worse than none.
-
-**`/todo`** — *`/todo`* (list), *`/todo <text>`* (add), *`/todo done <id>`* / *`/todo drop <id>`* (mutate). A private, per-project backlog for work you've tabled for later. It's stored **locally** at `~/.claude/maungs-toolbelt/todos/<project-slug>.md` on Claude and `~/.codex/maungs-toolbelt/todos/<project-slug>.md` on Codex — outside the repo, so a tabled task never becomes an issue, a PR, or a committed file. The session loader resurfaces the open count at the next session start and the prompt-router offers it when you talk about deferring work; nothing ever acts on an item — recording is the whole job.
-
-**`/wiki-generator`** — *`/wiki-generator`* (full build), *`/wiki-generator --update`* (incremental, schedulable), or *`/wiki-generator --publish`* (publish to an external platform). Generates and maintains a near-100%-coverage technical wiki in Markdown at `docs/wiki/` — per-module business analysis, schemas, flow diagrams, related files per page, a glossary, and an onboarding guide. The `--update` mode re-syncs only the pages that drifted, so a scheduled run keeps the wiki current with no manual upkeep. The `--publish` mode ships the generated wiki — unchanged — to an external wiki platform through a pluggable, target-agnostic adapter seam (the GitHub repository wiki is shipped; Confluence and Azure DevOps wiki are documented future targets), always behind a dry-run preview and an explicit human approval gate. See [`docs/scheduling.md`](docs/scheduling.md) and [`docs/wiki-generator.md`](docs/wiki-generator.md).
-
-**`/migration-planner`** — *`/migration-planner <described change | migration file>`*. A read-only pre-flight for risky data/schema migrations: it produces a risk dossier **before** the migration is written — data-loss and lock/downtime risks (flagged by database), a backfill plan, an expand/contract zero-downtime rollout, a rollback plan, and the blast radius of code touching the affected schema. It never writes or runs the migration.
-
-**`/release-notes`** — *`/release-notes [<range> | PR <n>] [--format deploy-comment]`*. Generates grouped release notes (✨ features / 🐛 fixes / ⚠️ breaking / 🗄️ migrations) from a commit range or PRs, with a SemVer bump recommendation and a deploy checklist when migrations or env changes are detected. Read-only — it outputs text and never tags, commits, or posts; `--format deploy-comment` produces a compact block to enrich a deployment comment.
-
-**`/dossier-jobs`** — *`/dossier-jobs [repo] [--bug --security --wiki] [--max-fixes n] [--time hh:mm --tz IANA] [--status --disable --run-now]`*. A conductor that stands up the toolbelt's scheduled **cloud** routines for any target repo with one command, via the `RemoteTrigger` tool (the claude.ai/code routines API). By default it sets up three scheduled routines — bug · security · wiki — each its own routine, all feeding **one** rolling `[dossier-jobs] Dossier` tracking issue (each job owns its own marker-tagged comment, race-safe). The bug routine sweeps the codebase and auto-develops the top `--max-fixes` (default 5) non-SEV1 findings into **DRAFT, never-merged** fix PRs (SEV1 stays issue-only); the security routine runs a generic repo-wide compliance sweep (issue-only); the wiki routine runs a full-coverage build and opens **one** rolling propose-only PR. Reads and preflights for free; gates the one outward action (the routine create/update/run) behind an explicit human confirmation that shows the exact config first. Complementary to the local-daemon scheduler in [`docs/scheduling.md`](docs/scheduling.md).
-
-On Codex, `$dossier-jobs` uses automation-management tools when the active surface exposes them. In Codex CLI it produces complete copy/paste Codex app Automation configurations and never claims the automations were created.
-
-**`/toolbelt`** — *`/toolbelt`* (inventory), *`/toolbelt <goal>`* (recommend a component), or *`/toolbelt status`* (environment check). The self-describing front door: it lists every component grouped by stage, recommends the best fit for a stated goal, and reports what's active (router/guard state, MCP servers, whether a `CLAUDE.md` exists). Read-only.
+`/todo` stores data outside the repo under the active product's home directory. `/wiki-generator` writes only `docs/wiki/`; publishing remains previewed and explicitly human-gated. On Codex, `$dossier-jobs` manages automations only when the active surface exposes those tools; Codex CLI otherwise emits complete copy/paste configurations.
 
 ---
 
 ## Agents
 
-### Onboarding
-
-**`@context-writer`** — *delegated by `/agentic-onboard`*. Reads the repo and authors the context files (`CLAUDE.md`, `AGENTS.md`, a concise `docs/architecture.md`) from one canonical project profile, so they never disagree. Every command and claim is verified against the repo (it cites the manifest or script it came from); anything unverifiable is flagged, never invented. Read-only on source code; writes only the context files.
-
-**`@context-auditor`** — *delegated by `/agentic-onboard` in stale mode*. A fresh-eyes drift detector: it re-derives the truth from the code and classifies each claim in an existing `CLAUDE.md` / `AGENTS.md` as CURRENT / STALE / INCORRECT / MISSING, with evidence, so `@context-writer` fixes only what drifted. Writes nothing.
-
-### Plan
-
-**`@product-owner`** — *`@product-owner draft an issue for <topic>`* (also `refine issue <num>`, `sequence issues <nums>`). Turns a fuzzy ask into a well-scoped GitHub issue with business-language acceptance criteria, plus a screen-flow diagram and low-fi wireframes for user-facing work. It's read-only on code — it manages issues, never the working tree.
-
-**`@architect`** — *`@architect plan issue <num>`* (or a free-text topic). Turns an issue into an implementation plan file, front-loading every architectural decision up front (a mid-build pivot costs ~10× a planning-phase question), with a Mermaid flow diagram and UI/UX wireframes where relevant. It lands the plan as PR commit #1 and writes plans only, never application code.
-
-**`@plan-reviewer`** — *`@plan-reviewer <plan-file-path>`*. A cold, context-blind second opinion on a plan before it's committed — it deliberately hasn't seen the planning discussion. It checks the plan against the issue and the live code on an 8-point rubric and returns a SOLID / REVISE / RETHINK verdict. Read-only.
-
-### Build
-
-**`@developer`** — *`@developer implement plan <path>`*. Implements an approved plan as a single amended commit on the PR branch, auto-detecting the project's test/lint/build stack and writing tests. It runs live Playwright browser verification for UI changes, drives explicit commit/push gates, and hard-halts if a fix-loop iteration makes things worse instead of better.
-
-### Translation
-
-**`@code-translator`** — *`@code-translator translate <file-or-snippet> from <lang> to <lang>[, …]`*. A read-only, documentation-grounded translation context provider: given source code and one or more target languages/frameworks, it fetches the real docs for every language involved (Context7 first, web fallback) and returns a translation bundle — translated code, a cited idiom map, and caveats — for you or the `/orchestrator` flow to act on. It resolves framework disambiguation, scales to N targets, works at snippet/file/module granularity, and writes nothing (it only provides grounded context).
-
-### Testing
-
-**`@test-author`** — *invoke directly, or when `@pr-reviewer` flags a missing test*. Authors tests — especially the negative-path and edge cases the happy path misses (validation failures, auth/tenant denial, boundary inputs, error paths) — runs them against the project's real test runner, and never weakens an assertion or deletes a test to make the suite pass. If a test reveals a real bug it reports it (pointing at `/bug-catcher`) rather than masking it. Read-only on source; writes only test files.
-
-### Review
-
-**`@pr-reviewer`** — *`@pr-reviewer PR <num>`*. A fresh-eyes adversarial review of a pull request — it's forbidden from reading earlier reviews so it stays an independent signal. It reads every changed file against a 7-point rubric (treating multi-tenant isolation as the top bug class), posts inline comments, and gives a SHIP / SHIP WITH FIXES / DO NOT SHIP verdict.
-
-**`@security-reviewer`** — *`@security-reviewer PR <num>`* (optional `--scope auth|payments|tenancy|deps`). A cold security and compliance gatekeeper. It runs stack-matched static analysis, dependency-CVE, and secret scans, maps every finding to SOC 2 / OWASP / PCI DSS / NIST / CWE, and posts a verdict that can hard-block on a compliance gap.
-
-**`@security-mentor`** — *`@security-mentor PR <num>`* (or `@security-mentor diff` for a local diff). The same adversarial security review, but it teaches: every finding explains the threat model, the attack, and the structurally-immune fix. It runs alongside `@security-reviewer` — this one is the pedagogy, that one is the cold gate.
-
-### Wrap-up
-
-**`@resolution`** — *`@resolution PR <num>`* (after ready-to-merge is confirmed, before merge). Pre-merge housekeeping, and the exact inverse of `@pr-reviewer`: reading the full review history is its job. It replies to and resolves fixed threads (citing the fixing commit), flips done checkboxes, and HALTs if it finds anything genuinely unaddressed.
-
-### Bug diagnosis
-
-**`@bug-catcher-rick`** — *delegated by `/bug-catcher`* (or `@bug-catcher-rick <symptom>`). Diagnoses a bug and returns a structured dossier separating symptom from root cause, with a file:line evidence chain, severity, fix direction, and blast radius. Read-only — it diagnoses, never fixes.
-
-**`@bug-catcher-adversary`** — *delegated by `/bug-catcher`* (or `@bug-catcher-adversary <dossier>`). A fresh-eyes rival that tries to *refute* the diagnosis — re-deriving the evidence, trying alternative causes, and checking the fix actually resolves the bug rather than masks it. Returns CONFIRMED / DISPUTED / WRONG-ROOT-CAUSE / INCONCLUSIVE.
-
-### Wiki
-
-**`@wiki-writer`** — *delegated by `/wiki-generator`*. Authors one wiki page from the real code: a plain-business summary, a technical deep-dive, a Mermaid diagram, schema tables, a list of real related files, and a "last verified against commit" stamp. Read-only on code; it writes only its assigned page.
-
-**`@wiki-auditor`** — *delegated by `/wiki-generator --update`*. A fresh-eyes drift detector that compares an existing wiki page against the current code and classifies it CURRENT / STALE / INCORRECT / ORPHANED, with a precise delta list for `@wiki-writer` to fix. Writes nothing.
+| Stage | Agent | Role | Typical invocation |
+|---|---|---|---|
+| Onboarding | **`@context-writer`** | Build verified `CLAUDE.md`, `AGENTS.md`, and architecture context from one project profile. | Delegated by `/agentic-onboard` |
+| Onboarding | **`@context-auditor`** | Re-derive repository facts and classify existing context as current, stale, incorrect, or missing. | Delegated by `/agentic-onboard` in stale mode |
+| Plan | **`@product-owner`** | Turn a fuzzy request into a scoped issue with acceptance criteria and user-flow artifacts. | `@product-owner draft an issue for <topic>` |
+| Plan | **`@architect`** | Convert an issue or topic into an implementation plan with decisions, diagrams, and validation steps. | `@architect plan issue <num>` |
+| Plan | **`@plan-reviewer`** | Independently review a plan against the issue and live code before implementation. | `@plan-reviewer <plan-file-path>` |
+| Build | **`@developer`** | Implement an approved plan, add tests, run the detected quality gate, and enforce commit/push approval. | `@developer implement plan <path>` |
+| Translation | **`@code-translator`** | Produce documentation-grounded translations and idiom guidance across languages or frameworks. | `@code-translator translate <source> from <lang> to <lang>` |
+| Testing | **`@test-author`** | Add negative-path, edge-case, and regression tests without weakening existing assertions. | Invoke directly or delegate from `@pr-reviewer` |
+| Review | **`@pr-reviewer`** | Perform a fresh-eyes adversarial PR review and issue a ship verdict. | `@pr-reviewer PR <num>` |
+| Review | **`@security-reviewer`** | Run a cold security/compliance review with stack-matched scans and framework mappings. | `@security-reviewer PR <num>` |
+| Review | **`@security-mentor`** | Explain each security finding's threat model, attack path, and structurally sound fix. | `@security-mentor PR <num>` · `@security-mentor diff` |
+| Wrap-up | **`@resolution`** | Resolve addressed review threads, update completion state, and halt on remaining blockers. | `@resolution PR <num>` |
+| Bug | **`@bug-catcher-rick`** | Diagnose symptoms into an evidence-backed root cause, severity, fix direction, and blast radius. | Delegated by `/bug-catcher` or `@bug-catcher-rick <symptom>` |
+| Bug | **`@bug-catcher-adversary`** | Try to refute a diagnosis and verify that the proposed fix addresses the root cause. | Delegated by `/bug-catcher` or `@bug-catcher-adversary <dossier>` |
+| Wiki | **`@wiki-writer`** | Author one code-grounded wiki page with diagrams, schemas, related files, and verification metadata. | Delegated by `/wiki-generator` |
+| Wiki | **`@wiki-auditor`** | Detect drift between an existing wiki page and the current codebase. | Delegated by `/wiki-generator --update` |
 
 ---
 

@@ -4,7 +4,7 @@
 name = "security-mentor"
 description = "Adversarial security + compliance review of a GitHub PR (or local diff) that ALSO teaches. Auto-detects language/framework + project conventions from AGENTS.md (and CLAUDE.md when present). Maps findings to SOC 2 Common Criteria (CC1–CC9), OWASP Top 10, NIST 800-63B (auth), CWE, and — when payment data is present — PCI DSS v4. Every finding explains the WHY (the threat model, the attack, the control it satisfies) so the reader learns the pattern, not just the fix. Posts inline PR comments + a verdict (SHIP / SHIP WITH FIXES / DO NOT SHIP / DO NOT SHIP — COMPLIANCE BLOCKER). NEVER reads prior reviews — fresh eyes is the whole point. Invoked as `spawn security-mentor subagent PR <num>` or `spawn security-mentor subagent diff`."
 sandbox_mode = "read-only"
-mcp_servers = ["github"]
+# Required MCP servers (configure globally; inherited from parent): github
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

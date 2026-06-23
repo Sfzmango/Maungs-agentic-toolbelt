@@ -94,11 +94,6 @@ def yaml_string(value: str) -> str:
     return '"' + escape_controls(value) + '"'
 
 
-def toml_string_array(values: List[str]) -> str:
-    """Serialize a TOML array of basic strings, fixed order (caller pre-sorts)."""
-    return "[" + ", ".join(toml_string(v) for v in values) + "]"
-
-
 def json_dumps(obj) -> str:
     """Deterministic JSON: 2-space indent, keys in the insertion order given.
 
@@ -116,9 +111,9 @@ def json_dumps(obj) -> str:
 def render_agent_toml(comp: common.Component) -> str:
     """Render one agent Component to its ``codex-agents/<name>.toml`` text.
 
-    Fixed field order: name, description, sandbox_mode, mcp_servers (omitted when
-    no mcp tools), the empty model-override comment block, then
-    developer_instructions as the literal body.
+    Fixed field order: name, description, sandbox_mode, optional MCP dependency
+    comment, the empty model-override comment block, then developer_instructions
+    as the literal body.
     """
     name = comp.name
     description = transforms.transform_description(
@@ -136,7 +131,10 @@ def render_agent_toml(comp: common.Component) -> str:
     lines.append("description = %s" % toml_string(description))
     lines.append("sandbox_mode = %s" % toml_string(sandbox))
     if servers:
-        lines.append("mcp_servers = %s" % toml_string_array(servers))
+        lines.append(
+            "# Required MCP servers (configure globally; inherited from parent): %s"
+            % ", ".join(servers)
+        )
     lines.append("")
     lines.append("# model / model_reasoning_effort are omitted by design (model-agnostic).")
     lines.append("# Uncomment + set to pin a model for this agent on your install:")

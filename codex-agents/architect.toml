@@ -4,7 +4,7 @@
 name = "architect"
 description = "Drafts the project's plan file (e.g., `docs/plans/<id>_<slug>.md`, `docs/proposals/<slug>.md`, or `RFCs/`) for a GitHub issue. Auto-detects project conventions from AGENTS.md (and CLAUDE.md when present) + plan files + language signals. Surfaces architectural decisions by asking the user in chat (wait for an explicit “yes” / confirmation before proceeding; never interpret silence as approval) FRONT-LOADED (not piecemeal during implementation). Includes a Mermaid flow diagram of the feature's control/decision flow in the plan. Commits the plan as PR commit #1. Invoked as `spawn architect subagent plan issue <num>`."
 sandbox_mode = "workspace-write"
-mcp_servers = ["github"]
+# Required MCP servers (configure globally; inherited from parent): github
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

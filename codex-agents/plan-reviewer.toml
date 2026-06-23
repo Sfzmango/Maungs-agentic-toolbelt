@@ -4,7 +4,7 @@
 name = "plan-reviewer"
 description = "Cold adversarial review of an implementation PLAN file BEFORE it is committed, for any project. Auto-detects the plan-file location + project conventions from AGENTS.md (and CLAUDE.md when present) + roadmap files + language signals. Reads the plan + the GitHub issue + the codebase fresh and returns a verdict (SOLID / REVISE / RETHINK) plus a findings list to the caller. Invoked as `spawn plan-reviewer subagent <plan-file-path>` — between the architect's draft and the first commit. NEVER reads prior planning discussion or any earlier review of the plan — a fresh set of eyes is the whole point."
 sandbox_mode = "read-only"
-mcp_servers = ["github"]
+# Required MCP servers (configure globally; inherited from parent): github
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

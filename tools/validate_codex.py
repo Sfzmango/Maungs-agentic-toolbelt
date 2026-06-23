@@ -46,6 +46,7 @@ MANIFEST_REL = "plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json"
 MARKETPLACE_REL = ".agents/plugins/marketplace.json"
 PINNED_SOURCE_PATH = "./plugins/maungs-agentic-toolbelt"
 PINNED_SKILLS_PATH = "./skills/"
+MAX_SKILL_DESCRIPTION_LENGTH = 1024
 
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 # Broadened component-count denylist (BUG-12): case-insensitive, singular/plural
@@ -83,6 +84,7 @@ MARKETPLACE_POLICY_ALLOWED = {"installation", "authentication", "products"}
 MARKETPLACE_POLICY_REQUIRED = {"installation", "authentication"}
 INSTALLATION_POLICIES = {"NOT_AVAILABLE", "AVAILABLE", "INSTALLED_BY_DEFAULT"}
 AUTHENTICATION_POLICIES = {"ON_INSTALL", "ON_USE"}
+AGENT_REQUIRED = {"name", "description", "developer_instructions"}
 HOOK_EVENTS = {"UserPromptSubmit", "PreToolUse", "SessionStart", "SubagentStart"}
 _HOOK_COMMAND_RX = re.compile(
     r'^bash "\$\{PLUGIN_ROOT\}/hooks/([A-Za-z0-9._-]+\.sh)"$'
@@ -360,6 +362,14 @@ def validate_component_frontmatter(problems: list) -> None:
             problems.append("%s: frontmatter missing non-empty name" % rel)
         if not scalars.get("description"):
             problems.append("%s: frontmatter missing non-empty description" % rel)
+        elif (
+            "/skills/" in rel.replace(os.sep, "/")
+            or rel.startswith("skills" + os.sep)
+        ) and len(scalars["description"]) > MAX_SKILL_DESCRIPTION_LENGTH:
+            problems.append(
+                "%s: skill description exceeds %d characters"
+                % (rel, MAX_SKILL_DESCRIPTION_LENGTH)
+            )
 
         if rel.startswith("plugins/maungs-agentic-toolbelt/skills/"):
             lines = block.splitlines()
@@ -373,6 +383,49 @@ def validate_component_frontmatter(problems: list) -> None:
                 problems.append(
                     "%s: generated name/description must use quoted YAML scalars" % rel
                 )
+
+
+def validate_agents(problems: list) -> None:
+    """Validate generated custom-agent files against Codex's agent schema."""
+    agents_dir = os.path.join(REPO_ROOT, "codex-agents")
+    if not os.path.isdir(agents_dir):
+        problems.append("missing directory: codex-agents")
+        return
+    if tomllib is None:
+        problems.append("agent validation requires Python 3.11+ (tomllib unavailable)")
+        return
+
+    files = sorted(
+        name
+        for name in os.listdir(agents_dir)
+        if name.endswith(".toml")
+        and os.path.isfile(os.path.join(agents_dir, name))
+    )
+    if not files:
+        problems.append("codex-agents: contains no agent TOML files")
+        return
+
+    for name in files:
+        path = os.path.join(agents_dir, name)
+        rel = os.path.relpath(path, REPO_ROOT)
+        try:
+            with open(path, "rb") as fh:
+                obj = tomllib.load(fh)
+        except (OSError, ValueError) as exc:
+            problems.append("%s: invalid TOML (%s)" % (rel, exc))
+            continue
+
+        for key in sorted(AGENT_REQUIRED):
+            value = obj.get(key)
+            if not isinstance(value, str) or not value.strip():
+                problems.append("%s: '%s' must be a non-empty string" % (rel, key))
+
+        if "mcp_servers" in obj:
+            problems.append(
+                "%s: 'mcp_servers' must be omitted; portable agents inherit "
+                "complete MCP transports from the parent Codex configuration"
+                % rel
+            )
 
 
 def validate_skill_metadata(problems: list) -> None:
@@ -535,6 +588,7 @@ def main(argv=None) -> int:
     validate_manifest(problems)
     validate_marketplace(problems)
     validate_component_frontmatter(problems)
+    validate_agents(problems)
     validate_skill_metadata(problems)
     validate_serialized_files(problems)
     validate_hooks(problems)

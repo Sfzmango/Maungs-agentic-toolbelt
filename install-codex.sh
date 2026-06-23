@@ -72,6 +72,21 @@ if [[ ${#AGENT_FILES[@]} -eq 0 ]]; then
   exit 1
 fi
 
+# Reject schema-invalid generated files before copying them into Codex. A plain
+# TOML parse is insufficient here: an mcp_servers array is valid TOML but Codex
+# rejects it, while a partial map without a transport is also malformed.
+# Portable agents must inherit complete MCP config from the parent.
+VALIDATOR="$SCRIPT_DIR/tools/validate_codex.py"
+if command -v python3 >/dev/null 2>&1 && [[ -f "$VALIDATOR" ]]; then
+  if ! python3 "$VALIDATOR"; then
+    echo "Codex artifact validation failed. Regenerate before installing:" >&2
+    echo "  python3 tools/build.py --target codex" >&2
+    exit 1
+  fi
+else
+  warn "python3 validator unavailable — generated Codex schema checks were skipped"
+fi
+
 echo "Installing Maungs-agentic-toolbelt (Codex) into ${TARGET/#$HOME/~}"
 if [[ "$DRY_RUN" == "true" ]]; then echo "  (dry-run — nothing will change)"; fi
 

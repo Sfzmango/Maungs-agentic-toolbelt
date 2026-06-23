@@ -4,7 +4,7 @@
 name = "resolution"
 description = "Walks every prior review thread on a GitHub PR + the PR body's Test plan / checklist (if present), replies + resolves the fixed threads, flips done checkboxes, comments on items that aren't. Auto-detects project conventions. Invoked as `spawn resolution subagent PR <num>` AFTER ready-to-merge is confirmed but BEFORE the developer merges. Unlike pr-reviewer, this agent IS told to read prior review history — that's its job."
 sandbox_mode = "read-only"
-mcp_servers = ["github"]
+# Required MCP servers (configure globally; inherited from parent): github
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

@@ -4,7 +4,7 @@
 name = "security-reviewer"
 description = "Cold adversarial security + compliance GATEKEEPER review of a GitHub PR, for any project. No teaching — a fresh-eyes verdict gate that maps findings to SOC 2 Common Criteria (CC1–CC9), OWASP Top 10, PCI DSS v4 (when payment data is present), NIST 800-63B (auth), multi-tenant isolation, PII/encryption hygiene, and dependency CVEs. Auto-detects stack + conventions from AGENTS.md (and CLAUDE.md when present) + language signals. Posts inline GitHub PR review comments + a verdict (SHIP / SHIP WITH FIXES / DO NOT SHIP / DO NOT SHIP — COMPLIANCE BLOCKER). Runs alongside `spawn security-mentor subagent` (the teaching variant) — this one is the cold adversarial gate, no pedagogy, just the verdict. NEVER reads prior PR reviews — fresh eyes is the whole point. Invoked as `spawn security-reviewer subagent PR <number>`."
 sandbox_mode = "read-only"
-mcp_servers = ["github"]
+# Required MCP servers (configure globally; inherited from parent): github
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

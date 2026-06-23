@@ -2,6 +2,16 @@
 
 **GitHub item:** https://github.com/Sfzmango/Maungs-agentic-toolbelt/issues/6
 
+> **Post-install schema correction (2026-06-22):** Codex CLI 0.141.0 proved that
+> the planned `mcp_servers = ["name"]` agent field is malformed (`expected a map`),
+> while an enabled-only map is also malformed without a complete transport
+> (`invalid transport`). The shipped emitter therefore omits `mcp_servers` from
+> portable agent TOMLs, records derived dependencies in comments, and inherits
+> complete MCP transports from the parent Codex configuration. The validator and
+> installer now reject generated per-agent `mcp_servers` blocks. This note
+> supersedes every older `mcp_servers = [...]` requirement retained below as
+> historical plan context.
+
 ## Goal
 
 Make the toolbelt **model-agnostic** so the same 16 agents and 9 skills work beyond Claude Code, with the **OpenAI Codex CLI** as the first new target. Components stay defined **once** — the existing `agents/*.md` + `skills/*/SKILL.md` are the single canonical source. A new **generator** (`tools/build.py`) reads that canonical source and emits per-target artifacts: the Codex emitter renders the components into Codex's native forms (TOML subagents, transformed `SKILL.md` skills, a `hooks.json` template), while the Claude emitter is **validate-only** — it confirms the canonical source still produces today's Claude artifacts and never rewrites them. A **CI drift guard** re-runs the generator and fails the build on any diff between freshly-generated and committed Codex artifacts, so the derived files can never silently diverge from canonical. Because Codex's plugin manifest forbids shipping `agents` + `hooks`, distribution is **two-track**: skills ship via the Codex marketplace/plugin manifest; agents + hooks ship via an installer (`install-codex.sh`). The seam is structured as a target-agnostic core plus per-target emitters so cursor / aider / others slot in later as "add an emitter + a table row," not a rearchitecture — explicitly accommodated here, not built. This generalizes the same one-canonical-artifact → per-target-renderers seam `/agentic-onboard` already uses for context files, lifted from context files to whole-component distribution.
