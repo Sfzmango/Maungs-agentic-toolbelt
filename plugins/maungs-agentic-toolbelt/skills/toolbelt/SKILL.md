@@ -73,8 +73,13 @@ Derive membership from the detected set: assign each enumerated skill/agent to a
 3. **Print** the inventory: for each stage, a short header, then one line per component:
    - `**<invocation>**` — one-line purpose (condensed from the frontmatter `description`) — **how to invoke** (e.g. `$orchestrator <issue-id>` or `spawn developer subagent implement plan <path>`).
    - Skills are invoked as `$<name>`; custom agents by asking Codex to spawn the named subagent.
-4. **Footer**: a one-line note that the prompt-router (if present) will proactively suggest components on matching prompts, and that everything here is suggest-only — the user runs what they choose. Point at `$toolbelt <goal>` for a recommendation and `$toolbelt status` for an environment check.
-5. **Surface gaps**: if `AGENTS.md (and CLAUDE.md when present)` is absent in the current repo, add ONE line recommending `$agentic-onboard` first. If you fell back to the documented set, say so.
+4. **Best synergies**: after the inventory, print a short curated `✨ Best synergies` block — 2–3 marquee combos showing how components compose, each one line, then a pointer to the full set in `docs/recipes.md`. These are curated (not derived from frontmatter) — keep them stable and concise. Suggested combos:
+   - **Capture → backlog → tackle** — when `$orchestrator` or a reviewer surfaces out-of-scope work, `$todo add` it; a later run takes it off your backlog.
+   - **Defer a chunk via handoff** — have `$orchestrator` draft a `$handoff` for follow-up work, drop a one-line `$todo` pointer, and a future `$orchestrator` run executes it off the list.
+   - **Background dossier fixes** — let `$dossier-jobs` surface findings nightly, then fan them out as `$chore --concurrently` to work them in isolated worktrees.
+   End with: `Full set → docs/recipes.md`.
+5. **Footer**: a one-line note that the prompt-router (if present) will proactively suggest components on matching prompts, and that everything here is suggest-only — the user runs what they choose. Point at `$toolbelt <goal>` for a recommendation and `$toolbelt status` for an environment check.
+6. **Surface gaps**: if `AGENTS.md (and CLAUDE.md when present)` is absent in the current repo, add ONE line recommending `$agentic-onboard` first. If you fell back to the documented set, say so.
 
 Keep it scannable — this is a menu, not prose. No invocation is executed.
 

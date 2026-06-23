@@ -169,6 +169,13 @@ Wait for return. Capture summary (resolved / acknowledged-open / stale / SHIP-BL
 
 **If BLOCKED**: surface verbatim. User decides next steps. Do NOT auto-merge.
 
+**Suggest follow-up capture (suggestion-only — NEVER act).** Before the final summary, scan what surfaced this run — out-of-scope reviewer findings (the Step 10 punch list), plan follow-ups not applied in Step 12, or known-but-deferred work. If any exist, **suggest** the user capture them so they aren't lost. Do NOT run `$todo`, write to the backlog, or take any action — `$todo` is the user's to drive (Cardinal rules: no autonomous actions). Offer, in plain language:
+- **Small deferred item** → suggest `$todo add <one-line summary>` (the user runs it if they want).
+- **Chunky follow-up worth its own run** → suggest the **handoff → backlog loop**: offer to draft a `$handoff <topic>` brief now, then suggest the user drop a short `$todo` pointer to it — so a *future* `$orchestrator` run can pick the work up straight off the backlog. (Draft the handoff only if the user asks; never add the todo yourself.)
+
+Example phrasing:
+> Two findings were out of scope for this PR — want to capture them? `$todo add <x>` · `$todo add <y>`. The auth refactor is bigger: I can draft a `$handoff` for it, and you can drop a one-line `$todo` pointer so a later `$orchestrator` run takes it off your backlog.
+
 Display final summary to user:
 
 > $orchestrator complete. PR #<num> is ready for you to merge. Summary: <resolution agent's summary>. I won't merge — that's your call.
