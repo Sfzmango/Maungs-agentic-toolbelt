@@ -24,7 +24,7 @@ DRY_RUN="false"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --symlink) MODE="symlink"; shift ;;
-    --target)  TARGET="${2%/}/.claude"; shift 2 ;;
+    --target)  [[ $# -ge 2 ]] || { echo "Missing DIR for --target" >&2; exit 1; }; TARGET="${2%/}/.claude"; shift 2 ;;
     --dry-run) DRY_RUN="true"; shift ;;
     -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
