@@ -1,7 +1,7 @@
 {
   "name": "maungs-agentic-toolbelt",
-  "description": "A project-agnostic, human-gated multi-agent software-development pipeline for OpenAI Codex. The plugin bundles skills, lifecycle hooks, routing, guardrails, telemetry, and helper scripts; install-codex.sh adds the custom subagents. Plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, scheduled-dossier setup, and a self-maintaining codebase wiki.",
-  "version": "0.9.0",
+  "description": "A project-agnostic, human-gated agentic software-development workflow engine for OpenAI Codex — a carpenter's toolbelt that helps one developer move like a whole team (the force multiplier behind a 10x developer). The plugin bundles skills, lifecycle hooks, routing, guardrails, telemetry, and helper scripts; install-codex.sh adds the custom subagents. Plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, scheduled-dossier setup, and a self-maintaining codebase wiki.",
+  "version": "0.10.0",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": {
     "name": "Maung Htike",

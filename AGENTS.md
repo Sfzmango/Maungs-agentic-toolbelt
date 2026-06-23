@@ -4,7 +4,7 @@ Guidance for any coding agent working in this repo.
 
 ## Overview
 
-This repo is a project-agnostic, human-gated multi-agent **workflow engine** — a carpenter's toolbelt of developer agents and skills that runs on multiple agent CLIs, not one. It ships **16 agents + 11 skills (27 components)** from one canonical source, rendered per target by `tools/build.py`: it targets Claude Code first/primary and the OpenAI Codex CLI (a shipped port), with the Gemini CLI as the next work-in-progress port and others (e.g. the DeepSeek CLI) as future targets. Claude uses `@name` agents and `/name` skills; generated Codex artifacts use custom TOML subagents and `$name` skills. Each component auto-detects the host project's stack and conventions at runtime.
+This repo is a project-agnostic, human-gated **agentic software-development workflow engine** — a carpenter's toolbelt of developer agents and skills that helps one developer move like a whole team (the force multiplier behind a 10x developer) and runs on multiple agent CLIs, not one. It ships **16 agents + 11 skills (27 components)** from one canonical source, rendered per target by `tools/build.py`: it targets Claude Code first/primary and the OpenAI Codex CLI (a shipped port), with the Gemini CLI as the next work-in-progress port and others (e.g. the DeepSeek CLI) as future targets. Claude uses `@name` agents and `/name` skills; generated Codex artifacts use custom TOML subagents and `$name` skills. Each component auto-detects the host project's stack and conventions at runtime.
 
 ## Setup / commands
 

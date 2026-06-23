@@ -9,7 +9,7 @@
     {
       "name": "maungs-agentic-toolbelt",
       "source": "./",
-      "description": "A project-agnostic, human-gated multi-agent agentic-workflow engine — a carpenter's toolbelt of 16 agents + 11 skills spanning plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, scheduled cloud routines, a private per-project to-do backlog, and a self-maintaining codebase wiki. Runs on Claude Code (primary) and the OpenAI Codex CLI, with the Gemini CLI as the next work-in-progress port.",
+      "description": "A project-agnostic, human-gated agentic software-development workflow engine — a carpenter's toolbelt that helps one developer move like a whole team (the force multiplier behind a 10x developer): 16 agents + 11 skills spanning plan -> build -> review -> wrap-up, plus bug diagnosis, code translation, chores, handoffs, scheduled cloud routines, a private per-project to-do backlog, and a self-maintaining codebase wiki. Runs on Claude Code (primary) and the OpenAI Codex CLI, with the Gemini CLI as the next work-in-progress port.",
       "author": {
         "name": "Maung Htike"
       },
