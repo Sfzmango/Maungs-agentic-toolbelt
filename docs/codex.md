@@ -1,7 +1,9 @@
 # Running the toolbelt on the OpenAI Codex CLI
 
 The toolbelt is **model-agnostic**: the same 16 agents and 11 skills that run on
-Claude Code also run on the **OpenAI Codex CLI**. Components are defined **once**
+Claude Code (the first/primary target) also run on the **OpenAI Codex CLI** (a
+shipped port), with the **Gemini CLI** as the next work-in-progress port and
+others (e.g. the DeepSeek CLI) accommodated as future targets. Components are defined **once**
 — the canonical `agents/*.md` + `skills/*/SKILL.md` — and a generator
 (`tools/build.py`) renders them into Codex's native forms. You never hand-edit a
 Codex artifact; you edit the canonical source and regenerate.
@@ -157,10 +159,10 @@ Codex-local toolbelt state is self-consistent:
 - [Skills](https://developers.openai.com/codex/skills)
 - [Custom agents](https://developers.openai.com/codex/subagents)
 
-## Adding another target (cursor / aider / …)
+## Adding another target (Gemini CLI / DeepSeek CLI / cursor / aider / …)
 
 The generator is a target-agnostic core (`build.py`, `common.py`, `transforms.py`)
 plus per-target emitters (`emit/target_claude.py`, `emit/target_codex.py`).
 Adding a target is **"add an emitter + a target-table row,"** not a
-rearchitecture. cursor / aider / others are accommodated by the seam but not
-built here.
+rearchitecture. The Gemini CLI is the next work-in-progress port; the DeepSeek
+CLI, cursor, aider, and others are accommodated by the seam but not built here.

@@ -20,7 +20,7 @@ These hold regardless of project. The project's `CLAUDE.md` may add more, but ne
    - Commit #1: plan file only (architect)
    - Commit #2: implementation (developer, amend-friendly via `git commit --amend`)
    - Commit #3: plan-sync (optional)
-4. **No Claude / Claude Code attribution** in commits, PR bodies, or any output.
+4. **No AI-assistant attribution** in commits, PR bodies, or any output.
 5. **Honor project-specific conventions from `CLAUDE.md` + `CLAUDE.local.md`.** Project rules are non-negotiable for the agents working in that project.
 
 ## Local statusline status file (write on every phase — LOCAL only)

@@ -1,6 +1,6 @@
 ---
 name: "handoff"
-description: "Write a coding-agent handoff document for the current project — a self-contained brief that lets a fresh agent pick up specific work cold. Invoke as `$handoff <issue-id-or-topic>` or when the user explicitly asks you to write a handoff (NEVER proactively — see cardinal rule below)."
+description: "Write an agent handoff document for the current project — a self-contained brief that lets a fresh coding agent (Claude Code, the OpenAI Codex CLI, or another target) pick up specific work cold. Invoke as `$handoff <issue-id-or-topic>` or when the user explicitly asks you to write a handoff (NEVER proactively — see cardinal rule below)."
 ---
 
 # $handoff — write a project handoff document
@@ -15,7 +15,7 @@ You are producing a single file at `HANDOFF_<UPPERCASE_SLUG>.md` (or the project
 
 You may only invoke this skill when the user has **explicitly** asked for a handoff in the current turn. Triggers:
 - They typed `$handoff <...>` directly.
-- They said "write a handoff for X" / "draft a handoff" / "create a coding-agent handoff" / equivalent.
+- They said "write a handoff for X" / "draft a handoff" / "create an agent handoff" (or named a target, e.g. "a coding-agent handoff" / "a Codex handoff") / equivalent.
 
 Do NOT invoke this skill because the conversation feels like it produced handoff-worthy content. Do NOT auto-write a handoff at the end of a planning session as a "nice-to-have." Stale handoffs are worse than no handoffs — they get followed confidently with wrong instructions. The user owns the decision to materialize a handoff.
 
@@ -173,4 +173,4 @@ Do NOT commit the file. The user will commit (or not commit, since handoffs are 
 - **Existing handoff file at target path:** do not overwrite. Step 4 already covers this — re-prompt.
 - **User asks for a "quick" or "lightweight" handoff:** still draft the outline at Step 5 (gate behavior is non-negotiable), but propose a 2–3 section template (top brief + scope + entry-point command) rather than the full 12-section structure. The gate ensures the user actually gets what they asked for.
 - **Project has multiple competing plan files** (e.g., `DEVELOPMENT_PLAN.md` AND `ROADMAP.md` AND `docs/architecture.md`): list them in section 2 in the order the user should read; surface in chat which file you treated as canonical.
-- **Tempted to also write a second agent-specific handoff and a separate engineer-readable doc:** don't. The handoff IS the document. One file, one purpose. If the user wants a different audience they'll ask for a separate doc.
+- **Tempted to also write an agent handoff and a separate engineer-readable doc:** don't. The handoff IS the document. One file, one purpose. If the user wants a different audience they'll ask for a separate doc.

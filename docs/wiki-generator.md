@@ -535,7 +535,7 @@ into the human instruction **"create the first Wiki page once in the Wiki tab,
 then re-run."** It shows as `UNINITIALIZED` in the preview's init status, so the
 human sees it *before* approving rather than as a push failure. The mirror case —
 `has_wiki=false` — is the *disabled* tab: it shows as `DISABLED` with "enable the
-Wiki tab in repo settings, then re-run." (This plugin repo's own Wiki feature is
+Wiki tab in repo settings, then re-run." (This toolbelt repo's own Wiki feature is
 enabled but the wiki is not yet initialised — `has_wiki=true`, no first page — so
 the uninitialised UX is the path a publish hits here on day one, reachable and
 testable immediately, while the happy-path publish requires standing up an

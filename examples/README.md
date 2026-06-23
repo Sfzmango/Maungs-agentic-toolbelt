@@ -85,7 +85,7 @@ walkthrough below, your output should look like these.
 ### Install the components
 
 Pick one. Both make the 16 agents (`@architect`, `@developer`, `@pr-reviewer`,
-…) and 10 skills (`/orchestrator`, `/bug-catcher`, `/wiki-generator`, `/chore`,
+…) and 11 skills (`/orchestrator`, `/bug-catcher`, `/wiki-generator`, `/chore`,
 `/handoff`, `/dossier-jobs`) available in any project.
 
 **Option A — `install.sh` (copies into `~/.claude`)**
@@ -97,13 +97,13 @@ Pick one. Both make the 16 agents (`@architect`, `@developer`, `@pr-reviewer`,
 ./install.sh --dry-run       # preview, change nothing
 ```
 
-**Option B — as a Claude Code plugin (one command)**
+**Option B — as a plugin (one command)**
 
 This repo ships a `.claude-plugin/plugin.json`, so it installs as the
-`maungs-agentic-toolbelt` plugin. See the repo root README's "Install as a plugin"
-section for the marketplace/add command.
+`maungs-agentic-toolbelt` plugin on Claude Code. See the repo root README's "Install as a plugin"
+section for the marketplace/add command. The OpenAI Codex CLI port ships the same components via `codex plugin marketplace add …` + `codex plugin add …` (plus `./install-codex.sh` for the custom subagents) — see [`../docs/codex.md`](../docs/codex.md).
 
-After either, **restart Claude Code** (or run `/agents` and `/skills`) so the
+After either, **restart your agent CLI** — on Claude Code, restart it (or run `/agents` and `/skills`); on the Codex CLI, restart `codex` — so the
 new components are discovered.
 
 ### Required MCP servers
@@ -187,7 +187,7 @@ What happens (compare against `sample-issue.md` and `sample-plan.md`):
    for you.
 
 Every commit and push pauses for an explicit "yes." Commits carry **no
-Claude/Claude Code attribution**.
+AI-assistant attribution**.
 
 ### 2. Catch a bug — `/bug-catcher <symptom>`
 
