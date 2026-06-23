@@ -46,6 +46,7 @@ MANIFEST_REL = "plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json"
 MARKETPLACE_REL = ".agents/plugins/marketplace.json"
 PINNED_SOURCE_PATH = "./plugins/maungs-agentic-toolbelt"
 PINNED_SKILLS_PATH = "./skills/"
+MAX_SKILL_DESCRIPTION_LENGTH = 1024
 
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 # Broadened component-count denylist (BUG-12): case-insensitive, singular/plural
@@ -361,6 +362,14 @@ def validate_component_frontmatter(problems: list) -> None:
             problems.append("%s: frontmatter missing non-empty name" % rel)
         if not scalars.get("description"):
             problems.append("%s: frontmatter missing non-empty description" % rel)
+        elif (
+            "/skills/" in rel.replace(os.sep, "/")
+            or rel.startswith("skills" + os.sep)
+        ) and len(scalars["description"]) > MAX_SKILL_DESCRIPTION_LENGTH:
+            problems.append(
+                "%s: skill description exceeds %d characters"
+                % (rel, MAX_SKILL_DESCRIPTION_LENGTH)
+            )
 
         if rel.startswith("plugins/maungs-agentic-toolbelt/skills/"):
             lines = block.splitlines()

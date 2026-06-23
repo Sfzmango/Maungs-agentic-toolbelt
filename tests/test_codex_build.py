@@ -483,6 +483,17 @@ def test_frontmatter_yaml_safety():
         "quoted canonical descriptions decode without wrapper quotes",
         all(not c.frontmatter["description"].startswith('"') for c in components),
     )
+    skills = common.load_skills(REPO_ROOT)
+    overlong_descriptions = [
+        "%s (%d)" % (component.name, len(component.frontmatter["description"]))
+        for component in skills
+        if len(component.frontmatter["description"]) > 1024
+    ]
+    check(
+        "all skill descriptions fit the Codex 1024-character loader limit",
+        not overlong_descriptions,
+        str(overlong_descriptions),
+    )
 
     quoted, _tools = common.parse_frontmatter(
         'name: demo\ndescription: "mapping: value and # literal"'
@@ -588,6 +599,41 @@ def test_validate_invalid_yaml_rejected():
         check(
             "invalid openai.yaml scalar is reported",
             "not a valid quoted YAML scalar" in out,
+            out.strip()[:240],
+        )
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_validate_overlong_skill_description_rejected():
+    print("\n[validate_codex: overlong skill descriptions are rejected]")
+    tmp = tempfile.mkdtemp()
+    try:
+        copy_repo_subset(tmp)
+        skill = os.path.join(
+            tmp,
+            "plugins",
+            "maungs-agentic-toolbelt",
+            "skills",
+            "release-notes",
+            "SKILL.md",
+        )
+        with open(skill, "r", encoding="utf-8") as fh:
+            text = fh.read()
+        text = re.sub(
+            r'^description:.*$',
+            'description: "%s"' % ("x" * 1025),
+            text,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        with open(skill, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        rc, out = _run_validate(tmp)
+        check("overlong skill description exits non-zero", rc != 0, out.strip()[:240])
+        check(
+            "overlong skill description is reported",
+            "skill description exceeds 1024 characters" in out,
             out.strip()[:240],
         )
     finally:
@@ -1402,6 +1448,7 @@ def main():
         test_skill_metadata_schema,
         test_frontmatter_yaml_safety,
         test_validate_invalid_yaml_rejected,
+        test_validate_overlong_skill_description_rejected,
         test_generated_codex_runtime_portability,
         test_install_codex_modes,
         test_codex_install_command_is_current,
