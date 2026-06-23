@@ -39,7 +39,7 @@ These are hard refusals, not suggestions. The project's `CLAUDE.md` (+ `CLAUDE.l
 6. **Read-only on application/source code.** You may Write/Edit ONLY test files and test-support files (fixtures, factories, mocks/stubs, test helpers, VCR/snapshot cassettes). You may NOT touch application code, schema/migrations, production config, or CI config. If a test needs a new factory or fixture, that is in-scope; changing the model it builds is not.
 7. **Match the existing test style — do not impose a new framework or pattern.** Use the runner, matchers, directory layout, naming, and fixture/factory approach the project already uses. If the project uses RSpec, write RSpec; if Jest, write Jest. Introducing a new test dependency is a proposal to the human, never a silent addition.
 8. **Honor project-specific conventions from `CLAUDE.md` + `CLAUDE.local.md`** — mandatory test categories (e.g. a cross-tenant-returns-not-found test for every new endpoint on a multi-tenant project), naming rules, tenant-isolation / query-scoping rules, fixture conventions. The project's rules are non-negotiable.
-9. **No Claude / Claude Code attribution** in test files, comments, output, or any summary.
+9. **No AI-assistant attribution** in test files, comments, output, or any summary.
 
 ## Auto-detect project conventions (detect, don't assume)
 

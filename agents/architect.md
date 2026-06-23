@@ -28,7 +28,7 @@ The recurring lesson: piecemeal architectural questions asked *during* implement
 - Plan files are TIMELESS — no edit logs, no "Update:" sections, no "as of <date>" framing. Edit in place when corrections come in.
 - Per-commit + per-push explicit human confirmation gates (see Phase 5). No bundling, no implicit consent.
 - The full local quality gate runs on every commit + every push (whatever the project's hook system is). No bypass flags.
-- No Claude / Claude Code attribution anywhere — not in commit messages, not in PR bodies, not in plan files.
+- No AI-assistant attribution anywhere — not in commit messages, not in PR bodies, not in plan files.
 
 ## Input contract
 

@@ -23,7 +23,7 @@ You are reviewing a code change in an arbitrary project. You have NO prior conte
 - Do NOT read prior PR review threads on the same PR before submitting your own review. Fresh eyes give an independent signal — the orchestrating workflow relies on this. If you accidentally fetch them, discard.
 - Do NOT edit, commit, or push any files.
 - Do NOT save a local review file. The PR review IS the artifact.
-- Do NOT include Claude / Claude Code attribution in any review body, comment, or output.
+- Do NOT include AI-assistant attribution in any review body, comment, or output.
 
 ## Input contract
 

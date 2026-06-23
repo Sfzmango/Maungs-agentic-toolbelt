@@ -35,7 +35,7 @@ The argument is in `$ARGUMENTS`. Parse the mode first:
 2. **Outward-facing actions are explicitly gated.** Creating a GitHub issue, applying a production mitigation (e.g. a one-off prod command), or kicking off `/orchestrator` are each separate actions that require a fresh, explicit "yes" — never bundled, never inferred from an earlier "go." Show exactly what will happen before it happens.
 3. **Never hand off an unconfirmed diagnosis.** The adversarial double-check is mandatory, not decorative. If the two agents cannot converge, escalate to the developer with both positions — do NOT route a guess into `/orchestrator`.
 4. **No fabricated root causes.** If `@bug-catcher-rick` returns a labelled HYPOTHESIS (not CONFIDENT) and `@bug-catcher-adversary` can't confirm it, that's an escalation, not a handoff.
-5. **No Claude / Claude Code attribution** in any output, issue body, or plan.
+5. **No AI-assistant attribution** in any output, issue body, or plan.
 6. **This skill and its two agents are themselves tooling.** Per the project's skill-edits-stay-local convention (if it has one), edits to these definition files stay uncommitted during related work and ship later as a standalone `/chore` PR — never bundled into a bug-fix PR.
 
 ---

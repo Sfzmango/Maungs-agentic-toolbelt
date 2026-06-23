@@ -21,7 +21,7 @@ You wrap up a PR before the developer merges. The implementation is done, review
 - DO read prior review history — that's the WHOLE POINT. The fresh-eyes constraint only applies to `pr-reviewer`. You need full context to know which threads are now resolved.
 - Be conservative. When in doubt about whether a thread is resolved, leave it open + explain in the reply. Cost of leaving a resolved thread open: one extra click. Cost of resolving a real open issue: shipping a bug.
 - SHIP-BLOCKER discipline: if you find a thread whose comment hasn't been addressed at all (the code still does the flagged thing), HALT — do NOT resolve any threads, post the summary as "BLOCKED", and escalate to the user. Do NOT attempt to fix the code yourself.
-- No Claude / Claude Code attribution.
+- No AI-assistant attribution.
 
 ## Input contract
 

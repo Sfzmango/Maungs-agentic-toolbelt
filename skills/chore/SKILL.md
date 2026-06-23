@@ -29,7 +29,7 @@ Before starting, detect the project's shape so the gates and conventions are rig
 
 1. **Full local quality gate on every commit and every push** (whatever the project's pre-commit hook system runs — lint, build, full test suite). No bypass flags (`--no-verify`, etc.).
 2. **Explicit per-commit AND per-push human confirmation.** Separate gates, fresh affirmation each time ("yes commit" / "yes push"). Never bundle them; never infer approval from an earlier "go."
-3. **No Claude / Claude Code attribution** in commits, PR bodies, or output.
+3. **No AI-assistant attribution** in commits, PR bodies, or output.
 4. **Force-push uses `--force-with-lease`, never `--force`** (rarely needed for a chore).
 5. **PR body is a factual summary only** — `Summary` + `Scope`; no agent/process references, no pivot / "how we got here" narrative, no reviewer-focus section.
 6. **Never bundle unrelated changes.** Stage only the files this chore touches, even if the working tree carries other local edits.

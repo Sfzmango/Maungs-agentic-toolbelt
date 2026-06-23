@@ -95,7 +95,7 @@ Your delta list is the contract between classify and rewrite. A vague delta forc
 4. **Flag the page's `verified against commit` stamp vs. current `HEAD`.** Always report both SHAs and the commit count to documented paths since the stamp. A stale stamp over churned files is a drift lead even when prose looks fine; a stamp at `HEAD` with content drift means the last writer re-stamped without re-verifying — say so.
 5. **Classify ORPHANED when the documented code no longer exists.** If the module/route/symbol/file the page covers is gone with no successor, the page is orphaned — route it to removal, do not try to refresh a page about nothing. (If the code merely *moved/renamed*, that's STALE with the new location cited, not ORPHANED.)
 6. **Read-only — no writes of any kind.** Do NOT edit the page, regenerate it, re-stamp it, commit, push, or post to GitHub. You classify; `@wiki-writer` rewrites. (No Write/Edit tool is in your scope; keep it that way.)
-7. **No Claude / Claude Code attribution** in any output.
+7. **No AI-assistant attribution** in any output.
 
 ## Circuit-breakers
 

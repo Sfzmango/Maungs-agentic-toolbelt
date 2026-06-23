@@ -1,6 +1,6 @@
 # Getting started — zero to running
 
-This guide takes you from a fresh clone to running the pipeline on your own repo. Most of it is automated: once installed, **`/orchestrator` runs an environment preflight (Step 0)** that detects what's missing, offers to set up the MCP servers for you behind a confirmation gate, and walks you through anything only you can do. The steps below are the manual reference for that same setup.
+This guide takes you from a fresh clone to running the pipeline on your own repo on **Claude Code** (the toolbelt's first/primary target; for the OpenAI Codex CLI port, see [`codex.md`](codex.md)). Most of it is automated: once installed, **`/orchestrator` runs an environment preflight (Step 0)** that detects what's missing, offers to set up the MCP servers for you behind a confirmation gate, and walks you through anything only you can do. The steps below are the manual reference for that same setup.
 
 ## Prerequisites
 
@@ -16,7 +16,7 @@ cd Maungs-agentic-toolbelt
 ./install.sh                 # copy into ~/.claude   (use --symlink to track updates via git pull)
 ```
 
-Or install as a plugin: `/plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` then `/plugin install maungs-agentic-toolbelt@maung-tools` (the plugin name is `maungs-agentic-toolbelt`; `maung-tools` is the marketplace it ships in).
+Or install as a Claude Code plugin: `/plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` then `/plugin install maungs-agentic-toolbelt@maung-tools` (the plugin name is `maungs-agentic-toolbelt`; `maung-tools` is the marketplace it ships in). On the OpenAI Codex CLI, install via `codex plugin marketplace add Sfzmango/Maungs-agentic-toolbelt` + `codex plugin add maungs-agentic-toolbelt@maung-tools`, then `./install-codex.sh` for the custom subagents (see [`codex.md`](codex.md)).
 
 These install **globally** into `~/.claude`, so they're available in every repo on your machine — you don't reinstall per project.
 

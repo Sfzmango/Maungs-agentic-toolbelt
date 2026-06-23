@@ -285,8 +285,9 @@ stale pages) — and is schedulable for self-maintenance.
 
 The **16 agents + 11 skills = 27 components** are defined **once** — `agents/*.md`
 + `skills/*/SKILL.md` + `hooks/` are the single canonical source. To run the same
-components beyond Claude Code, a generator under `tools/` renders that canonical
-source into per-target artifacts. Codex is the first new target.
+components beyond Claude Code (the first and primary target), a generator under
+`tools/` renders that canonical source into per-target artifacts. Codex is the
+first shipped port, and the Gemini CLI is the next work-in-progress target.
 
 - **`tools/build.py`** — the entrypoint: `python3 tools/build.py [--target codex|claude|all] [--check]`.
   Default emits to disk; `--check` regenerates in memory and exits non-zero on any
@@ -316,6 +317,7 @@ silently diverge from canonical.
 
 **Adding a target is "add an emitter + a target-table row,"** not a
 rearchitecture — the target-agnostic core (`build.py`, `common.py`,
-`transforms.py`) is deliberately separate from the per-target emitters. cursor /
-aider / others are accommodated by this seam but not built. Full walkthrough:
+`transforms.py`) is deliberately separate from the per-target emitters. The
+Gemini CLI is the next work-in-progress target; the DeepSeek CLI, cursor, aider,
+and others are accommodated by this seam but not built. Full walkthrough:
 [`docs/codex.md`](codex.md).

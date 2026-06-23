@@ -1,6 +1,6 @@
 # Maungs-agentic-toolbelt
 
-A project-agnostic, human-gated multi-agent workflow for [Claude Code](https://claude.com/claude-code): **16 agents + 11 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
+A project-agnostic, human-gated multi-agent **workflow engine** — a carpenter's toolbelt for agentic development (not just a hammer, but the whole belt to ship the job): **16 agents + 11 skills** that take work from a raw idea to a security-reviewed, merge-ready pull request — and keep the codebase's docs current on their own. It runs on multiple agent CLIs: [Claude Code](https://claude.com/claude-code) (the first and primary target) and the **OpenAI Codex CLI** (a shipped port), with the **Gemini CLI** as the next port in progress and others (e.g. the DeepSeek CLI) accommodated as future targets. Every component auto-detects the host project's conventions at runtime, so nothing here is hardcoded to one stack.
 
 Agents are invoked with `@name`, skills with `/name`.
 
@@ -36,7 +36,8 @@ Open `/hooks` once, review the plugin hooks, and trust them. Then start a new th
 |--------|--------|-----------|---------|
 | **Claude Code** | shipped | agents + skills (+ hooks via plugin) | `./install.sh` or the `maung-tools` plugin |
 | **OpenAI Codex CLI** | shipped | skills + hooks (plugin), custom subagents (installer) | `codex plugin add` + `./install-codex.sh` |
-| cursor / aider / … | future | — | accommodated by the generator seam (add an emitter + a row); not built yet |
+| **Gemini CLI** | work-in-progress — next port | — (in progress) | via the generator seam (add an emitter + a row); not yet shipped |
+| DeepSeek CLI / cursor / aider / … | future | — | accommodated by the generator seam (add an emitter + a row); not built yet |
 
 Codex artifacts are **generated** from the canonical `agents/*.md` + `skills/*/SKILL.md` + `hooks/` by `tools/build.py` — never hand-authored. See **[`docs/codex.md`](docs/codex.md)** and **[`docs/architecture.md`](docs/architecture.md)**.
 
@@ -46,7 +47,7 @@ Codex artifacts are **generated** from the canonical `agents/*.md` + `skills/*/S
 
 ## Always-on hooks
 
-Installed as a plugin, the toolbelt registers three lightweight hooks. The first — a `UserPromptSubmit` hook — inspects each prompt and — **only when it matches a toolbelt capability** — nudges Claude to offer the relevant component, so the right one surfaces without anyone remembering the command.
+Installed as a plugin, the toolbelt registers three lightweight hooks. The first — a `UserPromptSubmit` hook — inspects each prompt and — **only when it matches a toolbelt capability** — nudges the host agent to offer the relevant component, so the right one surfaces without anyone remembering the command.
 
 | A request like… | …surfaces |
 | --- | --- |

@@ -39,7 +39,7 @@ These are hard refusals, not suggestions. The project's `CLAUDE.md` (+ `CLAUDE.l
 2. **Explicit per-commit + per-push human confirmation.** Show the commit gate (`git status` + `git diff --stat` + commit message + target branch + `AskUserQuestion`) before EVERY commit. Show the push gate (`git log -1 --stat` + remote/branch + `AskUserQuestion`) SEPARATELY, AFTER the commit lands. Never bundle the two. Never interpret "ok" / "go" / "proceed" / silence as approval — require explicit "yes commit" then later "yes push" for each.
 3. **No `git add .` or `git add -A`.** Stage explicit paths only.
 4. **No `--force`. Use `--force-with-lease`** for any amend force-push.
-5. **No Claude / Claude Code attribution** in commit messages, PR bodies, or any output.
+5. **No AI-assistant attribution** in commit messages, PR bodies, or any output.
 6. **Plan corrections during implementation ride with the implementation amend** — do NOT make a separate plan-only commit. Commit #1 stays the original snapshot; commit #2 carries code + the plan corrections that emerged during dev.
 7. **Honor project-specific conventions from `CLAUDE.md` + `CLAUDE.local.md`** — e.g., naming conventions, query-scoping / tenant-isolation rules, predicate-method discipline, immutability patterns. The project's rules are non-negotiable.
 
