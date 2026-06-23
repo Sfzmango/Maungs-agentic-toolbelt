@@ -2,6 +2,8 @@
 
 The other docs cover each component on its own: [`components.md`](components.md) is **what** each one is, [`design-philosophy.md`](design-philosophy.md) is **why** it's built this way, and [`getting-started.md`](getting-started.md) is **how to set it up**. This page is the missing piece — **how the components compose into a personal workflow**, so one developer moves like a whole team.
 
+> **New to the toolbelt? Start here.** This page doubles as a guided tour of what the toolbelt can do. Skim the recipes top-to-bottom to see the moves available to you, or jump to the one that matches what you're doing right now. (`/toolbelt` highlights a few of these and links back here.)
+
 Every recipe below is a real chain you can run today. They lean on three pieces of "connective tissue" that make the parts work together:
 
 - **`CLAUDE.md`** — every agent and skill auto-detects the host project's conventions from it. Onboard once and the whole toolbelt speaks your project's language.
@@ -126,6 +128,36 @@ Documentation rots silently. Make keeping it current a background job.
 ```
 
 **Why it works:** `/dossier-jobs` schedules cloud routines that sweep the codebase while you sleep and funnel findings into a single tracking issue (the bug routine even opens draft fix PRs for the top non-critical findings). `/wiki-generator --update` re-derives the truth from code via `@wiki-auditor` and routes each fix to the tool that owns the path. Pair it with Recipe 2: when a sweep surfaces something you want to handle yourself, `/todo add` it and pull it into a `/orchestrator` run later.
+
+---
+
+## Recipe 8 — Defer a whole chunk: handoff → backlog → a future run
+
+A PR is merge-ready, but it surfaced a sizeable follow-up — a refactor, a second feature — too big to tack on. Hand it off to your future self without losing the thread.
+
+| Step | Command | What makes it work |
+|---|---|---|
+| 1. At wrap-up, the conductor offers it | *(suggested by `/orchestrator`)* | After the review/wrap-up phase, `/orchestrator` **suggests** capturing out-of-scope follow-ups — it never writes to the backlog itself. |
+| 2. Draft a resume-from-cold brief | `/handoff <topic>` | Writes a self-contained brief a fresh agent can pick up cold — the full context, not just a one-liner. |
+| 3. Drop a pointer on your backlog | `/todo add <one-line summary> — see the handoff` | The todo is the short, scannable reminder; the handoff is the deep context it points at. |
+| 4. Later, run it off the list | `/todo` → `/orchestrator <the item>` | A future session pulls the item off the backlog and runs it with the handoff as its brief — no re-deriving where you left off. |
+
+**The principle:** the **handoff** carries the *context*, the **todo** carries the *pointer*, and `/orchestrator` only ever *suggests* the capture — turning it into work stays your explicit step.
+
+---
+
+## Recipe 9 — Work dossier findings in the background
+
+Let the scheduled routines find the work while you're elsewhere, then fan the fixes out in parallel.
+
+| Step | Command | What makes it work |
+|---|---|---|
+| 1. Stand up the nightly sweeps | `/dossier-jobs` | Schedules cloud routines (bug · security · wiki) that sweep the repo and funnel findings into one rolling tracking issue. |
+| 2. Triage when you're back | read the tracking issue | One issue, marker-tagged per routine — your queue of candidate work. |
+| 3. Fan the safe fixes out | `/chore --concurrently <finding>` ×N | Each chore runs in its **own isolated worktree**, so several fixes proceed at once without colliding — you "work" the backlog in the background. |
+| 4. Ship the obvious ones hands-off | `/chore --concurrently --bypass <finding>` | Admin-merges once CI is green — the "ship it now" hatch for low-risk fixes (skips review, never the test gate). |
+
+**The principle:** the routines *generate* a backlog of findings; concurrent chores *drain* it in parallel. Pair with Recipe 2 — anything you'd rather handle yourself, `/todo add` and pull into an `/orchestrator` run later.
 
 ---
 

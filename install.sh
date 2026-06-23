@@ -85,4 +85,6 @@ Done. Next steps:
        • Playwright MCP — browser verification (used by @developer for UI changes)
      The @resolution agent falls back to the `gh` CLI for thread resolution.
   3. Try it:  /orchestrator <issue-id>   ·   /bug-catcher <symptom>   ·   /wiki-generator
+  4. New here? See docs/recipes.md for synergy recipes — how to compose the
+     components into a workflow — or run /toolbelt to browse them.
 EOF
