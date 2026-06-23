@@ -94,6 +94,8 @@ Other entry points:
 /handoff <id>              # write a resume-from-cold brief
 ```
 
+**Composing them:** see [recipes](recipes.md) for end-to-end workflows — capturing backlog with `/todo`, bug→fix, shipping small changes in parallel, and keeping docs current on a schedule.
+
 ## 6. (Optional) Enable the cockpit statusline
 
 The toolbelt bundles a status-line script that shows a one-line cockpit — git branch, session cost, context usage, hook state, model, and a live `/orchestrator` pipeline segment (phase · PR · verdict). It is not auto-enabled; opt in by pointing `~/.claude/settings.json` at it:

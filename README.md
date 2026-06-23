@@ -151,6 +151,7 @@ This custom statusline is Claude-specific. Codex provides `/statusline` for its 
 
 ## Learn more
 
+- [`docs/recipes.md`](docs/recipes.md) — **synergy tips**: how to compose the components into a personal workflow (capture backlog with `/todo`, bug→fix, parallel chores, scheduled doc upkeep)
 - [`docs/architecture.md`](docs/architecture.md) — how the agents hand off, with a full pipeline diagram
 - [`docs/design-philosophy.md`](docs/design-philosophy.md) — the recurring design principles and the failure modes they prevent
 - [`docs/components.md`](docs/components.md) — one-table index of all 27 components
