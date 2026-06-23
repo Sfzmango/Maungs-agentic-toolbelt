@@ -316,4 +316,11 @@ def build_artifacts(root: str) -> Dict[str, str]:
         "plugins/maungs-agentic-toolbelt/skills/toolbelt/scripts/toolbelt-metrics.sh"
     ] = common.finalize_emitted(metrics)
 
+    # The rotating hero banner is target-agnostic (pure art + captions + the
+    # SessionStart loader / installers call it), so it ships verbatim.
+    banner = common.read_text(os.path.join(root, "bin", "toolbelt-banner.sh"))
+    artifacts["plugins/maungs-agentic-toolbelt/bin/toolbelt-banner.sh"] = (
+        common.finalize_emitted(banner)
+    )
+
     return artifacts
