@@ -78,11 +78,14 @@ emit() {
       --arg session "$TB_SESSION" --arg cwd "$TB_CWD" \
       '{ts:$ts,event:"suggested",kind:"router",intent:$intent,offers:$offers,session:$session,cwd:$cwd}' 2>/dev/null)"
   fi
-  # Codex: stdout must be either one JSON object or plain text, not both.
+  # Codex: any non-empty stdout must be exactly one valid JSON object.
   if [ "$HAVE_JQ" = "1" ]; then
     jq -n --arg c "$3" '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}'
+  elif command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$3" | python3 -c 'import json, sys
+print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": sys.stdin.read()}}))'
   else
-    printf '%s\n' "$3"
+    exit 0
   fi
   exit 0
 }

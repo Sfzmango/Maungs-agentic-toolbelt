@@ -66,21 +66,49 @@ def neutralize_body(text: str) -> str:
     text = text.replace("restart Claude Code", "restart Codex")
     text = text.replace("Write a Claude Code handoff", "Write a coding-agent handoff")
     text = text.replace("Claude Code handoff", "coding-agent handoff")
-    # CLAUDE.md -> AGENTS.md (with CLAUDE.md as an optional compatibility source),
-    # but only when not already part of the
-    # combined token (idempotency) and not CLAUDE.local.md (leave that as-is so
-    # the combined phrasing reads cleanly). We rewrite the bare "CLAUDE.md"
-    # filename token; "CLAUDE.local.md" is left untouched.
-    # Use a regex with a negative lookahead so "CLAUDE.md" inside the already
-    # combined "AGENTS.md / CLAUDE.md" is not re-expanded, and "CLAUDE.local.md"
-    # is excluded. The SECOND lookbehind ``(?<![\w/.~-])`` rejects a path-prefixed
-    # form (``docs/CLAUDE.md``, ``~/.claude/CLAUDE.md``, ``a/b/CLAUDE.md``) so a
-    # path token is NOT corrupted into ``docs/AGENTS.md / CLAUDE.md`` (BUG-8); a
-    # standalone `` CLAUDE.md`` / `` `CLAUDE.md` `` / ``(CLAUDE.md`` still rewrites.
-    text = re.sub(
-        r"(?<!AGENTS\.md \(and )(?<![\w/.~-])CLAUDE\.md\b",
+    # Protect the final forms with sentinels while rewriting. This keeps the
+    # transform idempotent and lets paired canonical forms such as
+    # ``CLAUDE.md / AGENTS.md`` collapse cleanly instead of producing
+    # ``AGENTS.md (...) / AGENTS.md``.
+    plain_context = "\x00CODEX_CONTEXT_PLAIN\x00"
+    code_context = "\x00CODEX_CONTEXT_CODE\x00"
+    text = text.replace(
+        "`AGENTS.md` (and `CLAUDE.md` when present)",
+        code_context,
+    )
+    text = text.replace(
         "AGENTS.md (and CLAUDE.md when present)",
+        plain_context,
+    )
+    for paired in (
+        "`CLAUDE.md` / `AGENTS.md`",
+        "`CLAUDE.md`/`AGENTS.md`",
+    ):
+        text = text.replace(paired, code_context)
+    for paired in (
+        "CLAUDE.md / AGENTS.md",
+        "CLAUDE.md/AGENTS.md",
+    ):
+        text = text.replace(paired, plain_context)
+
+    # A path-prefixed CLAUDE.md (docs/CLAUDE.md, ~/.claude/CLAUDE.md, etc.)
+    # remains byte-for-byte. A standalone code span gets a grammatically clean
+    # two-file form; a standalone plain token gets the plain equivalent.
+    text = text.replace("`CLAUDE.md`", code_context)
+    text = re.sub(
+        r"(?<![\w/.~-])CLAUDE\.md\b",
+        plain_context,
         text,
+    )
+    text = text.replace("a " + code_context, code_context)
+    text = text.replace("a " + plain_context, "an " + plain_context)
+    text = text.replace(
+        code_context,
+        "`AGENTS.md` (and `CLAUDE.md` when present)",
+    )
+    text = text.replace(
+        plain_context,
+        "AGENTS.md (and CLAUDE.md when present)",
     )
     return text
 
@@ -284,6 +312,18 @@ def rewrite_codex_memories(text: str) -> str:
         "`~/.claude/memory/MEMORY.md`",
         "Codex-injected memories",
     )
+    text = re.sub(
+        r"`(?:~?/)?\.claude/projects/[^`]*memory/MEMORY\.md`",
+        "Codex-injected memories",
+        text,
+    )
+    text = text.replace(
+        "If a project-local memory directory exists (Codex-injected memories or "
+        "similar), load it **READ-ONLY** at the start to pick up project security "
+        "conventions.",
+        "Use Codex-injected memories when enabled to pick up project security "
+        "conventions.",
+    )
     text = text.replace(
         "the project's auto-memory `MEMORY.md` "
         "(Codex-injected memories, when enabled) + cited entries",
@@ -356,6 +396,10 @@ def rewrite_codex_local_paths(text: str) -> str:
     text = text.replace(
         "$HOME/.claude/maungs-toolbelt/",
         "$HOME/.codex/maungs-toolbelt/",
+    )
+    text = text.replace(
+        "${HOME}/.claude/maungs-toolbelt",
+        "${HOME}/.codex/maungs-toolbelt",
     )
     text = text.replace(
         '"${CLAUDE_PLUGIN_ROOT}"/bin/toolbelt-metrics.sh',
@@ -454,6 +498,10 @@ def rewrite_component_specific_codex(text: str, component_name: str) -> str:
     """Clean up target-specific semantics that cannot be expressed generically."""
     if component_name == "agentic-onboard":
         text = text.replace(
+            "`AGENTS.md` (and `CLAUDE.md` when present)",
+            "`CLAUDE.md`",
+        )
+        text = text.replace(
             "AGENTS.md (and CLAUDE.md when present)",
             "CLAUDE.md",
         )
@@ -530,8 +578,9 @@ current checkout's `origin` remote.
 1. Build the same three job prompts as the Claude workflow:
    - **bug**: run `$bug-catcher --global`; keep SEV1 issue-only; draft, never
      merge, at most `--max-fixes` non-SEV1 fix PRs.
-   - **security**: run the `security-reviewer` subagent for a repository-wide
-     compliance sweep; issue/comment output only.
+   - **security**: run a generic repository-wide compliance sweep using the
+     `security-reviewer` rubric as the checklist. Do not spawn that subagent for
+     this job because its input contract is PR-scoped. Issue/comment output only.
    - **wiki**: run `$wiki-generator --update`; produce one rolling proposal PR.
 2. Keep one rolling `[dossier-jobs] Dossier` issue and one marker-delimited
    comment per job so reruns update rather than duplicate.
@@ -898,30 +947,10 @@ def transform_pretooluse_guard(body: str) -> str:
     # Broaden rule 5's attribution pattern to be MODEL-AGNOSTIC while avoiding the
     # two failure modes of a naive widening:
     #   (a) SUBSTRING false-DENY — a human whose name merely CONTAINS an AI token
-    #       as a substring (``Co-Authored-By: Aishwarya Patel`` — ``ai`` inside
-    #       ``Aishwarya``). Fixed by anchoring every AI-tool token with a word
-    #       boundary ``\b…\b`` and dropping the over-broad bare tokens
-    #       (``ai``/``llm``/``assistant``/``model``/``bot``) — ``ai`` survives ONLY
-    #       inside the multiword phrases ``ai assistant`` / ``ai tool`` / ``ai agent``.
-    #       A residual WHOLE-WORD false-DENY remains for a human whose NAME equals
-    #       an AI token (``Co-Authored-By: Devin Wong``; or ``Claude``, which the
-    #       canonical guard already denies in first position) — those product names
-    #       ARE also AI coding tools, so this is an ACCEPTED fail-closed trade-off
-    #       (escape hatch ``MAUNGS_TOOLBELT_GUARD=off``). The match is SCOPED to the
-    #       name part via ``[^<]*`` (everything up to the ``<email>``), so an AI
-    #       token appearing ONLY in the email DOMAIN — ``Jane Smith
-    #       <jane@openai.com>`` — does NOT false-DENY: a real attribution trailer
-    #       carries the tool in the name, not merely the address.
-    #   (b) false-ALLOW — an AI tool NOT in first position after the colon
-    #       (``Co-Authored-By: GitHub Copilot`` — the old ``[[:space:]]*`` tied the
-    #       token to the head of the trailer). Fixed by matching the AI token
-    #       anywhere in the NAME part via ``Co-Authored-By:[^<]*\bTOKEN\b``.
-    # The curated AI-tool set is matched as WHOLE WORDS; the 🤖 marker and the
-    # "Generated with/by <AI tool>" footer are kept. ``\b`` is the same portability
-    # bar the canonical guard already relies on (see its add/-A and --no-verify
-    # rules). Uses ``hasrawi`` — raw (scans ``$cmd``, NOT the quote-neutralized
-    # ``scan``, because the trailer is inside the quoted commit message) AND
-    # case-insensitive — so the lowercase literals match any-case attribution.
+    #       as a substring. Fixed by anchoring AI-tool tokens with word boundaries
+    #       and keeping broad terms only inside explicit multiword AI phrases.
+    #   (b) false-ALLOW — an AI tool not in first position after the colon.
+    #       Fixed by matching the token anywhere in the trailer's name part.
     _ai_words = (
         "claude|gpt|chatgpt|copilot|codex|cursor|gemini|llama|aider|"
         "anthropic|openai|devin|tabnine"
@@ -937,15 +966,6 @@ def transform_pretooluse_guard(body: str) -> str:
         + _ai_phrases + ")"
         "|🤖"
     )
-    # The broadened attribution rule must scan the RAW $cmd — the trailer lives
-    # inside the quoted -m commit message, which the guard's quote-neutralization
-    # (added to the canonical guard for invocation-precision) turns into a
-    # placeholder in `scan`, so a `scan`-based match would MISS it — AND
-    # case-insensitively (the AI-tool token set is lowercase). The canonical
-    # `hasraw` is raw but case-SENSITIVE, so inject a raw + case-insensitive
-    # sibling `hasrawi` right next to it and anchor the broadened rule on that.
-    # The canonical attribution rule itself uses `hasraw` (not `has`) for the same
-    # reason, so `old_attr` matches that.
     body = _replace_or_die(
         body,
         'hasraw() { printf \'%s\' "$cmd" | grep -qE -- "$1"; }',
@@ -954,10 +974,6 @@ def transform_pretooluse_guard(body: str) -> str:
         '# the model-agnostic rule below needs both (see rule 5).\n'
         'hasrawi() { printf \'%s\' "$cmd" | grep -qiE -- "$1"; }',
     )
-    # The canonical guard already names several AI assistants (a $AI_NAMES list)
-    # and matches case-insensitively. The Codex rule broadens that further (more
-    # tools + AI-assistant phrase forms) and routes through `hasrawi`; anchor on
-    # the canonical two-line block (the $AI_NAMES assignment + the inline grep).
     old_attr = (
         "AI_NAMES='Claude|Codex|Copilot|GPT|Grok|Gemini|DeepSeek|Mistral|Llama|Anthropic|OpenAI'\n"
         "if hasraw 'git([[:space:]]|.)*commit' && printf '%s' \"$cmd\" | grep -qiE -- "
@@ -1024,8 +1040,9 @@ def transform_pretooluse_guard(body: str) -> str:
 def transform_toolbelt_router(body: str) -> str:
     """Adapt ``toolbelt-router.sh`` for Codex.
 
-    Emit one valid Codex ``additionalContext`` JSON object when jq is present,
-    with plain text as the jq-less fallback. Also record explicit ``$skill``
+    Emit one valid Codex ``additionalContext`` JSON object. Use Python as the
+    jq-less encoder fallback, or stay silent when neither encoder exists, because
+    non-empty raw text is invalid hook output. Also record explicit ``$skill``
     mentions because Codex has no Skill invocation hook event.
     """
     body = rewrite_skill_invocations(body)
@@ -1065,11 +1082,15 @@ fi
         '  exit 0'
     )
     new_emit_tail = (
-        '  # Codex: stdout must be either one JSON object or plain text, not both.\n'
+        '  # Codex: any non-empty stdout must be exactly one valid JSON object.\n'
         '  if [ "$HAVE_JQ" = "1" ]; then\n'
         '    jq -n --arg c "$3" \'{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}\'\n'
+        '  elif command -v python3 >/dev/null 2>&1; then\n'
+        '    printf \'%s\' "$3" | python3 -c \'import json, sys\n'
+        'print(json.dumps({"hookSpecificOutput": '
+        '{"hookEventName": "UserPromptSubmit", "additionalContext": sys.stdin.read()}}))\'\n'
         '  else\n'
-        '    printf \'%s\\n\' "$3"\n'
+        '    exit 0\n'
         '  fi\n'
         '  exit 0'
     )
@@ -1080,27 +1101,11 @@ fi
 def transform_sessionstart_loader(body: str) -> str:
     """Adapt ``sessionstart-loader.sh`` for Codex.
 
-    Per decision 16, the ``CLAUDE.md`` / ``CLAUDE.local.md`` filename check and
-    its "No CLAUDE.md found" nudge are DELIBERATELY left as-is at the FILENAME
-    level (layer-1 filename neutralization does not reach hook scripts; the
-    ``CLAUDE.md`` filename is an informational string the user looks for, so it
-    stays verbatim). There is no env-var or output-schema token to rewrite.
-
-    What this transform DOES rewrite is EVERY skill invocation embedded in the
-    loader's nudges: the ``/agentic-onboard`` nudge ("No CLAUDE.md found …") AND
-    the ``/todo`` nudges main added (the private-backlog resurfacing — "Open todos:
-    N … /todo to view") are non-functional slash forms on Codex (no slash layer —
-    skills are ``@mention``/model-triggered), so each is rewritten to its
-    ``$skill`` form via the SAME left-boundary skill-name rule the
-    router-suggestion exception uses (decision 16). Applying the general rule
-    (anchored to the canonical skill names) rather than per-skill ``_replace_or_die``
-    means any FUTURE skill the loader surfaces is handled with no edit here, and
-    closes AC-3 fidelity (zero bare ``/<skill>`` invocations in the generated tree).
-    The ``CLAUDE.md`` FILENAME reference and the ``…/todos/`` storage-PATH token are
-    left intact by the left-boundary rule (a path component / trailing ``s`` is not
-    an opening boundary). The presence-assert below fires loud if the canonical
-    ``/agentic-onboard`` nudge — the loader's original skill nudge — ever drifts
-    away, so the transform can never silently no-op.
+    Hook scripts do not pass through ``transform_body``, so all runtime-specific
+    behavior must be adapted here explicitly. That includes skill invocation
+    syntax, Codex-local state, context-file detection, and the update preflight's
+    install registry, published manifest, commands, user-gate wording, and the
+    structured SessionStart output contract.
     """
     assert "run /agentic-onboard to generate" in body, (
         "transform expected the sessionstart /agentic-onboard nudge line"
@@ -1119,6 +1124,67 @@ def transform_sessionstart_loader(body: str) -> str:
         "fi",
     )
     body = body.replace("so Claude\n# begins warm", "so Codex\n# begins warm")
+    body = body.replace(
+        "directive asking Claude to OFFER the update",
+        "directive asking Codex to OFFER the update",
+    )
+    body = body.replace(
+        "apply is human-gated; a restart is required to load",
+        "apply is human-gated; a new thread is required to load",
+    )
+    body = _replace_or_die(
+        body,
+        '  local mkt slug tmpf pid killer v\n'
+        '  mkt="${HOME}/.claude/plugins/marketplaces/maung-tools"\n'
+        '  slug="$(git -C "$mkt" config --get remote.origin.url 2>/dev/null \\\n'
+        "            | sed -E 's#(git@github.com:|https://github.com/)##; s#\\.git$##')\"\n"
+        '  [ -n "$slug" ] || slug="Sfzmango/Maungs-agentic-toolbelt"',
+        '  local slug tmpf pid killer v\n'
+        '  slug="Sfzmango/Maungs-agentic-toolbelt"',
+    )
+    body = _replace_or_die(
+        body,
+        'repos/${slug}/contents/.claude-plugin/plugin.json',
+        'repos/${slug}/contents/plugins/maungs-agentic-toolbelt/.codex-plugin/plugin.json',
+    )
+    body = _replace_or_die(
+        body,
+        '    reg="${HOME}/.claude/plugins/installed_plugins.json"\n'
+        '    installed="$(grep -A8 \'"maungs-agentic-toolbelt@maung-tools"\' "$reg" 2>/dev/null \\\n'
+        '                  | grep -m1 \'"version"\' | sed -E \'s/.*"([0-9]+\\.[0-9]+\\.[0-9]+)".*/\\1/\')"',
+        '    manifest="${TB_DIR}/../.codex-plugin/plugin.json"\n'
+        '    installed="$(grep -m1 \'"version"\' "$manifest" 2>/dev/null \\\n'
+        '                  | sed -E \'s/.*"([0-9]+\\.[0-9]+\\.[0-9]+)".*/\\1/\')"',
+    )
+    body = _replace_or_die(
+        body,
+        '        add "  ↳ [for Claude] A newer plugin version (${latest}) is available; installed is ${installed}. On your FIRST reply this session, use AskUserQuestion to ask whether to update now. If YES: have the user run \\`/plugin marketplace update maung-tools\\` then \\`/plugin install maungs-agentic-toolbelt@maung-tools\\`; then verify the new install is not stale (banner script present + loader has the update-preflight wiring + installed version == ${latest}); then tell them to RESTART Claude Code so the new hooks load. If NO: continue normally and do not re-ask this session."',
+        '        add "  ↳ [for Codex] A newer plugin version (${latest}) is available; installed is ${installed}. On your FIRST reply this thread, ask the user in chat whether to update now and wait for an explicit answer. If YES: have the user run \\`codex plugin marketplace upgrade maung-tools\\` then \\`codex plugin add maungs-agentic-toolbelt@maung-tools\\`; if custom agents were installed from a repo clone, update that clone and rerun \\`./install-codex.sh\\`; then verify the installed plugin manifest reports ${latest} and tell them to start a NEW Codex thread so the updated skills, hooks, and agents load. If NO: continue normally and do not re-ask this thread."',
+    )
+    body = _replace_or_die(
+        body,
+        '  [ -f "$_b" ] && { bash "$_b" 2>/dev/null; printf \'\\n\'; }',
+        '  if [ -f "$_b" ]; then\n'
+        '    _banner="$(bash "$_b" 2>/dev/null)"\n'
+        '    [ -n "$_banner" ] && out="${_banner}\n\n${out}"\n'
+        '  fi',
+    )
+    body = _replace_or_die(
+        body,
+        'printf \'%s\' "$out"\nexit 0',
+        'if command -v jq >/dev/null 2>&1; then\n'
+        '  jq -n --arg c "$out" '
+        '\'{suppressOutput:true,hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}\'\n'
+        'elif command -v python3 >/dev/null 2>&1; then\n'
+        '  printf \'%s\' "$out" | python3 -c \'import json, sys\n'
+        'print(json.dumps({"suppressOutput": True, "hookSpecificOutput": '
+        '{"hookEventName": "SessionStart", "additionalContext": sys.stdin.read()}}))\'\n'
+        'else\n'
+        '  printf \'%s\\n\' '
+        '\'{"suppressOutput":true,"hookSpecificOutput":{"hookEventName":"SessionStart"}}\'\n'
+        'fi\n'
+        'exit 0',
+    )
     return body
 
 

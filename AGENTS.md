@@ -57,9 +57,22 @@ Every command is cited to its source. There is no install/build/lint/format tool
 
 ## Gotchas
 
+- **Owner-only repository:** development and publication stay under `Sfzmango`.
+  Do not add contributors, co-authors, collaborator credits, contributor lists,
+  or attribution footers to commits, PRs, files, or repository metadata. Preserve
+  the existing owner copyright/license attribution.
+- **Canonical edits must include their Codex port:** if an `agents/`, `skills/`,
+  or `hooks/` change adds Claude-specific syntax, paths, commands, install state,
+  event fields, or interaction mechanics, update `tools/transforms.py` and add
+  positive/negative coverage in `tests/test_codex_build.py` before regenerating.
+  Hooks use filename-specific transforms and do not pass through
+  `transform_body`. Never repair generated Codex files by hand.
 - **Leak-grep (CI hard-fail):** CI greps `*.md`/`*.json`/`*.sh` and fails on absolute home paths like `/Users/...` or private reference strings. Use `~/...` or repo-relative paths. *(`.github/workflows/validate.yml:30`)*
 - **Component counts are load-bearing (CI hard-fail):** adding/removing an agent or skill requires updating the count strings in `README.md`, `docs/components.md`, `docs/architecture.md`, `docs/design-philosophy.md`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` (plus the GitHub "About", which CI only warns on). Today: **16 agents + 11 skills = 27 components**.
-- **No AI-assistant attribution** in commits, PR bodies, or files (the shipped guard denies AI-attributed commits). *(`CONTRIBUTING.md:28`)*
+- **No added attribution:** this repo's owner-only instruction forbids human or
+  automated contributor attribution. The project-agnostic shipped guard
+  mechanically denies AI-attributed commits without imposing the owner-only
+  policy on consumer repositories. *(`CONTRIBUTING.md`, `hooks/pretooluse-guard.sh`)*
 - **Frontmatter is mandatory:** every `agents/*.md` and `skills/*/SKILL.md` must start with `---` and a `name:` field. *(`.github/workflows/validate.yml:13-24`)*
 - **Do not** use `git add -A`/`.`, `git push --force` (use `--force-with-lease`), or `--no-verify` — the shipped guard denies all three.
 - The "product" is prompt markdown; tests validate hooks, generated Codex artifacts, and translator behavior. Plugin manifests use strict semver.

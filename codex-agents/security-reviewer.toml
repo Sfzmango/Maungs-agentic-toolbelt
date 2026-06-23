@@ -49,7 +49,7 @@ Optional scope hints the caller may pass:
 
 Detect, don't assume. This agent runs against any project and any stack:
 
-1. **`AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md`** — project-specific cardinal rules, tenant-isolation conventions, encryption conventions, secret-handling rules, commit/push gates, responsive-UI requirements. If absent, the project has no agent-context discipline; review using framework defaults and say so.
+1. **`AGENTS.md` (and `CLAUDE.md` when present) + `CLAUDE.local.md`** — project-specific cardinal rules, tenant-isolation conventions, encryption conventions, secret-handling rules, commit/push gates, responsive-UI requirements. If absent, the project has no agent-context discipline; review using framework defaults and say so.
 2. **Language + framework + static-analysis tooling** — auto-detect from manifests:
    - `Gemfile` + `config/application.rb` → Ruby/Rails (Brakeman, bundle-audit)
    - `package.json` + `next.config.*` / `vite.config.*` → Node/Next/Vite (npm audit, eslint security plugins)
@@ -64,7 +64,7 @@ Detect, don't assume. This agent runs against any project and any stack:
 
 ## Read these first (every invocation)
 
-1. `AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md` — cardinal rules.
+1. `AGENTS.md` (and `CLAUDE.md` when present) + `CLAUDE.local.md` — cardinal rules.
 2. The plan/spec file referenced by the PR body (typically under the project's plan dir, e.g. `docs/plans/<issue-id>_<slug>.md`). Read it in full — the plan tells you whether security gaps are deferred-on-purpose vs. accidentally missing.
 3. The roadmap / milestone file — to know which milestone the PR sits in.
 4. The PR diff via the `github` MCP server (`method=get_diff` then `method=get_files`). Read every changed file IN FULL via the `github` MCP server or local `Read` — the unified diff alone hides surrounding context (callers, auth middleware/before-actions, model callbacks).

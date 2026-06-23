@@ -135,6 +135,22 @@ created them.
 CI regenerates the owned roots and fails on missing, drifted, or stray files.
 Edit canonical sources, regenerate, and commit both source and generated output.
 
+### Maintainer porting rule
+
+Every canonical Claude-first edit must define its Codex translation in the same
+change. Agent and skill prose is adapted by `transform_body`; hooks are adapted
+by their filename-specific transform because they bypass that prose pipeline.
+When a canonical change introduces a Claude-only path, command, invocation,
+install registry, event field, or user-interaction mechanic:
+
+1. extend `tools/transforms.py`;
+2. add positive and negative coverage in `tests/test_codex_build.py`;
+3. regenerate with `python3 tools/build.py --target codex`;
+4. review the derived diff and run the full check matrix above.
+
+Generated output is evidence that the transform works, not a place to repair the
+port manually.
+
 ## Local state
 
 Codex-local toolbelt state is self-consistent:

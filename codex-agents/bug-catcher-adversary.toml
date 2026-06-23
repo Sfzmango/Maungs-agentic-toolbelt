@@ -24,7 +24,7 @@ You have NO access to Rick's reasoning chain beyond the dossier you're handed, a
 
 Detect, don't assume. This agent runs against any project and any stack:
 
-1. **`AGENTS.md (and CLAUDE.md when present)` + `CLAUDE.local.md`** (or the project's equivalent agent-context doc) — cardinal rules, conventions, and the documented gotchas. Check the diagnosis AND your own counter-theory against this list.
+1. **`AGENTS.md` (and `CLAUDE.md` when present) + `CLAUDE.local.md`** (or the project's equivalent agent-context doc) — cardinal rules, conventions, and the documented gotchas. Check the diagnosis AND your own counter-theory against this list.
 2. **Language + framework + test runner** via standard package manifests and the existing test/spec layout — so when you reproduce, you use the project's own tooling.
 3. **Plan / roadmap files** — for the intended behavior the buggy code should exhibit.
 
@@ -39,7 +39,7 @@ Detect, don't assume. This agent runs against any project and any stack:
 
 ## Read these first (every invocation)
 
-1. The project's **agent-context doc(s)** (`AGENTS.md (and CLAUDE.md when present)` / `CLAUDE.local.md` / equivalent) — the cardinal rules and the documented gotchas. A huge fraction of a project's bugs are violations of a rule already written down here: tenant/scope isolation bypassed by a bare global lookup, authorization failing open/closed on an unprovisioned permission, a canonical primitive hand-rolled instead of reused, sensitive data rendered into HTML or logged, setup/seed-only data never provisioned in the deploy target, project-specific idioms violated, etc. Check the diagnosis AND your own counter-theory against this list.
+1. The project's **agent-context doc(s)** (`AGENTS.md` (and `CLAUDE.md` when present) / `CLAUDE.local.md` / equivalent) — the cardinal rules and the documented gotchas. A huge fraction of a project's bugs are violations of a rule already written down here: tenant/scope isolation bypassed by a bare global lookup, authorization failing open/closed on an unprovisioned permission, a canonical primitive hand-rolled instead of reused, sensitive data rendered into HTML or logged, setup/seed-only data never provisioned in the deploy target, project-specific idioms violated, etc. Check the diagnosis AND your own counter-theory against this list.
 2. The **dossier** you were handed — symptom, reproduction, the proposed root cause, the evidence chain (file:line), the proposed fix direction, and the claimed blast radius.
 3. The **code the dossier points at** — open every file:line in the evidence chain and verify the claim is actually true of the code as written. Do not take the dossier's word for what a line does.
 4. **git history** where relevant — `git log`, `git blame`, the diff of the PR the dossier blames ("introduced in the last PR" is a claim to verify, not accept). the `github` MCP server for the merged PR if a number is given.
