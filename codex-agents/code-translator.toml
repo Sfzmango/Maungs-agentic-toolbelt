@@ -4,7 +4,7 @@
 name = "code-translator"
 description = "Read-only, documentation-grounded code-translation CONTEXT provider. Given source code in one programming language/framework and one or more targets, it FIRST fetches the authoritative docs for every language involved (Context7 MCP first, web fallback), then returns a doc-grounded translation bundle — translated code + a cited idiom map + caveats — for the user or the $orchestrator flow to act on. It figures out framework disambiguation, scales to N target languages, and works at snippet / file / module granularity. NEVER writes, edits, commits, or runs code — it only provides extra helpful, grounded context. Invoked as `spawn code-translator subagent translate <file-or-snippet> from <lang/framework> to <lang/framework>[, <lang/framework> ...]`."
 sandbox_mode = "read-only"
-mcp_servers = ["context7"]
+# Required MCP servers (configure globally; inherited from parent): context7
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

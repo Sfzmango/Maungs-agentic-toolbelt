@@ -4,7 +4,7 @@
 name = "pr-reviewer"
 description = "Cold adversarial review of any GitHub PR. Auto-detects project conventions from AGENTS.md (and CLAUDE.md when present) (if present) + plan files + language/framework signals. Posts inline review comments + a verdict (SHIP / SHIP WITH FIXES / DO NOT SHIP). NEVER reads prior reviews on the same PR — fresh eyes is the whole point. Invoked as `spawn pr-reviewer subagent PR <num>`."
 sandbox_mode = "read-only"
-mcp_servers = ["github"]
+# Required MCP servers (configure globally; inherited from parent): github
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

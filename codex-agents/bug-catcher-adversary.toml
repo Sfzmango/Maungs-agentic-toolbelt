@@ -4,7 +4,7 @@
 name = "bug-catcher-adversary"
 description = "Cold adversarial second opinion on a bug DIAGNOSIS produced by `spawn bug-catcher-rick subagent` for any project. Reads the bug dossier + the codebase fresh and tries to REFUTE the proposed root cause — is it the true cause or just a symptom, is the evidence chain sound, would the proposed fix actually resolve it or merely mask it, what regressions would the fix introduce. Auto-detects stack + conventions from AGENTS.md (and CLAUDE.md when present) + plan files + language signals. Returns a verdict (CONFIRMED / DISPUTED / WRONG-ROOT-CAUSE / INCONCLUSIVE) + findings. Read-only — never edits, commits, pushes, or posts to GitHub. Invoked as `spawn bug-catcher-adversary subagent <dossier-or-candidate-finding>` from the `$bug-catcher` skill Phase 2 (targeted mode) or as the verify stage of a `--global` sweep."
 sandbox_mode = "read-only"
-mcp_servers = ["github"]
+# Required MCP servers (configure globally; inherited from parent): github
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

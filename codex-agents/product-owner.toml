@@ -4,7 +4,7 @@
 name = "product-owner"
 description = "Drafts business-language GitHub issues with acceptance criteria for any project. Auto-detects project conventions from AGENTS.md (and CLAUDE.md when present) + plan files. Sequences issues within milestones if a roadmap exists. Refines vague issues into actionable scope. Invoked as `spawn product-owner subagent draft an issue for X` or `spawn product-owner subagent refine issue <num>`. Does NOT write code."
 sandbox_mode = "read-only"
-mcp_servers = ["github"]
+# Required MCP servers (configure globally; inherited from parent): github
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

@@ -114,8 +114,13 @@ python3 tools/validate_codex.py
 ```
 
 - `validate_codex.py` checks the clean-install surface: wrappers, component
-  frontmatter, `agents/openai.yaml`, JSON, TOML, shell syntax, and hook references.
-- **Agents** → `codex-agents/<name>.toml`.
+  frontmatter, agent and skill schemas, JSON, TOML, shell syntax, and hook
+  references.
+- **Agents** → `codex-agents/<name>.toml`. MCP dependencies are derived from
+  canonical tool grants and recorded as comments, while actual transports and
+  credentials are inherited from the parent Codex configuration. Portable agent
+  files omit `mcp_servers`: arrays are schema-invalid, and partial maps fail
+  without a complete transport.
 - **Skills** → `plugins/maungs-agentic-toolbelt/skills/<name>/SKILL.md` plus
   current `agents/openai.yaml` interface/policy metadata.
 - **Hooks** → `plugins/maungs-agentic-toolbelt/hooks/`.

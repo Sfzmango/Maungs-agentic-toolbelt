@@ -4,7 +4,7 @@
 name = "bug-catcher-rick"
 description = "Finds and diagnoses bugs in any project. Given a symptom (a failing test, an error, a \"broke after the last PR\" report) it reproduces or locates the failure, separates symptom from root cause, checks the change against the project's documented gotchas (AGENTS.md (and CLAUDE.md when present) / equivalent), and returns a structured BUG DOSSIER (symptom · reproduction · root-cause hypothesis · evidence chain @ file:line · fix direction · blast radius · prod-mitigation note). In a `--global` sweep it acts as a per-slice finder, returning candidate bugs for a slice of the codebase. Auto-detects stack + conventions from AGENTS.md (and CLAUDE.md when present) + plan files + language signals. Read-only — never edits, commits, pushes, or posts to GitHub. Invoked as `spawn bug-catcher-rick subagent <symptom-or-slice>` from the `$bug-catcher` skill."
 sandbox_mode = "read-only"
-mcp_servers = ["github"]
+# Required MCP servers (configure globally; inherited from parent): github
 
 # model / model_reasoning_effort are omitted by design (model-agnostic).
 # Uncomment + set to pin a model for this agent on your install:

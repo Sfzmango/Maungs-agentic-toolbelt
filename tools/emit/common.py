@@ -197,10 +197,10 @@ def parse_frontmatter(fm_block: str) -> "tuple[Dict[str, str], List[str]]":
       * a YAML BLOCK LIST (``tools:`` bare, then indented ``  - Read`` lines).
 
     Both normalize to one tool-token list, since ``sandbox_mode`` (Edit/Write
-    detection) and ``mcp_servers`` (distinct ``mcp__<server>__`` enumeration)
-    both derive from it — and the marquee ``code-translator`` ->
-    ``mcp_servers = ["context7"]`` parity case is exactly the inline form, so a
-    block-list-only reader would silently drop Context7.
+    detection) and MCP dependency discovery (distinct ``mcp__<server>__``
+    enumeration) both derive from it. The ``code-translator`` -> ``context7``
+    dependency is exactly the inline form, so a block-list-only reader would
+    silently drop it.
 
     Other scalar keys are kept verbatim (value side trimmed). List-valued keys
     other than ``tools`` are not used by any emitter, so they are skipped.
@@ -334,7 +334,9 @@ def derive_mcp_servers(tools: List[str]) -> List[str]:
 
     Server-name-agnostic: ``mcp__github__*`` -> ``github``,
     ``mcp__context7__*`` -> ``context7``, etc. Sorted + de-duplicated. Empty when
-    the agent declares no ``mcp__*`` tool (the caller then OMITS ``mcp_servers``).
+    the agent declares no ``mcp__*`` tool. Portable custom-agent files use this
+    list for dependency comments and inherit actual transports from the parent
+    Codex configuration.
     """
     servers = set()
     for tok in tools:

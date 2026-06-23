@@ -14,7 +14,7 @@ Covers (per docs/plans/6_codex-port.md "Test plan"):
   * transforms unit coverage (claude->codex mcp, AskUserQuestion gate prose,
     server-agnostic mcp prose rewrite incl. context7, ToolSearch neutralization,
     /skill left-boundary, with-arguments, BOTH tools serializations,
-    mcp_servers enumeration, hook-body rules, attribution broadening,
+    MCP dependency inheritance, skill UI metadata, hook-body rules, attribution broadening,
     router additionalContext+stdout+anti-autonomy prefix, lib-telemetry codex
     path + override);
   * gate-semantics preservation (developer/architect commit/push/PR + architect
@@ -328,6 +328,30 @@ def test_validate_legacy_marketplace_source_rejected():
         check("legacy-source validate exits non-zero", rc != 0, out.strip()[:200])
         check("structured source object reported",
               "'source' must be a JSON object" in out, out.strip()[:200])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_validate_malformed_agent_mcp_array_rejected():
+    print("\n[validate_codex: malformed agent MCP array rejected]")
+    tmp = tempfile.mkdtemp()
+    try:
+        copy_repo_subset(tmp)
+        agent = os.path.join(tmp, "codex-agents", "architect.toml")
+        with open(agent, encoding="utf-8") as fh:
+            text = fh.read()
+        text = re.sub(
+            r'(?m)^(sandbox_mode = "[^"]+")$',
+            '\\1\nmcp_servers = ["github"]',
+            text,
+            count=1,
+        )
+        with open(agent, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        rc, out = _run_validate(tmp)
+        check("malformed-agent validate exits non-zero", rc != 0, out.strip()[:240])
+        check("portable-agent inheritance requirement reported",
+              "'mcp_servers' must be omitted" in out, out.strip()[:240])
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -830,19 +854,32 @@ def test_parser_both_tools_serializations():
 
 
 def test_mcp_servers_enumeration():
-    print("\n[emitter: mcp_servers enumeration]")
+    print("\n[emitter: MCP dependencies inherit complete parent transports]")
+    import tomllib
     comps = {c.name: c for c in common.load_agents(REPO_ROOT)}
-    # code-translator (inline form) -> ["context7"]
+    # code-translator's inline tools form still discovers context7, but portable
+    # agent files must not define a partial mcp_servers transport.
     ct_toml = target_codex.render_agent_toml(comps["code-translator"])
-    check("code-translator carries mcp_servers = [\"context7\"]",
-          'mcp_servers = ["context7"]' in ct_toml, ct_toml.split("\n")[6] if len(ct_toml.split("\n")) > 6 else "")
+    ct_config = tomllib.loads(ct_toml)
+    check("code-translator omits per-agent mcp_servers config",
+          "mcp_servers" not in ct_config, repr(ct_config.get("mcp_servers")))
+    check("code-translator records context7 as an inherited dependency",
+          "Required MCP servers (configure globally; inherited from parent): context7"
+          in ct_toml)
     # an agent with NO mcp tools omits mcp_servers (context-auditor declares none)
     ca_servers = common.derive_mcp_servers(comps["context-auditor"].tools)
     ca_toml = target_codex.render_agent_toml(comps["context-auditor"])
     check("context-auditor (no mcp tools) omits mcp_servers", ca_servers == [] and "mcp_servers" not in ca_toml)
-    # developer DOES declare github + playwright mcp tools -> carries both.
+    # developer DOES declare github + playwright mcp tools -> documents both.
     dev_servers = common.derive_mcp_servers(comps["developer"].tools)
     check("developer carries github + playwright", dev_servers == ["github", "playwright"], str(dev_servers))
+    dev_toml = target_codex.render_agent_toml(comps["developer"])
+    dev_config = tomllib.loads(dev_toml)
+    check("developer omits partial MCP transport config",
+          "mcp_servers" not in dev_config, repr(dev_config.get("mcp_servers")))
+    check("developer documents both inherited MCP dependencies",
+          "Required MCP servers (configure globally; inherited from parent): github, playwright"
+          in dev_toml)
     # a github+playwright agent carries both (synthetic)
     both = common.derive_mcp_servers(["Read", "mcp__github__x", "mcp__playwright__y"])
     check("github+playwright -> both servers sorted", both == ["github", "playwright"], str(both))
@@ -901,10 +938,13 @@ def test_generated_tomls_parse():
         if not rel.endswith(".toml"):
             continue
         try:
-            tomllib.loads(content)
+            parsed = tomllib.loads(content)
+            if "mcp_servers" in parsed:
+                bad.append("%s: portable agent must inherit mcp_servers" % rel)
         except tomllib.TOMLDecodeError as exc:
             bad.append("%s: %s" % (rel, exc))
-    check("all generated codex-agents/*.toml parse with tomllib", not bad, str(bad[:2]))
+    check("all generated codex-agents/*.toml parse and inherit MCP configuration",
+          not bad, str(bad[:2]))
     # A control char in a description field still produces a PARSEABLE TOML (the
     # escaper, not a raw byte, lands in the basic string).
     comp = common.load_agents(REPO_ROOT)[0]
@@ -1355,6 +1395,7 @@ def main():
         test_validate_codex,
         test_validate_legacy_skills_list_rejected,
         test_validate_legacy_marketplace_source_rejected,
+        test_validate_malformed_agent_mcp_array_rejected,
         test_validate_version_parity,
         test_validate_non_dict_toplevel_rejected,
         test_manifest_discovers_every_generated_skill,
