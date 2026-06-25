@@ -13,13 +13,15 @@
 #
 # It:
 #   1. copies each generated codex-agents/<name>.toml  -> ~/.codex/agents/
-#   2. with --standalone, copies plugin hooks             -> ~/.codex/hooks/
-#   3. with --standalone, MERGES hooks.json into ~/.codex/hooks.json (never clobbers an
+#   2. by default, removes stale pre-plugin standalone toolbelt hook registrations
+#      from ~/.codex/hooks.json so old hooks cannot run beside plugin hooks.
+#   3. with --standalone, copies plugin hooks             -> ~/.codex/hooks/
+#   4. with --standalone, MERGES hooks.json into ~/.codex/hooks.json (never clobbers an
 #      existing notify / mcp_servers), AFTER substituting every
 #      ${PLUGIN_ROOT}/hooks reference with the absolute ~/.codex/hooks dir, so
 #      each command entry resolves to the copied script.
-#   4. with --standalone, copies skills                   -> ~/.agents/skills/
-#   5. prints MCP setup guidance (it does NOT run `codex mcp add` for you).
+#   5. with --standalone, copies skills                   -> ~/.agents/skills/
+#   6. prints MCP setup guidance (it does NOT run `codex mcp add` for you).
 #
 # jq is used for the hooks.json merge; without jq it PRINTS the generated hooks
 # block and the target path so you can merge by hand (jq is not a hard dep).
@@ -56,6 +58,8 @@ run() {
 AGENTS_SRC="$SCRIPT_DIR/codex-agents"
 HOOKS_SRC="$SCRIPT_DIR/plugins/maungs-agentic-toolbelt/hooks"
 SKILLS_SRC="$SCRIPT_DIR/plugins/maungs-agentic-toolbelt/skills"
+HOOK_DIR="$TARGET/hooks"
+DST_HOOKS_JSON="$TARGET/hooks.json"
 
 if [[ ! -d "$AGENTS_SRC" ]]; then
   echo "Generated artifacts not found. Run: python3 tools/build.py --target codex" >&2
@@ -101,10 +105,119 @@ for f in "${AGENT_FILES[@]}"; do
   info "agent: agents/$name"
 done
 
+# Remove old pre-plugin standalone hook registrations that point at
+# ~/.codex/hooks/<toolbelt-hook>.sh. These old registrations can run beside the
+# plugin-bundled hooks and emit invalid Codex hook output. Preserve any plugin
+# cache hook and any user-owned hook that does not point at this install dir.
+filter_legacy_toolbelt_hooks() {
+  # Reads hooks.json on stdin, writes the cleaned JSON on stdout.
+  # Exit 10 means content changed; exit 0 means no change.
+  command -v python3 >/dev/null 2>&1 || return 3
+  python3 -c '
+import json
+import sys
+
+hook_dir = sys.argv[1].rstrip("/")
+scripts = {
+    "toolbelt-router.sh",
+    "pretooluse-guard.sh",
+    "sessionstart-loader.sh",
+    "usage-tracker.sh",
+}
+
+try:
+    data = json.load(sys.stdin)
+except Exception as exc:
+    print("invalid hooks.json: %s" % exc, file=sys.stderr)
+    sys.exit(2)
+
+hooks = data.get("hooks")
+if not isinstance(hooks, dict):
+    json.dump(data, sys.stdout, indent=2, ensure_ascii=False)
+    sys.stdout.write("\n")
+    sys.exit(0)
+
+changed = False
+
+def is_legacy_toolbelt_command(command):
+    if not isinstance(command, str):
+        return False
+    if hook_dir not in command:
+        return False
+    return any(script in command for script in scripts)
+
+clean_hooks = {}
+for event, groups in hooks.items():
+    if not isinstance(groups, list):
+        clean_hooks[event] = groups
+        continue
+
+    clean_groups = []
+    for group in groups:
+        if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
+            clean_groups.append(group)
+            continue
+
+        kept = []
+        for entry in group["hooks"]:
+            command = entry.get("command") if isinstance(entry, dict) else None
+            if is_legacy_toolbelt_command(command):
+                changed = True
+                continue
+            kept.append(entry)
+
+        if kept:
+            updated = dict(group)
+            updated["hooks"] = kept
+            clean_groups.append(updated)
+        else:
+            changed = True
+
+    if clean_groups:
+        clean_hooks[event] = clean_groups
+    else:
+        changed = True
+
+data["hooks"] = clean_hooks
+json.dump(data, sys.stdout, indent=2, ensure_ascii=False)
+sys.stdout.write("\n")
+sys.exit(10 if changed else 0)
+' "$1"
+}
+
+cleanup_legacy_standalone_hooks() {
+  [[ -f "$DST_HOOKS_JSON" ]] || return 0
+
+  local cleaned rc
+  set +e
+  cleaned="$(filter_legacy_toolbelt_hooks "$HOOK_DIR" < "$DST_HOOKS_JSON")"
+  rc=$?
+  set -e
+
+  case "$rc" in
+    0) return 0 ;;
+    10)
+      if [[ "$DRY_RUN" == "true" ]]; then
+        info "[dry-run] would remove stale standalone toolbelt hook registrations from ${DST_HOOKS_JSON/#$HOME/~}"
+      else
+        printf '%s\n' "$cleaned" > "$DST_HOOKS_JSON"
+        info "removed stale standalone toolbelt hook registrations from ${DST_HOOKS_JSON/#$HOME/~}"
+      fi
+      ;;
+    3)
+      warn "python3 not found — cannot remove stale standalone toolbelt hooks from ${DST_HOOKS_JSON/#$HOME/~}"
+      ;;
+    *)
+      warn "could not inspect ${DST_HOOKS_JSON/#$HOME/~} for stale standalone toolbelt hooks"
+      ;;
+  esac
+}
+
+cleanup_legacy_standalone_hooks
+
 # 2) Standalone fallback: hooks -> ~/.codex/hooks/
 if [[ "$STANDALONE" == "true" ]]; then
 echo "Hooks (standalone fallback — plugin install is preferred):"
-HOOK_DIR="$TARGET/hooks"
 run mkdir -p "$HOOK_DIR"
 for f in "${HOOK_FILES[@]}"; do
   name="$(basename "$f")"
@@ -115,7 +228,6 @@ done
 
 # 3) Merge hooks.json (substitute the placeholder with the absolute hook dir).
 GEN_HOOKS_JSON="$HOOKS_SRC/hooks.json"
-DST_HOOKS_JSON="$TARGET/hooks.json"
 
 # Resolve the plugin-root hook path to the standalone install hook dir.
 # $HOOK_DIR is user-controlled (--target DIR), so the substitution MUST be

@@ -1,7 +1,7 @@
 {
   "name": "maungs-agentic-toolbelt",
   "description": "A project-agnostic, human-gated agentic software-development workflow engine — a carpenter's toolbelt that helps one developer move like a whole team (the force multiplier behind a 10x developer): 16 subagents + 11 skills spanning plan → build → review → wrap-up, plus bug diagnosis, code translation, chores, handoffs, scheduled cloud routines, a private per-project to-do backlog, and a self-maintaining codebase wiki. Runs on Claude Code (primary) and the OpenAI Codex CLI, with the Gemini CLI as the next work-in-progress port. Ships an always-on prompt router that surfaces the right component when a request fits, plus opt-in usage telemetry (/toolbelt metrics).",
-  "version": "0.10.5",
+  "version": "0.10.6",
   "license": "PolyForm-Noncommercial-1.0.0",
   "author": {
     "name": "Maung Htike",

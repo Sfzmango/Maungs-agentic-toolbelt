@@ -28,6 +28,10 @@ codex plugin add maungs-agentic-toolbelt@maung-tools
 ./install-codex.sh               # installs into ~/.codex/agents
 ```
 
+`./install-codex.sh` also removes stale pre-plugin standalone toolbelt hook
+registrations from `~/.codex/hooks.json`, so old `UserPromptSubmit`,
+`PreToolUse`, or `SessionStart` hooks cannot run beside the plugin-bundled hooks.
+
 Open `/hooks` once, review the plugin hooks, and trust them. Then start a new thread. Verify: `ls ~/.codex/agents` shows the custom agents, invoke a skill with `$toolbelt`, ask Codex to spawn the `architect` subagent, and confirm the `developer` / `architect` subagents still **pause** on commit/push gates. Full walkthrough: **[`docs/codex.md`](docs/codex.md)**.
 
 ### Supported targets
@@ -47,7 +51,7 @@ Codex artifacts are **generated** from the canonical `agents/*.md` + `skills/*/S
 
 ## Always-on hooks
 
-Installed as a plugin, the toolbelt registers three lightweight hooks. The first — a `UserPromptSubmit` hook — inspects each prompt and — **only when it matches a toolbelt capability** — nudges the host agent to offer the relevant component, so the right one surfaces without anyone remembering the command.
+Installed as a plugin, the toolbelt registers four lightweight hooks. The first — a `UserPromptSubmit` hook — inspects each prompt and — **only when it matches a toolbelt capability** — nudges the host agent to offer the relevant component, so the right one surfaces without anyone remembering the command.
 
 | A request like… | …surfaces |
 | --- | --- |
@@ -75,11 +79,11 @@ Three more hooks come with the plugin:
 
 **Guardrail (`PreToolUse`).** Before any shell command runs, it enforces two tiers. **Deny** (hard block) — the always-wrong cardinal-rule violations: `git add -A`/`.`, `git push --force` (without `--force-with-lease`), `--no-verify`, catastrophic `rm -rf` (on `/` `~` `*`), and AI-attributed commits. **Ask** (always prompts, with a detailed reason) — risky/data-loss ops that *might* be legitimate but must be confirmed first: destructive SQL (`DROP`/`TRUNCATE`/`DELETE`/`DROP COLUMN`), `db:drop`/`reset` & datastore flushes, `git reset --hard`/`clean -fd`/`branch -D`/`push --delete`, `rm -rf` of a non-disposable dir, `terraform destroy`/`kubectl delete`/`docker volume rm`, and bulk `find -delete`. It matches tokens in **invocation position**, so it is *not* tripped by a banned token quoted inside an argument — a PR body or commit message that merely *mentions* a rule (e.g. `gh pr create --body "we never --no-verify"`) is allowed — nor by a force flag (`-f`/`--force`) that belongs to an *unrelated command segment* in a compound invocation (e.g. a real push refspec followed by `; rm -f /tmp/x`); it stays **fail-closed** (matches as before) whenever the quoting is ambiguous. Everything else passes untouched. Disable with `export MAUNGS_TOOLBELT_GUARD=off`.
 
-On Codex, `PreToolUse` does not support an `ask` decision. The generated hook denies the first risky attempt with instructions to ask the user, then allows one explicitly confirmed retry prefixed with `MAUNGS_TOOLBELT_CONFIRMED=1`; hard-deny rules still apply to the retry.
+On Codex, the generated `PreToolUse` guard uses Codex's native `decision:"block"` contract. For risky ask-tier commands, it blocks the first attempt with instructions to ask the user, then allows one explicitly confirmed retry prefixed with `MAUNGS_TOOLBELT_CONFIRMED=1`; hard-deny rules still apply to the retry.
 
-**Session loader (`SessionStart`).** At session start it injects a concise, read-only project snapshot — branch, uncommitted-file count, recent commits, the latest plan, any pending handoff, open PRs, and a nudge to run `/agentic-onboard` if there's no `CLAUDE.md` — so Claude starts warm instead of re-deriving the repo. Disable with `export MAUNGS_TOOLBELT_LOADER=off`.
+**Session loader (`SessionStart`).** At session start it injects a concise, read-only project snapshot — branch, uncommitted-file count, recent commits, the latest plan, any pending handoff, open PRs, and a nudge to run `/agentic-onboard` on Claude or `$agentic-onboard` on Codex if there's no `CLAUDE.md` / `AGENTS.md` context — so the host starts warm instead of re-deriving the repo. Disable with `export MAUNGS_TOOLBELT_LOADER=off`.
 
-**Usage telemetry (`PreToolUse` on `Task`/`Skill`).** A pass-through hook that records *when the toolbelt actually gets used* — paired with the router's *suggested* events, it answers "is this thing earning its keep?" It is **opt-in and off by default**: nothing is written unless you set `export MAUNGS_TOOLBELT_DEBUG=on` (or `=verbose`, which also traces each event to stderr — visible under `claude --debug`). When on, the router logs every component it **offers** and this hook logs every toolbelt agent/skill that actually **runs**, to an append-only JSONL log on your machine (`~/.claude/maungs-toolbelt/usage.jsonl`, override with `MAUNGS_TOOLBELT_LOG`) — never inside a project repo. It never blocks a tool, only counts our own components (built-in and third-party agents are ignored), and is read-only apart from that log. View a summary anytime with **`/toolbelt metrics`** — suggestions by intent, invocations by component, and the same-session suggestion→use conversion rate.
+**Usage telemetry.** A pass-through hook records *when the toolbelt actually gets used* — paired with the router's *suggested* events, it answers "is this thing earning its keep?" Claude records `Task`/`Skill` use through `PreToolUse`; Codex records custom-agent starts through `SubagentStart` and explicit `$skill` mentions through `UserPromptSubmit`. It is **opt-in and off by default**: nothing is written unless you set `export MAUNGS_TOOLBELT_DEBUG=on` (or `=verbose`, which also traces each event to hook diagnostics). When on, the router logs every component it **offers** and telemetry logs every toolbelt agent/skill that actually **runs**, to an append-only JSONL log on your machine (`~/.claude/maungs-toolbelt/usage.jsonl` on Claude, `~/.codex/maungs-toolbelt/usage.jsonl` on Codex, override with `MAUNGS_TOOLBELT_LOG`) — never inside a project repo. It never blocks a tool, only counts our own components (built-in and third-party agents are ignored), and is read-only apart from that log. View a summary anytime with **`/toolbelt metrics`** on Claude or **`$toolbelt metrics`** on Codex — suggestions by intent, invocations by component, and the same-session suggestion→use conversion rate.
 
 All four hooks ship with the **plugin** install; the copy / `install.sh` method installs the agents and skills without them.
 

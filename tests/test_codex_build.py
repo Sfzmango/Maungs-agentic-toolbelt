@@ -736,6 +736,202 @@ def test_install_codex_modes():
         shutil.rmtree(target, ignore_errors=True)
 
 
+def _write_json(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(obj, fh, indent=2)
+        fh.write("\n")
+
+
+def _hook_commands(hooks_obj):
+    commands = []
+    for groups in hooks_obj.get("hooks", {}).values():
+        if not isinstance(groups, list):
+            continue
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            for entry in group.get("hooks", []):
+                if isinstance(entry, dict) and "command" in entry:
+                    commands.append(entry["command"])
+    return commands
+
+
+def test_install_codex_removes_legacy_standalone_hooks_default_mode():
+    print("\n[installer: default plugin mode removes stale standalone hook registrations]")
+    target = tempfile.mkdtemp()
+    try:
+        codex_dir = os.path.join(target, ".codex")
+        hook_dir = os.path.join(codex_dir, "hooks")
+        hooks_json = os.path.join(codex_dir, "hooks.json")
+        plugin_cmd = (
+            'bash "%s"'
+            % os.path.join(
+                codex_dir,
+                "plugins",
+                "cache",
+                "maung-tools",
+                "maungs-agentic-toolbelt",
+                "0.10.5",
+                "hooks",
+                "toolbelt-router.sh",
+            )
+        )
+        custom_cmd = 'bash "%s"' % os.path.join(codex_dir, "hooks", "custom.sh")
+        legacy_router = '"%s"/toolbelt-router.sh' % hook_dir
+        legacy_guard = 'bash "%s"' % os.path.join(hook_dir, "pretooluse-guard.sh")
+        legacy_tracker = '"%s"/usage-tracker.sh' % hook_dir
+        legacy_loader = 'bash "%s"' % os.path.join(hook_dir, "sessionstart-loader.sh")
+        _write_json(
+            hooks_json,
+            {
+                "notify": [{"command": "say done"}],
+                "hooks": {
+                    "UserPromptSubmit": [
+                        {
+                            "hooks": [
+                                {"type": "command", "command": legacy_router, "timeout": 10},
+                                {"type": "command", "command": plugin_cmd, "timeout": 10},
+                            ]
+                        }
+                    ],
+                    "PreToolUse": [
+                        {
+                            "matcher": "Task|Skill",
+                            "hooks": [
+                                {"type": "command", "command": legacy_tracker, "timeout": 10}
+                            ],
+                        },
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                {"type": "command", "command": legacy_guard, "timeout": 10},
+                                {"type": "command", "command": custom_cmd, "timeout": 10}
+                            ],
+                        },
+                    ],
+                    "SessionStart": [
+                        {
+                            "hooks": [
+                                {"type": "command", "command": legacy_loader, "timeout": 10}
+                            ]
+                        }
+                    ],
+                },
+            },
+        )
+
+        proc = subprocess.run(
+            ["bash", "install-codex.sh", "--target", target],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("default install with legacy hooks exits 0", proc.returncode == 0, proc.stderr)
+        with open(hooks_json, encoding="utf-8") as fh:
+            obj = json.load(fh)
+        commands = _hook_commands(obj)
+        stale = [cmd for cmd in commands if hook_dir in cmd and "toolbelt-" in cmd]
+        stale += [cmd for cmd in commands if hook_dir in cmd and "pretooluse-guard.sh" in cmd]
+        stale += [cmd for cmd in commands if hook_dir in cmd and "usage-tracker.sh" in cmd]
+        stale += [cmd for cmd in commands if hook_dir in cmd and "sessionstart-loader.sh" in cmd]
+        check("legacy standalone toolbelt commands removed", not stale, str(stale))
+        check("plugin-cache hook command preserved", plugin_cmd in commands, str(commands))
+        check("user custom hook command preserved", custom_cmd in commands, str(commands))
+        check("non-hook top-level keys preserved", obj.get("notify") == [{"command": "say done"}])
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+
+
+def test_install_codex_standalone_replaces_legacy_hooks():
+    print("\n[installer: standalone mode replaces old standalone hook command forms]")
+    target = tempfile.mkdtemp()
+    try:
+        codex_dir = os.path.join(target, ".codex")
+        hook_dir = os.path.join(codex_dir, "hooks")
+        hooks_json = os.path.join(codex_dir, "hooks.json")
+        _write_json(
+            hooks_json,
+            {
+                "hooks": {
+                    "UserPromptSubmit": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": '"%s"/toolbelt-router.sh' % hook_dir,
+                                    "timeout": 10,
+                                }
+                            ]
+                        }
+                    ],
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": '"%s"/pretooluse-guard.sh' % hook_dir,
+                                    "timeout": 10,
+                                }
+                            ],
+                        },
+                        {
+                            "matcher": "Task|Skill",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": '"%s"/usage-tracker.sh' % hook_dir,
+                                    "timeout": 10,
+                                }
+                            ],
+                        }
+                    ],
+                    "SessionStart": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": '"%s"/sessionstart-loader.sh' % hook_dir,
+                                    "timeout": 10,
+                                }
+                            ]
+                        }
+                    ],
+                }
+            },
+        )
+        proc = subprocess.run(
+            ["bash", "install-codex.sh", "--target", target, "--standalone"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        check("standalone install with legacy hooks exits 0", proc.returncode == 0, proc.stderr)
+        with open(hooks_json, encoding="utf-8") as fh:
+            obj = json.load(fh)
+        commands = _hook_commands(obj)
+        check("old quoted standalone command form removed",
+              not any(cmd.startswith('"%s"') for cmd in commands), str(commands))
+        check("fresh standalone UserPromptSubmit command installed",
+              'bash "%s"' % os.path.join(hook_dir, "toolbelt-router.sh") in commands,
+              str(commands))
+        check("fresh standalone PreToolUse command installed",
+              'bash "%s"' % os.path.join(hook_dir, "pretooluse-guard.sh") in commands,
+              str(commands))
+        check("fresh standalone SessionStart command installed",
+              'bash "%s"' % os.path.join(hook_dir, "sessionstart-loader.sh") in commands,
+              str(commands))
+        check("usage tracker moved to SubagentStart",
+              obj.get("hooks", {}).get("SubagentStart") is not None
+              and "Task|Skill" not in json.dumps(obj),
+              json.dumps(obj)[:300])
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+
+
 def test_codex_install_command_is_current():
     print("\n[docs: current Codex plugin add command]")
     active_files = ("README.md", "docs/codex.md", "install-codex.sh")
@@ -1099,8 +1295,12 @@ def test_hook_pretooluse_guard():
           "copilot" in out and "codex" in out and "gpt" in out)
     check("deny() emits Codex hookSpecificOutput decision",
           'hookEventName:"PreToolUse",permissionDecision:"deny"' in out)
+    check("deny() also emits Codex native block decision",
+          'decision:"block",reason:$r' in out)
     check("unsupported permissionDecision ask is absent",
           'permissionDecision:"ask"' not in out)
+    check("unsupported permissionDecision ask wording is absent",
+          'permissionDecision "ask"' not in out and "BLOCK-CONFIRM tier" in out)
     check("ask tier instructs explicit confirmation + one retry",
           "MAUNGS_TOOLBELT_CONFIRMED=1" in out and "wait for explicit confirmation" in out)
     # Functional: a non-Claude Co-Authored-By trailer is denied.
@@ -1111,13 +1311,16 @@ def test_hook_pretooluse_guard():
         payload = '{"tool_name":"Bash","tool_input":{"command":"git commit -m \\"x\\n\\nCo-Authored-By: Copilot <x@github.com>\\""}}'
         proc = subprocess.run(["bash", tmp.name], input=payload, capture_output=True, text=True)
         check("generated guard DENIES a non-Claude (Copilot) attribution",
-              '"permissionDecision": "deny"' in proc.stdout, proc.stdout[:120])
+              '"decision": "block"' in proc.stdout
+              and '"permissionDecision": "deny"' in proc.stdout,
+              proc.stdout[:160])
         destructive = '{"tool_name":"Bash","tool_input":{"command":"DROP TABLE users"}}'
         first = subprocess.run(
             ["bash", tmp.name], input=destructive, capture_output=True, text=True
         ).stdout
         check("ask-tier command is denied with confirmation instructions",
-              '"permissionDecision": "deny"' in first
+              '"decision": "block"' in first
+              and '"permissionDecision": "deny"' in first
               and "MAUNGS_TOOLBELT_CONFIRMED=1" in first, first[:200])
         confirmed = (
             '{"tool_name":"Bash","tool_input":{"command":'
@@ -1147,7 +1350,7 @@ def test_hook_pretooluse_guard_attribution_wholeword():
         cmd = 'git commit -m %s' % json.dumps(msg)
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
         proc = subprocess.run(["bash", tmp.name], input=payload, capture_output=True, text=True)
-        return '"permissionDecision": "deny"' in proc.stdout
+        return '"decision": "block"' in proc.stdout and '"permissionDecision": "deny"' in proc.stdout
 
     try:
         check("DENIES 'Co-Authored-By: GitHub Copilot' (not first position)",
@@ -1323,23 +1526,31 @@ def test_hook_sessionstart_loader_skill_invocation_at_mention():
     )
     env = os.environ.copy()
     env["MAUNGS_TOOLBELT_UPDATE_CHECK"] = "off"
-    # Exclude Homebrew paths so gh cannot make a network call during this
-    # execution-level contract test. The Python fallback remains available on
-    # normal CI images when jq is absent.
-    env["PATH"] = "/usr/bin:/bin"
-    proc = subprocess.run(
-        ["bash", hook],
-        input=json.dumps({
-            "hook_event_name": "SessionStart",
-            "source": "startup",
-            "cwd": REPO_ROOT,
-        }),
-        cwd=REPO_ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
+    # Hide gh so this execution-level contract test never makes a network call,
+    # but keep the actually-working git. On macOS /usr/bin/git may be an Apple
+    # shim that fails when Command Line Tools are not installed, while Homebrew
+    # git is the usable binary.
+    git_bin = shutil.which("git")
+    path_tmp = tempfile.mkdtemp()
+    try:
+        if git_bin:
+            os.symlink(git_bin, os.path.join(path_tmp, "git"))
+        env["PATH"] = path_tmp + os.pathsep + "/usr/bin:/bin"
+        proc = subprocess.run(
+            ["bash", hook],
+            input=json.dumps({
+                "hook_event_name": "SessionStart",
+                "source": "startup",
+                "cwd": REPO_ROOT,
+            }),
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    finally:
+        shutil.rmtree(path_tmp, ignore_errors=True)
     check("SessionStart hook exits successfully", proc.returncode == 0, proc.stderr)
     try:
         payload = json.loads(proc.stdout)
@@ -1583,6 +1794,8 @@ def main():
         test_validate_overlong_skill_description_rejected,
         test_generated_codex_runtime_portability,
         test_install_codex_modes,
+        test_install_codex_removes_legacy_standalone_hooks_default_mode,
+        test_install_codex_standalone_replaces_legacy_hooks,
         test_codex_install_command_is_current,
         test_transforms_claude_mcp_cli,
         test_transforms_mcp_prose_server_agnostic,

@@ -65,8 +65,8 @@ tool="$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)"
 cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -z "$cmd" ] && exit 0
 
-# Codex has no PreToolUse "ask" decision. After the hook blocks an
-# ask-tier command and the user explicitly confirms it, retry exactly
+# Codex native blocking uses decision:"block". For ask-tier commands,
+# block first; after the user explicitly confirms it, retry exactly
 # once with this environment prefix. The prefix is stripped only for
 # guard analysis; the shell still receives the original command.
 TB_CONFIRMED=0
@@ -218,7 +218,7 @@ neutralize_quotes() {
 neutralize_quotes
 
 deny() {
-  jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
+  jq -n --arg r "$1" '{decision:"block",reason:$r,hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
 has() { printf '%s' "$scan" | grep -qE -- "$1"; }
@@ -241,7 +241,7 @@ ask() {
   r="$1 Ask the user in chat and wait for explicit confirmation. After
 confirmation, retry the exact command once with the prefix
 MAUNGS_TOOLBELT_CONFIRMED=1."
-  jq -n --arg r "$r" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
+  jq -n --arg r "$r" '{decision:"block",reason:$r,hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
 
@@ -346,9 +346,10 @@ if hasraw 'git([[:space:]]|.)*commit' && hasrawi 'Co-Authored-By:[^<]*\b(claude|
 fi
 
 # ============================================================================
-# ASK tier — risky / data-loss operations that MAY be legitimate but must
-# ALWAYS be confirmed first. Emits permissionDecision "ask" + a detailed reason
-# (it PROMPTS the user; it does not block). The deny rules above take precedence.
+# BLOCK-CONFIRM tier — risky / data-loss operations that MAY be legitimate but
+# must be confirmed first. Codex blocks the first attempt with a detailed reason
+# and allows one explicit MAUNGS_TOOLBELT_CONFIRMED=1 retry. The deny rules
+# above take precedence.
 # ============================================================================
 
 # Destructive SQL — DROP / TRUNCATE / DELETE FROM / DROP COLUMN

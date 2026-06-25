@@ -36,18 +36,38 @@ LANGS = {
     "python":     {"file": "solution.py",   "run": ["python3", "{src}"],                                  "bin": "python3"},
     "ruby":       {"file": "solution.rb",   "run": ["ruby", "{src}"],                                     "bin": "ruby"},
     "javascript": {"file": "solution.js",   "run": ["node", "{src}"],                                     "bin": "node"},
-    "java":       {"file": "Solution.java", "build": ["javac", "{src}"], "run": ["java", "-cp", "{dir}", "Solution"], "bin": "javac"},
+    "java":       {"file": "Solution.java", "build": ["javac", "{src}"], "run": ["java", "-cp", "{dir}", "Solution"], "bin": "javac", "probe": ["javac", "-version"]},
     "cpp":        {"file": "solution.cpp",  "build": ["g++", "-O2", "-std=c++17", "{src}", "-o", "{bin}"], "run": ["{bin}"], "bin": "g++"},
-    "go":         {"file": "solution.go",   "run": ["go", "run", "{src}"],                                "bin": "go"},
+    "go":         {"file": "solution.go",   "run": ["go", "run", "{src}"],                                "bin": "go", "probe": ["go", "version"]},
     "php":        {"file": "solution.php",  "run": ["php", "{src}"],                                      "bin": "php"},
     "rust":       {"file": "solution.rs",   "build": ["rustc", "-O", "{src}", "-o", "{bin}"], "run": ["{bin}"], "bin": "rustc"},
     "csharp":     {"file": "solution.cs",   "showcase_only": True, "bin": "dotnet"},
     "cobol":      {"file": "solution.cob",  "build": ["cobc", "-x", "-free", "{src}", "-o", "{bin}"], "run": ["{bin}"], "bin": "cobc"},
-    "kotlin":     {"file": "solution.kt",   "showcase_only": True, "bin": "kotlinc"},
+    "kotlin":     {"file": "solution.kt",   "showcase_only": True, "bin": "kotlinc", "probe": ["kotlinc", "-version"]},
 }
 
+_TOOL_CACHE = {}
+
+def tool_available(lang):
+    """True only when the configured tool binary exists and can actually run."""
+    if lang in _TOOL_CACHE:
+        return _TOOL_CACHE[lang]
+    cfg = LANGS[lang]
+    binary = shutil.which(cfg["bin"])
+    if binary is None:
+        _TOOL_CACHE[lang] = False
+        return False
+    probe = cfg.get("probe", [cfg["bin"], "--version"])
+    try:
+        proc = subprocess.run(probe, capture_output=True, text=True, timeout=5)
+    except Exception:
+        _TOOL_CACHE[lang] = False
+        return False
+    _TOOL_CACHE[lang] = proc.returncode == 0
+    return _TOOL_CACHE[lang]
+
 def runnable(lang):
-    return shutil.which(LANGS[lang]["bin"]) is not None and not LANGS[lang].get("showcase_only")
+    return tool_available(lang) and not LANGS[lang].get("showcase_only")
 
 def norm(s):
     return "\n".join(line.rstrip() for line in s.replace("\r\n", "\n").rstrip("\n").split("\n"))
