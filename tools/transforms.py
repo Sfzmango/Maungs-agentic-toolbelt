@@ -935,10 +935,11 @@ exit 0
 def transform_pretooluse_guard(body: str) -> str:
     """Adapt ``pretooluse-guard.sh`` for Codex.
 
-    * Emit only Codex's supported ``hookSpecificOutput.permissionDecision`` form.
-    * Codex PreToolUse cannot return ``ask``. Emulate the Claude ask tier by
-      denying the first attempt with an instruction to ask the user, then allowing
-      a confirmed retry prefixed with ``MAUNGS_TOOLBELT_CONFIRMED=1``. Hard-deny
+    * Emit Codex's native flat ``decision:"block"`` form alongside the
+      compatibility ``hookSpecificOutput.permissionDecision:"deny"`` form.
+    * Do not rely on Claude-style ask semantics. Emulate the ask tier by blocking
+      the first attempt with an instruction to ask the user, then allowing a
+      confirmed retry prefixed with ``MAUNGS_TOOLBELT_CONFIRMED=1``. Hard-deny
       rules still run on confirmed retries.
     * Broaden the attribution denylist (rule 5) to be MODEL-AGNOSTIC — deny any
       AI/assistant co-author trailer or "Generated with <any AI tool>" line, not
@@ -992,8 +993,8 @@ def transform_pretooluse_guard(body: str) -> str:
         body,
         '[ -z "$cmd" ] && exit 0',
         '[ -z "$cmd" ] && exit 0\n\n'
-        '# Codex has no PreToolUse "ask" decision. After the hook blocks an\n'
-        '# ask-tier command and the user explicitly confirms it, retry exactly\n'
+        '# Codex native blocking uses decision:"block". For ask-tier commands,\n'
+        '# block first; after the user explicitly confirms it, retry exactly\n'
         '# once with this environment prefix. The prefix is stripped only for\n'
         '# guard analysis; the shell still receives the original command.\n'
         'TB_CONFIRMED=0\n'
@@ -1012,7 +1013,7 @@ def transform_pretooluse_guard(body: str) -> str:
     )
     new_deny = (
         'deny() {\n'
-        '  jq -n --arg r "$1" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}\'\n'
+        '  jq -n --arg r "$1" \'{decision:"block",reason:$r,hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}\'\n'
         '  exit 0\n'
         '}'
     )
@@ -1029,11 +1030,25 @@ def transform_pretooluse_guard(body: str) -> str:
         '  r="$1 Ask the user in chat and wait for explicit confirmation. After\n'
         'confirmation, retry the exact command once with the prefix\n'
         'MAUNGS_TOOLBELT_CONFIRMED=1."\n'
-        '  jq -n --arg r "$r" \'{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}\'\n'
+        '  jq -n --arg r "$r" \'{decision:"block",reason:$r,hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}\'\n'
         '  exit 0\n'
         '}'
     )
     body = _replace_or_die(body, old_ask, new_ask)
+    body = _replace_or_die(
+        body,
+        '# ============================================================================\n'
+        '# ASK tier — risky / data-loss operations that MAY be legitimate but must\n'
+        '# ALWAYS be confirmed first. Emits permissionDecision "ask" + a detailed reason\n'
+        '# (it PROMPTS the user; it does not block). The deny rules above take precedence.\n'
+        '# ============================================================================',
+        '# ============================================================================\n'
+        '# BLOCK-CONFIRM tier — risky / data-loss operations that MAY be legitimate but\n'
+        '# must be confirmed first. Codex blocks the first attempt with a detailed reason\n'
+        '# and allows one explicit MAUNGS_TOOLBELT_CONFIRMED=1 retry. The deny rules\n'
+        '# above take precedence.\n'
+        '# ============================================================================',
+    )
     return body
 
 

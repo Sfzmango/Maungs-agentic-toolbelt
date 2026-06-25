@@ -31,6 +31,11 @@ codex plugin add maungs-agentic-toolbelt@maung-tools
 ./install-codex.sh
 ```
 
+`./install-codex.sh` installs custom subagents and removes stale pre-plugin
+standalone toolbelt hook registrations from `~/.codex/hooks.json`. This prevents
+old local `UserPromptSubmit`, `PreToolUse`, or `SessionStart` hooks from running
+beside the plugin-bundled hooks after an upgrade.
+
 Then:
 
 1. Open `/hooks`, review the plugin-bundled hooks, and trust them.
@@ -92,12 +97,16 @@ The plugin registers:
 - `SubagentStart` → custom-agent usage telemetry.
 
 Hooks are trust-gated by Codex. If they do not run, check `/hooks` first.
+If Codex reports `UserPromptSubmit`, `PreToolUse`, or `SessionStart` JSON-output
+failures after an upgrade, rerun `./install-codex.sh` from the updated checkout,
+then start a new Codex thread. The installer removes legacy standalone toolbelt
+registrations that older installs placed in `~/.codex/hooks.json`.
 
 The guard requires `jq`. Without it, parsing fails open and commands are allowed.
-Codex `PreToolUse` supports `allow` and `deny`, not Claude's `ask`. For risky
-ask-tier commands, the generated guard:
+The generated Codex `PreToolUse` guard uses Codex's native `decision:"block"`
+contract. For risky ask-tier commands, it:
 
-1. denies the first attempt with a detailed reason;
+1. blocks the first attempt with a detailed reason;
 2. instructs Codex to ask the user and wait;
 3. allows one confirmed retry prefixed with
    `MAUNGS_TOOLBELT_CONFIRMED=1`.
