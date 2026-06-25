@@ -49,6 +49,49 @@ Every command is cited to its source. There is no install/build/lint/format tool
 - Agents are flat, skills are foldered. Everything is project-agnostic — auto-detect, never hardcode a stack.
 - Counts and descriptions are kept in sync (CI-enforced — see Gotchas).
 
+## Generator port rule
+
+Whenever work touches the Codex port, generated Codex artifacts, the target
+generator, or a repo-wide/global sweep audits this repo, re-check this rule
+before editing and before reporting the work complete.
+
+- **Canonical source:** `agents/*.md`, `skills/*/SKILL.md`, and `hooks/`.
+  `codex-agents/` and `plugins/maungs-agentic-toolbelt/{skills,hooks,bin}/`
+  are generator output only. Never hand-edit them; edit canonical source and
+  regenerate.
+- **Generator ownership:** `tools/build.py` is the entrypoint,
+  `tools/emit/common.py` is the shared core, `tools/emit/target_*.py` are the
+  per-target emitters, and `tools/transforms.py` owns Codex-specific prose and
+  hook adaptation. Claude is validate-only; Codex is emitted. A future target is
+  a new emitter plus target-table/docs updates, not a fork of component content.
+- **Port trigger:** if a canonical agent, skill, or hook adds Claude-specific or
+  target-specific syntax, paths, commands, lifecycle fields, install/registry
+  mechanics, MCP assumptions, local-state paths, memory semantics, or
+  user-interaction/gate mechanics, update `tools/transforms.py`, add positive
+  and negative coverage in `tests/test_codex_build.py`, then regenerate.
+- **Hook exception:** hooks do not pass through `transform_body`; they use
+  filename-specific hook transforms. Generated hook files are evidence that the
+  transform works, not repair points.
+- **Codex agent shape:** generated custom-agent TOML omits `mcp_servers`;
+  dependencies are derived from canonical `tools:` grants and recorded as
+  comments while complete transports come from the parent Codex config.
+- **Determinism:** generator output must stay stdlib-only and byte-stable:
+  sorted enumeration, normalized newlines, exactly one trailing newline, no
+  timestamps, no host paths, and no environment-derived content.
+- **Sweep checklist:** a repo-wide/global sweep in this repo must include Codex
+  port consistency: no direct generated-artifact edits, no stale transforms for
+  new target-specific prose/mechanics, no drift from canonical, and no mismatch
+  between docs and generated behavior.
+
+Minimum Codex-port verification commands:
+
+```sh
+python3 tests/test_codex_build.py
+python3 tools/build.py --target codex --check
+python3 tools/build.py --target claude --check
+python3 tools/validate_codex.py
+```
+
 ## Testing
 
 - **Framework:** plain Python 3 stdlib (no pytest); tests live in `tests/`.
